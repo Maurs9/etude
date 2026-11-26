@@ -1,13 +1,15 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
-test('scale hints use family tabs with dual-hand fingerings and play without opening the dock', async ({ app }) => {
+test('scale hints use unified family tabs (including Arpeggios) with dual-color RH/LH fingerings and play without opening the dock', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#pr-t-scale').click();
   await page.locator('#pr-mode button[data-v="ear"]').click();
   await page.locator('#pr-songs summary').click();
   const list = page.locator('#practiceHintsList');
-  await expect(list.locator('.pr-family-tab')).toHaveCount(5);
+  await expect(list.locator('.pr-family-tab')).toHaveCount(6);
+  await expect(list.locator('.pr-hand-pill-rh')).toBeVisible();
+  await expect(list.locator('.pr-hand-pill-lh')).toBeVisible();
   await expect(list.locator('[data-hint]')).toHaveCount(4);
   await expect(list.locator('.pr-hint-cue')).toHaveCount(0);
   await expect(list.locator('.pr-hint-reference')).toHaveCount(0);
@@ -15,7 +17,16 @@ test('scale hints use family tabs with dual-hand fingerings and play without ope
   const major = list.locator('[data-hint="Major (Ionian)"]');
   await expect(major.locator('.pr-hint-key-finger-rh')).toHaveText(['1', '2', '3', '1', '2', '3', '4', '5']);
   await expect(major.locator('.pr-hint-key-finger-lh')).toHaveText(['5', '4', '3', '2', '1', '3', '2', '1']);
+  await expect(major.locator('.pr-hint-badge-rh')).toHaveCount(8);
+  await expect(major.locator('.pr-hint-badge-lh')).toHaveCount(8);
   await expect(major.getByRole('button', { name: /^Left hand/ })).toHaveCount(0);
+
+  // Verify Arpeggios tab shows dual-color RH/LH fingerings for major & minor arpeggios.
+  await list.locator('[data-hint-family="arpeggios"]').click();
+  await expect(list.locator('[data-hint]')).toHaveCount(2);
+  const arpMaj = list.locator('[data-hint="arpMajor"]');
+  await expect(arpMaj.locator('.pr-hint-key-finger-rh')).toHaveText(['1', '2', '3', '5']);
+  await expect(arpMaj.locator('.pr-hint-key-finger-lh')).toHaveText(['5', '4', '2', '1']);
 
   await list.locator('[data-hint-family="modes"]').click();
   await expect(list.locator('[data-hint]')).toHaveCount(5);
@@ -46,7 +57,7 @@ test('scale hints use family tabs with dual-hand fingerings and play without ope
 
   await list.locator('[data-hint-family="all"]').click();
   await expect(list.getByRole('heading', { level: 2 })).toHaveText([
-    'Major & Minor', 'Modes', 'Pentatonic & Blues', 'Exotic and symmetrical',
+    'Major & Minor', 'Arpeggios', 'Modes', 'Pentatonic & Blues', 'Exotic and symmetrical',
   ]);
-  await expect(list.locator('[data-hint]')).toHaveCount(19);
+  await expect(list.locator('[data-hint]')).toHaveCount(21);
 });

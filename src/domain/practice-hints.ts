@@ -56,7 +56,21 @@ export interface TechniqueHint {
 }
 
 export type ChordHintFamily = 'major' | 'minor' | 'dominant' | 'suspended';
+export type ChordHintTier = 'triads' | 'sevenths' | 'all';
 export type ScaleHintFamily = 'core' | 'modes' | 'pentatonic' | 'exotic';
+export type ProgressionHintFamily = 'popular' | 'cadences' | 'jazz';
+export type MelodyHintDifficulty = 'easy' | 'medium' | 'advanced';
+
+export const CHORD_HINT_TIER_TRIADS: ReadonlySet<string> = new Set(['maj', 'm', 'dim', 'aug']);
+export const CHORD_HINT_TIER_SEVENTHS: ReadonlySet<string> = new Set([
+  'maj', 'm', 'dim', 'aug', 'sus2', 'sus4', '6', 'm6', 'maj7', '7', 'm7', 'mMaj7', 'm7♭5', 'dim7',
+]);
+
+export function chordHintInTier(symbol: string, tier: ChordHintTier): boolean {
+  if (tier === 'triads') return CHORD_HINT_TIER_TRIADS.has(symbol);
+  if (tier === 'sevenths') return CHORD_HINT_TIER_SEVENTHS.has(symbol);
+  return true;
+}
 
 export const CHORD_HINT_FAMILIES: readonly { readonly id: ChordHintFamily; readonly symbols: readonly string[] }[] = [
   { id: 'major', symbols: ['maj', '6', 'maj7', 'add9', 'maj9', 'maj7♯11'] },
@@ -70,6 +84,56 @@ export const SCALE_HINT_FAMILIES: readonly { readonly id: ScaleHintFamily; reado
   { id: 'modes', names: ['Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Locrian'] },
   { id: 'pentatonic', names: ['Major pentatonic', 'Minor pentatonic', 'Blues'] },
   { id: 'exotic', names: ['Harmonic major', 'Phrygian dominant', 'Hungarian minor', 'Whole tone', 'Diminished (W-H)', 'Diminished (H-W)', 'Chromatic'] },
+];
+
+export interface ArpeggioHint {
+  readonly id: 'arpMajor' | 'arpMinor';
+  readonly formula: string;
+  readonly offsets: readonly number[];
+}
+
+export const ARPEGGIO_HINTS: readonly ArpeggioHint[] = [
+  { id: 'arpMajor', formula: '1 3 5 8', offsets: [0, 4, 7, 12] },
+  { id: 'arpMinor', formula: '1 ♭3 5 8', offsets: [0, 3, 7, 12] },
+];
+
+const ARPEGGIO_FINGERINGS: Readonly<Record<'arpMajor' | 'arpMinor', Readonly<Record<TechniqueHand, readonly string[]>>>> = {
+  arpMajor: {
+    rh: ['1235', '2124', '1235', '2124', '1235', '1235', '1235', '1235', '2124', '1235', '2124', '1235'],
+    lh: ['5421', '2142', '5321', '2142', '5321', '5421', '5321', '5421', '2142', '5321', '3213', '5321'],
+  },
+  arpMinor: {
+    rh: ['1235', '2124', '1235', '1235', '1235', '1235', '2124', '1235', '2124', '1235', '2312', '1235'],
+    lh: ['5321', '2142', '5421', '5321', '5421', '5321', '2142', '5321', '2142', '5421', '3213', '5421'],
+  },
+};
+
+export function arpeggioHintTones(kind: 'arpMajor' | 'arpMinor', tonic: number) {
+  const hint = ARPEGGIO_HINTS.find(item => item.id === kind) ?? ARPEGGIO_HINTS[0];
+  const tonicPc = pitchClass(tonic);
+  const root = practiceTonicMidi(tonicPc, 'near-middle-c');
+  const fifths = keyFifths(tonicPc, kind === 'arpMinor');
+  const tonicSpell = spellMidi(root, fifths, kind === 'arpMinor');
+  const degrees = [1, 3, 5, 8];
+  const rh = [...ARPEGGIO_FINGERINGS[kind].rh[tonicPc]].map(Number);
+  const lh = [...ARPEGGIO_FINGERINGS[kind].lh[tonicPc]].map(Number);
+  return hint.offsets.map((offset, index) => {
+    const midi = root + offset;
+    const written = spellDiatonicDegree(tonicSpell, midi, degrees[index]);
+    return { ...written, midi, tonic: index === 0 || index === 3, fingerRh: rh[index], fingerLh: lh[index] };
+  });
+}
+
+export function arpeggioHintSteps(kind: 'arpMajor' | 'arpMinor', tonic: number): PracticeHintStep[] {
+  const up = arpeggioHintTones(kind, tonic);
+  const full = [...up, ...up.slice(0, -1).reverse()];
+  return full.map((tone, i) => ({ ...block([tone.midi], 0.22, i + 1 === full.length ? 0.22 : 0.04), diagramKey: kind }));
+}
+
+export const PROGRESSION_HINT_FAMILIES: readonly { readonly id: ProgressionHintFamily; readonly names: readonly string[] }[] = [
+  { id: 'popular', names: ['I–V–vi–IV (pop)', 'I–vi–IV–V (50s)', 'vi–IV–I–V', 'I–♭VII–IV (rock)', 'i–♭VI–♭VII (epic)'] },
+  { id: 'cadences', names: ['I–IV–V', 'Pachelbel’s Canon', 'ii–V–I (jazz)'] },
+  { id: 'jazz', names: ['ii–V–I (jazz)', 'minor ii–V–i', '12-bar blues'] },
 ];
 
 const CHORD_COMPARE_DEFAULTS: Readonly<Record<string, string>> = {
@@ -209,16 +273,19 @@ export const PROGRESSION_HINTS: readonly ProgressionHint[] = [
 ];
 
 export const MELODY_HINTS = [
-  { id: 'rising', phrase: [[0, 1], [2, 1], [4, 1], [7, 1]] },
-  { id: 'falling', phrase: [[7, 0.5], [5, 0.5], [4, 1], [2, 1], [0, 1]] },
-  { id: 'repeated', phrase: [[0, 0.5], [0, 0.5], [4, 1], [2, 1], [0, 1]] },
+  { id: 'rising', difficulty: 'easy' as MelodyHintDifficulty, degrees: [1, 2, 3, 5], phrase: [[0, 1], [2, 1], [4, 1], [7, 1]] },
+  { id: 'repeated', difficulty: 'easy' as MelodyHintDifficulty, degrees: [1, 1, 3, 2, 1], phrase: [[0, 0.5], [0, 0.5], [4, 1], [2, 1], [0, 1]] },
+  { id: 'arpeggio', difficulty: 'medium' as MelodyHintDifficulty, degrees: [1, 3, 5, 4, 3, 1], phrase: [[0, 0.5], [4, 0.5], [7, 1], [5, 0.5], [4, 0.5], [0, 1]] },
+  { id: 'falling', difficulty: 'medium' as MelodyHintDifficulty, degrees: [5, 4, 3, 2, 1], phrase: [[7, 0.5], [5, 0.5], [4, 1], [2, 1], [0, 1]] },
+  { id: 'sixth', difficulty: 'advanced' as MelodyHintDifficulty, degrees: [1, 3, 6, 5, 4, 3], phrase: [[0, 0.5], [4, 0.5], [9, 1], [7, 0.5], [5, 0.5], [4, 1]] },
+  { id: 'syncopated', difficulty: 'advanced' as MelodyHintDifficulty, degrees: [1, 5, 4, 6, 5, 3, 1], phrase: [[0, 0.5], [7, 1], [5, 0.5], [9, 0.5], [7, 0.5], [4, 0.5], [0, 0.5]] },
 ] as const;
 
 export function melodyHintExample(hint: (typeof MELODY_HINTS)[number], tonic: number) {
   const root = practiceTonicMidi(tonic, 'near-middle-c'), fifths = keyFifths(tonic, false);
-  const notes = hint.phrase.map(([offset, beats]) => {
+  const notes = hint.phrase.map(([offset, beats], index) => {
     const midi = root + offset;
-    return { ...spellMidi(midi, fifths), midi, beats };
+    return { ...spellMidi(midi, fifths), midi, beats, degree: hint.degrees[index] ?? 1 };
   });
   const steps = notes.map(({ midi, beats }, index): PracticeHintStep =>
     ({ ...block([midi], 0.39 * beats, 0.04 * beats), diagramKey: String(index) }));

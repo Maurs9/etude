@@ -146,7 +146,7 @@ test('the installed site opens offline under /etude/, with its manifest and icon
     await page.locator('#pr-songs summary').click();
     await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(4);
     await page.locator('#practiceHintsList [data-hint-family="all"]').click();
-    await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(19);
+    await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(21);
     for (const url of urls) expect(await page.evaluate(u => fetch(u).then(r => r.status, () => 'failed'), url), url).toBe(200);
     await page.goto(site);   // the folder URL too: the worker answers it with the app
     await booted(page);

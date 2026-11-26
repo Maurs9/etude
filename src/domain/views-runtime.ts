@@ -5488,7 +5488,8 @@ let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
 const practiceStudy: StudyHintState = {
     open: { prog: null, technique: null },
-    family: { chord: 'major', scale: 'major' },
+    family: { chord: 'major', scale: 'core', prog: 'popular', melody: 'easy' },
+    chordShowAll: false,
     hand: 'rh',
     chords: new Map(),
     inversions: new Map(),
@@ -5661,7 +5662,7 @@ function syncPracticeHintsPanel() {
     box.hidden = !supported;
     const controls = queryHtml(panel, '.pr-songs-ctl');
     if (controls) controls.hidden = !interval;
-    const state = panel.open ? `${hintTopic}|${key}|${mode}|${lang}|${notation}|${accomp.on}` : '';
+    const state = panel.open ? `${hintTopic}|${key}|${mode}|${prChordTier}|${prScaleTier}|${prMelDiff}|${lang}|${notation}|${accomp.on}` : '';
     const title = queryHtml(panel, 'summary span'), lede = queryHtml(panel, '.pr-songs-lede');
     if (title && lede) {
         title.dataset.i18n = supported ? `pr_hints_${hintTopic}_title` : 'pr_songs';
@@ -5688,6 +5689,9 @@ function syncPracticeHintsPanel() {
                 play: (id, steps, keys, diagram, controlId) => { void playPracticeHint(id, steps, keys, diagram, controlId); },
                 stop: () => { if (practiceHintPreview) stopPreviews(); },
                 study: practiceStudy,
+                chordTier: prChordTier,
+                scaleTier: prScaleTier,
+                melodyDiff: prMelDiff,
             });
         };
         if (practiceHintsView) {
@@ -19998,17 +20002,23 @@ function prSetIvStyle(v: string) {
 function prSetChordTier(v: string) {
     if (v !== 'triads' && v !== 'sevenths' && v !== 'all') return;
     prChordTier = v;
+    practiceStudy.chordShowAll = false;
     queryAllHtml(byId('pr-chord-tier'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+    syncPracticeHintsPanel();
 }
 function prSetScaleTier(v: string) {
     if (v !== 'core' && v !== 'modes' && v !== 'all') return;
     prScaleTier = v;
+    practiceStudy.family.scale = v === 'modes' ? 'modes' : v === 'all' ? 'all' : 'core';
     queryAllHtml(byId('pr-scale-tier'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+    syncPracticeHintsPanel();
 }
 function prSetMelDiff(v: string) {
     if (v !== 'easy' && v !== 'medium' && v !== 'advanced') return;
     prMelDiff = v;
+    practiceStudy.family.melody = v;
     queryAllHtml(byId('pr-mel-diff'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+    syncPracticeHintsPanel();
 }
 function clearMelodyDemoPreview() {
     if (melDemoTimer) { clearTimeout(melDemoTimer); melDemoTimer = undefined; }

@@ -14,12 +14,17 @@
 .pr-continue-txt b.neutral{color:var(--ink)}
 .pr-redo{flex:none; min-height:44px; justify-content:center}
 
-/* Topic cards: a radio group, one card checked (5 unified cards) */
+/* Topic cards: a radio group, one card checked (5 unified cards; 3+2 on laptop, 5-up on ultra-wide >= 1400px) */
 .pr-topics{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:0}
-@media (min-width:1280px){ .pr-topics{grid-template-columns:repeat(5,minmax(0,1fr))} }
+@media (min-width:1400px){ .pr-topics{grid-template-columns:repeat(5,minmax(0,1fr))} }
+
+/* Setup columns wrapper: vertical below 1000px, balanced 2-column grid on desktop */
+.pr-setup-cols{margin-top:16px}
+.pr-setup-main,.pr-setup-key{min-width:0}
+.pr-setup-main > .pr-sec:first-child{margin-top:0}
 
 /* Progressions top-level split (Exercise vs Play along) */
-.pr-prog-split{display:inline-grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; max-width:100%; margin:14px 0 2px; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--paper2)}
+.pr-prog-split{display:inline-grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; width:fit-content; max-width:100%; margin:0 0 10px; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--paper2)}
 .pr-prog-split[hidden]{display:none}
 .pr-prog-split [role=tab]{appearance:none; min-width:0; min-height:44px; padding:8px 16px; border:0; border-radius:9px; background:none; color:var(--muted); font:inherit; font-size:14px; font-weight:650; line-height:1.2; cursor:pointer}
 .pr-prog-split [role=tab]:hover{color:var(--ink)}
@@ -27,17 +32,19 @@
 .pr-prog-split [role=tab]:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
 
 /* Sub-configuration blocks (Intervals style/dir, Chords tier, Scales tier, Melodies diff/demo) */
-.pr-subcfg{display:grid; gap:10px; margin-top:10px}
+.pr-subcfg{display:grid; justify-items:start; gap:10px; margin-top:10px; min-width:0}
 .pr-subcfg[hidden]{display:none}
-.pr-subrow{display:grid; gap:4px}
+.pr-subrow{display:grid; justify-items:start; gap:4px; min-width:0; max-width:100%}
 .pr-subrow[hidden]{display:none}
 .pr-subcfg .pr-sec{margin:4px 0 2px}
+.pr-subcfg .seg{width:fit-content; max-width:100%}
 .pr-mel-row{align-items:center; flex-wrap:wrap; gap:10px 12px}
 #pr-mel-demo{min-height:44px}
 #pr-mel-demo[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 
 /* Secondary disclosures ("More options", "Chord options", "Accompaniment options") */
-.pr-extra{margin-top:6px; border:1px solid var(--line); border-radius:10px; background:var(--paper2); padding:2px 12px}
+.pr-extra{margin-top:6px; width:fit-content; min-width:min(100%,240px); max-width:100%; border:1px solid var(--line); border-radius:10px; background:var(--paper2); padding:2px 14px}
+.pr-extra[open]{width:100%; max-width:540px}
 .pr-extra summary{list-style:none; min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; font:600 13.5px/1.3 var(--sans); color:var(--ink2)}
 .pr-extra summary::before{content:"▸"; color:var(--accent); transition:transform .12s}
 .pr-extra[open] > summary::before{transform:rotate(90deg)}
@@ -60,7 +67,7 @@
 .pr-topic[aria-checked="true"]::after{content:"✓"; position:absolute; top:10px; right:10px; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; background:var(--accent); color:var(--accent-ink); font:700 11px/1 var(--sans)}
 
 /* How to answer */
-.pr-setup #pr-mode{max-width:100%}
+.pr-setup #pr-mode{width:fit-content; max-width:100%}
 
 /* Key chips: a radio group; the padding keeps the focus ring inside the scrolling row */
 .pr-keys{position:relative; display:flex; flex-wrap:wrap; gap:8px; padding:4px; margin:-4px}
@@ -69,7 +76,7 @@
 .pr-chip[aria-checked="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 
 /* Direction (Intervals by ear) */
-#pr-dir button{min-height:44px}
+#pr-dir button,#pr-iv-style button,#pr-chord-tier button,#pr-scale-tier button,#pr-mel-diff button{min-height:40px}
 
 /* Play along (Progressions): the accompaniment controls; the chord chain lights up while the loop plays */
 .pr-along{margin-top:16px}
@@ -85,7 +92,7 @@
 /* Start: names the choice, so a long label wraps */
 .pr-go{margin-top:24px; min-height:48px; justify-content:center; white-space:normal; text-align:center; line-height:1.3}
 
-/* Song hints (Intervals) and Practice hints: shared editorial card system across all 6 topics. */
+/* Song hints (Intervals) and Practice hints: shared editorial card system across all topics. */
 .pr-songs{margin-top:14px}
 .pr-songs-sum{list-style:none; min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; font:600 15px/1.3 var(--sans); color:var(--ink)}
 .pr-songs-sum::before{content:"▸"; color:var(--accent); transition:transform .12s}
@@ -94,17 +101,24 @@
 .pr-songs-lede{margin:4px 0 10px; font-size:14px}
 .pr-songs-ctl{align-items:center; margin-bottom:14px}
 .pr-songs-ctl .seg button{min-height:44px}
-.pr-hints-context{grid-column:1 / -1; display:inline-flex; align-items:center; width:fit-content; max-width:100%; margin:0 0 12px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--paper2); color:var(--ink2); font:600 12.5px/1.35 var(--sans)}
-.pr-hint-grid:not(.pr-chord-groups) .pr-hints-context{margin-bottom:0}
+.pr-hints-context{grid-column:1 / -1; display:inline-flex; align-items:center; width:fit-content; max-width:100%; margin:0; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--paper2); color:var(--ink2); font:600 12.5px/1.35 var(--sans)}
+.pr-family-meta{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px}
+.pr-hints-filter-btn{appearance:none; display:inline-flex; align-items:center; min-height:34px; padding:4px 12px; border:1px solid var(--line2); border-radius:999px; background:var(--card); color:var(--accent); font:600 12.5px/1.2 var(--sans); cursor:pointer; transition:border-color .12s, background .12s}
+.pr-hints-filter-btn:hover{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--card))}
+.pr-hand-legend{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.pr-hand-pill{display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:999px; font:700 12px/1.25 var(--sans); color:#fff; letter-spacing:.01em}
+.pr-hand-pill-rh{background:var(--pr-rh-bg, #c8432b)}
+.pr-hand-pill-lh{background:var(--pr-lh-bg, #1c7194)}
+
 .pr-hint-grid,.pr-songs .songs{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,212px),1fr)); gap:10px}
-.pr-hint-card{display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:10px 12px; overflow-wrap:anywhere; transition:border-color .15s, box-shadow .15s}
+.pr-hint-card{display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:12px 14px; overflow-wrap:anywhere; transition:border-color .15s, box-shadow .15s}
 .pr-hint-card.is-playing{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
 .pr-hint-card p,.pr-hint-name,.pr-hint-method{margin:0}
 .pr-hint-hd{display:flex; justify-content:space-between; align-items:flex-start; gap:8px; min-width:0; margin-bottom:0}
-.pr-hint-hd-main{display:grid; gap:1px; min-width:0; flex:1 1 auto}
-.pr-hint-name{font-family:var(--serif); font-size:15.5px; font-weight:600; line-height:1.2; color:var(--ink)}
+.pr-hint-hd-main{display:grid; gap:2px; min-width:0; flex:1 1 auto}
+.pr-hint-name{font-family:var(--serif); font-size:16.5px; font-weight:600; line-height:1.2; color:var(--ink)}
 .pr-interval-card .hd b{font-family:var(--serif); font-size:inherit; font-weight:600; line-height:inherit}
-.pr-hint-formula{font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.25; color:var(--muted); letter-spacing:.02em; font-variant-numeric:tabular-nums}
+.pr-hint-formula{font-family:var(--sans); font-size:12.5px; font-weight:700; line-height:1.25; color:var(--muted); letter-spacing:.02em; font-variant-numeric:tabular-nums}
 .pr-interval-card .hd .sh{color:var(--accent); font-weight:700; font-size:inherit}
 .pr-hint-card .pr-hint-play{appearance:none; flex:none; display:inline-grid; place-items:center; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border:1px solid var(--line2); border-radius:10px; background:var(--paper2); color:var(--ink); cursor:pointer; transition:border-color .15s, background .15s, color .15s}
 .pr-hint-card .pr-hint-play:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
@@ -114,60 +128,102 @@
 .pr-hint-card .pr-hint-play[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .pr-hint-card .pr-hint-play[aria-pressed="true"] .pr-ic-play{display:none}
 .pr-hint-card .pr-hint-play[aria-pressed="true"] .pr-ic-stop{display:block}
-.pr-hint-cue,.pr-hint-detail,.pr-hint-method{color:var(--ink2); font-size:13px; line-height:1.35}
+.pr-hint-cue,.pr-hint-detail,.pr-hint-method{color:var(--ink2); font-size:13.5px; line-height:1.4}
 .pr-hint-method{grid-column:1/-1}
 .pr-hint-focus{color:var(--ink); text-decoration:underline}
-.pr-hint-stage{background:var(--paper2); border:1px solid color-mix(in srgb, var(--line) 75%, transparent); border-radius:8px; padding:6px; min-width:0}
-.pr-hint-foot{margin-top:auto; padding-top:2px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 8px}
+.pr-hint-stage{background:var(--paper2); border:1px solid color-mix(in srgb, var(--line) 75%, transparent); border-radius:10px; padding:8px; min-width:0}
+.pr-scale-stage{padding:10px}
+.pr-prog-stage{display:grid; gap:10px; justify-items:center; padding:10px}
+.pr-hint-foot{margin-top:auto; padding-top:4px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 8px}
 .pr-hint-actions{margin-top:auto; display:flex; flex-wrap:wrap; gap:8px}
 .pr-hint-card .btn{min-height:44px; white-space:normal; text-align:start}
 .pr-hint-seg{display:inline-flex; width:100%; border:1px solid var(--line); border-radius:8px; background:var(--paper2); overflow:hidden}
-.pr-hint-seg-btn{appearance:none; flex:1 1 0; min-width:0; min-height:34px; padding:4px 6px; border:0; border-right:1px solid var(--line); background:transparent; color:var(--ink2); font:600 12px/1.2 var(--sans); cursor:pointer; transition:background .12s, color .12s}
+.pr-hint-seg-btn{appearance:none; flex:1 1 0; min-width:0; min-height:36px; padding:4px 6px; border:0; border-right:1px solid var(--line); background:transparent; color:var(--ink2); font:600 12.5px/1.2 var(--sans); cursor:pointer; transition:background .12s, color .12s}
 .pr-hint-seg-btn:last-child{border-right:0}
 .pr-hint-seg-btn:hover:not(:disabled){color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent)}
 .pr-hint-seg-btn[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
 .pr-hint-grid.pr-chord-groups{display:block}
 .pr-chord-group + .pr-chord-group{margin-top:18px}
-.pr-chord-group-title{margin:0 0 8px; color:var(--ink); font:700 14px/1.3 var(--sans)}
-.pr-family-bar{display:grid; gap:10px; margin-bottom:14px}
+.pr-chord-group-title{margin:0 0 10px; color:var(--ink); font:700 14.5px/1.3 var(--sans)}
+.pr-family-bar{display:grid; gap:10px; margin-bottom:16px}
 .pr-family-bar .pr-hints-context{margin:0}
 .pr-family-tabs{display:flex; flex-wrap:wrap; gap:6px}
-.pr-family-tab{appearance:none; display:inline-flex; align-items:center; gap:4px; min-height:36px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--ink2); font:600 13px/1.2 var(--sans); cursor:pointer; transition:border-color .12s, background .12s, color .12s}
+.pr-family-tab{appearance:none; display:inline-flex; align-items:center; gap:4px; min-height:38px; padding:6px 13px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--ink2); font:600 13px/1.2 var(--sans); cursor:pointer; transition:border-color .12s, background .12s, color .12s}
 .pr-family-tab:hover{border-color:var(--accent); color:var(--ink)}
 .pr-family-tab[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .pr-family-tab-count{opacity:.78; font-weight:600; font-variant-numeric:tabular-nums}
-.pr-hint-grid.pr-family-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,248px),1fr)); gap:12px}
-.pr-chord-visuals{display:grid; gap:5px; width:100%; min-width:0; justify-items:center}
-.pr-hint-visuals{display:grid; gap:4px; width:100%; min-width:0; justify-items:center}
+
+/* Spacious, topic-appropriate hint card grids */
+.pr-hint-grid.pr-scale-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr)); gap:14px}
+.pr-hint-grid.pr-chord-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); gap:12px}
+.pr-hint-grid.pr-prog-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr)); gap:14px}
+.pr-hint-grid.pr-melody-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr)); gap:14px}
+
+.pr-chord-visuals{display:grid; gap:6px; width:100%; min-width:0; justify-items:center}
+.pr-hint-visuals{display:grid; gap:6px; width:100%; min-width:0; justify-items:center}
 .pr-hint-hand{display:grid; gap:6px; border-top:1px solid var(--line); padding-top:8px; min-width:0}
 .pr-hint-hand-hd{display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0}
 .pr-hint-hand-title{margin:0; font:700 13px/1.3 var(--sans); color:var(--ink)}
-.pr-progression-sequence{display:flex; flex-wrap:wrap; width:100%; gap:5px; padding:0; margin:0; list-style:none}
+
+/* Progressions clickable sequence + study toggle button */
+.pr-progression-sequence{display:flex; flex-wrap:wrap; width:100%; gap:6px; padding:0; margin:0; list-style:none}
 .pr-progression-sequence.pr-progression-grid-12{display:grid; grid-template-columns:repeat(4,minmax(0,1fr))}
-.pr-progression-chord{display:grid; align-content:start; gap:1px; flex:1 1 0; min-width:44px; padding:5px 4px; border:1px solid var(--line); border-radius:7px; background:var(--card); text-align:center; line-height:1.25}
+.pr-progression-chord{flex:1 1 0; min-width:52px; border:1px solid var(--line); border-radius:8px; background:var(--card); overflow:hidden; transition:border-color .12s, box-shadow .12s}
 .pr-progression-grid-12 .pr-progression-chord{min-width:0}
+.pr-progression-chord-btn{appearance:none; border:0; background:none; width:100%; min-height:44px; padding:5px 4px; display:grid; align-content:center; gap:1px; text-align:center; line-height:1.25; cursor:pointer; font:inherit; color:inherit; transition:background .12s}
+.pr-progression-chord-btn:hover{background:color-mix(in srgb, var(--accent) 9%, transparent)}
+.pr-progression-chord-btn[aria-pressed="true"]{background:color-mix(in srgb, var(--accent) 13%, transparent)}
 .pr-progression-degree{color:var(--muted); font-size:11.5px; font-weight:600}
 .pr-progression-name{color:var(--ink); font-size:13.5px}
-.pr-progression-chord[aria-current=step]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 13%, var(--card))}
+.pr-progression-chord[aria-current=step]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 15%, var(--card))}
+.pr-study-btn::before{content:"▸"; margin-inline-end:6px; color:var(--accent); display:inline-block; transition:transform .12s}
+.pr-study-btn[aria-expanded="true"]::before{transform:rotate(90deg)}
+
+/* Melodies 3-step method guide + SVG contour + degree chips */
+.pr-melody-steps{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:0; padding:0; list-style:none; counter-reset:mel-step}
+.pr-melody-step{counter-increment:mel-step; position:relative; display:grid; gap:2px; padding:10px 12px 10px 42px; border:1px solid var(--line); border-radius:10px; background:var(--paper2)}
+.pr-melody-step::before{content:counter(mel-step); position:absolute; left:11px; top:11px; display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--accent-ink); font:700 12px/1 var(--sans)}
+.pr-melody-step-t{font:700 13px/1.25 var(--sans); color:var(--ink)}
+.pr-melody-step-d{font:400 12.5px/1.35 var(--sans); color:var(--muted)}
+.pr-melody-contour-stage{display:grid; gap:8px; justify-items:center; padding:10px}
+.pr-melody-contour{display:block; width:100%; max-width:300px; height:auto}
+.pr-contour-line{stroke:var(--line2); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round}
+.pr-contour-node circle{fill:var(--accent); stroke:var(--paper2); stroke-width:2; transition:r .12s, fill .12s}
+.pr-contour-node[data-s="now"] circle{fill:var(--good); r:7}
+.pr-melody-degrees{display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin:0; padding:0; list-style:none}
+.pr-melody-deg{min-width:26px; padding:2px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); text-align:center; font:700 12.5px/1.4 var(--sans); color:var(--ink2); transition:background .12s, color .12s}
+.pr-melody-deg[data-s="now"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.pr-melody-answer{width:100%}
+.pr-melody-answer[hidden]{display:none}
+.pr-melody-answer:not([hidden]){display:grid; gap:8px; justify-items:center; margin-top:4px}
+.pr-melody-staff-wrap{width:100%; display:flex; justify-content:center}
+.pr-melody-answer .ss-svg{width:100%; max-width:340px; height:auto}
+
 .pr-interval-card .songlist{display:flex; flex-direction:column; gap:2px; padding:4px 6px}
 .pr-interval-card .songlist button{appearance:none; border:none; background:none; width:100%; text-align:left; color:var(--ink2); font-size:13.5px; line-height:1.3; cursor:pointer; padding:7px 8px; min-height:36px; border-radius:6px; font-family:var(--serif); transition:background .12s, color .12s}
 .pr-interval-card .songlist button:hover{color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent)}
 .pr-interval-card .songlist button[aria-pressed="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 11%, transparent); font-weight:600}
-.pr-melody-answer{width:100%}
-.pr-melody-answer[hidden]{display:none}
-.pr-melody-answer .ss-svg{width:100%; max-width:340px; height:auto}
-.pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; width:100%; max-width:280px}
+
+.pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; width:100%; max-width:360px}
 .pr-chord-staff-block{text-align:center; min-width:0}
 .pr-chord-clef-label{font:600 10.5px/1.2 var(--sans); color:var(--muted); margin-bottom:1px}
-.pr-chord-keyboard{display:block; width:100%; max-width:280px; max-height:58px; height:auto}
-.pr-chord-keyboard.pr-chord-keyboard-dual{max-height:76px}
-.pr-chord-staff{display:block; width:100%; max-width:280px; max-height:64px; height:auto}
-.pr-chord-caption{font-variant-numeric:tabular-nums}
-.pr-hint-hand-legend{margin:2px 0 0; font-size:11.5px; font-weight:600; color:var(--muted)}
+.pr-chord-keyboard{display:block; width:100%; max-width:360px; max-height:76px; height:auto}
+.pr-chord-keyboard.pr-chord-keyboard-dual{max-width:none; max-height:126px}
+.pr-chord-staff{display:block; width:100%; max-width:360px; max-height:66px; height:auto}
+.pr-chord-caption{font-variant-numeric:tabular-nums; font-weight:600}
+
+/* Keyboard colors + high-contrast dual-hand (RH coral / LH ocean-teal) finger badges */
 .pr-chord-keyboard{
   --pr-chord-ink:#1a1416;
-  --pr-chord-black-tint:color-mix(in srgb, var(--pr-chord-tint) 92%, var(--pr-chord-ink));
-  --pr-chord-playing-tint:color-mix(in srgb, var(--pr-chord-tint) 34%, var(--pr-chord-ink));
+  --pr-rh-bg:#c8432b;
+  --pr-lh-bg:#1c7194;
+  --pr-chord-black-tint:color-mix(in srgb, var(--pr-chord-tint) 90%, var(--pr-chord-ink));
+  --pr-chord-playing-tint:color-mix(in srgb, var(--pr-chord-tint) 36%, var(--pr-chord-ink));
+}
+.pr-chord-keyboard.pr-chord-keyboard-dual{
+  --pr-chord-tint:color-mix(in srgb, var(--accent) 20%, #fffaf1);
+  --pr-chord-black-tint:#3a3230;
+  --pr-chord-playing-tint:color-mix(in srgb, var(--accent) 52%, #1a1416);
 }
 .pr-chord-keyboard[data-chord-root="0"]{--pr-chord-tint:#e47a7d}
 .pr-chord-keyboard[data-chord-root="1"]{--pr-chord-tint:#bd64d5}
@@ -181,19 +237,24 @@
 .pr-chord-keyboard[data-chord-root="9"]{--pr-chord-tint:#c3a6db}
 .pr-chord-keyboard[data-chord-root="10"]{--pr-chord-tint:#e98b60}
 .pr-chord-keyboard[data-chord-root="11"]{--pr-chord-tint:#58c8b0}
+.pr-chord-keyboard.pr-chord-keyboard-dual[data-chord-root]{--pr-chord-tint:#f5ebe0}
 .pr-chord-key-shape{stroke:#4a4340; stroke-width:1}
 .pr-chord-white .pr-chord-key-shape{fill:#fffaf1}
 .pr-chord-black .pr-chord-key-shape{fill:#272222}
 .pr-chord-key[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-tint); stroke:var(--pr-chord-ink)}
 .pr-chord-black[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-black-tint)}
 .pr-chord-key-dot{fill:var(--pr-chord-ink)}
-.pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 7.5px var(--sans); text-anchor:middle; dominant-baseline:central}
-.pr-hint-key-finger-rh{fill:var(--pr-chord-ink)}
-.pr-hint-key-finger-lh{fill:color-mix(in srgb, var(--pr-chord-ink) 74%, var(--paper)); font-weight:800}
-.pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.35}
+.pr-hint-tonic-bar{fill:var(--accent)}
+.pr-hint-badge{stroke:none}
+.pr-hint-badge-rh{fill:var(--pr-rh-bg)}
+.pr-hint-badge-lh{fill:var(--pr-lh-bg)}
+.pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 8px var(--sans); text-anchor:middle; dominant-baseline:central}
+.pr-hint-key-finger-rh,.pr-hint-key-finger-lh{fill:#ffffff; font:800 9.5px var(--sans)}
+.pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.4}
 .pr-chord-key.pr-chord-changed .pr-chord-key-shape{stroke-width:2; stroke-dasharray:3 2}
 .pr-chord-key.pr-chord-sounding .pr-chord-key-shape{fill:var(--pr-chord-playing-tint)}
 .pr-chord-key.pr-chord-sounding :is(.pr-chord-key-dot,.pr-hint-key-finger){fill:#fff}
+.pr-chord-key.pr-chord-sounding .pr-hint-badge{stroke:#fff; stroke-width:1.5}
 .pr-chord-key.pr-chord-sounding.pr-chord-root .pr-chord-key-dot{fill:none; stroke:#fff}
 .pr-chord-staff-line,.pr-chord-double-sharp{stroke:var(--staffink)}
 .pr-chord-staff-line{stroke-width:.85; opacity:.68}
@@ -231,34 +292,32 @@
 .key[data-pr-hint-key]{outline:2px solid #004e97; outline-offset:-3px}
 .key[data-pr-hint-key]::after{content:attr(data-pr-hint-key); position:absolute; inset:auto 50% 23% auto; transform:translateX(50%); min-width:17px; border-radius:9px; padding:1px 3px; background:#004e97; color:#fff; text-align:center; font:700 11px/15px var(--sans); pointer-events:none; z-index:4}
 
-/* Wide: How to answer (and Direction) on the left, the key chips beside it on the right, so the two choices read as one row;
-   Play along and Start run the full width below. Placement is by element, so the DOM (and the tab order) stays as written:
-   the left column's parts flow into rows 3 on, the key heading takes row 3 beside How to answer, the chips rows 4 to 7. */
+/* Wide desktop (>= 1000px): balanced 2-column setup (options left, Key chips right); Play along and Start full-width below. */
 @media (min-width:1000px){
-  #pr-home .pr-setup{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:40px; align-items:start}
-  .pr-setup > *{grid-column:1 / -1}
-  .pr-setup > #pr-mode-h,.pr-setup > #pr-mode,.pr-setup > #pr-mode-hint,.pr-setup > #pr-mode-note,.pr-setup > #pr-dir-row,.pr-setup > #pr-prog-split,.pr-setup > #pr-chord-cfg,.pr-setup > #pr-scale-cfg,.pr-setup > #pr-mel-cfg{grid-column:1}
-  .pr-setup > #pr-mode{justify-self:start}
-  .pr-setup > #pr-key-h{grid-column:2; grid-row:3}
-  .pr-setup > #pr-keys{grid-column:2; grid-row:4 / span 4; align-self:start; flex-wrap:wrap; gap:6px}
-  .pr-setup > #pr-keys .pr-chip{min-width:34px; min-height:36px; padding:0 8px; font-size:13px; white-space:nowrap}
+  .pr-setup-cols{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.08fr); column-gap:32px; align-items:start; margin-top:18px}
+  .pr-setup-main{display:grid; justify-items:start; align-content:start}
+  .pr-setup-key > .pr-sec:first-child{margin-top:0}
+  .pr-setup-key .pr-keys{flex-wrap:wrap; gap:6px}
+  .pr-setup-key .pr-chip{min-width:34px; min-height:36px; padding:0 8px; font-size:13px; white-space:nowrap}
   /* Play along: clean starter row (Progression + Tempo) + optional disclosure. */
   .pr-along{display:grid; gap:10px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line)}
   .pr-along-row{display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px}
   .pr-tempo{flex:1 1 220px; max-width:360px}
-  /* Start closes the form at the right, under the key chips; a line marks the end of the choices. */
-  .pr-setup > #pr-start{justify-self:end; min-width:min(100%,320px); margin-top:20px}
-  .pr-setup > #pr-along-out{margin-top:4px}
+  /* Start closes the form at the right, under the key chips. */
+  #pr-start{display:flex; margin-left:auto; min-width:min(100%,320px); margin-top:20px}
+  #pr-along-out{margin-top:8px}
   .pr-songs-lede{max-width:80ch}
 }
 @media (pointer:coarse){
-  .pr-setup > #pr-keys .pr-chip{min-width:44px; min-height:44px}
-  .pr-hint-seg-btn,.pr-family-tab{min-height:44px}
+  .pr-setup-key .pr-chip{min-width:44px; min-height:44px}
+  .pr-hint-seg-btn,.pr-family-tab,.pr-hints-filter-btn{min-height:44px}
 }
 @media (max-width:680px){
   .pr-prog-split{display:grid; width:100%}
+  .pr-subcfg,.pr-subrow{justify-items:stretch}
   .pr-subcfg .seg{display:flex; width:100%; flex-wrap:wrap}
   .pr-subcfg .seg button{flex:1 1 0; min-width:0; min-height:44px; padding:8px 6px; white-space:normal; line-height:1.25}
+  .pr-extra,.pr-extra[open]{width:100%; max-width:none}
   .pr-mel-row #pr-mel-demo{width:100%}
   .pr-extra-body .field{width:100%; justify-content:space-between}
   .pr-extra-body .field select{flex:1 1 auto}
@@ -278,13 +337,14 @@
   #pr-dir{display:flex; width:100%}
   #pr-dir button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center; line-height:1.25; white-space:normal}
   .pr-songs{padding:12px 14px}
-  .pr-songs .songs,.pr-hint-grid,.pr-hint-grid.pr-family-grid{grid-template-columns:minmax(0,1fr)}
-  .pr-hint-seg-btn,.pr-family-tab{min-height:44px; font-size:13px}
+  .pr-melody-steps{grid-template-columns:minmax(0,1fr)}
+  .pr-songs .songs,.pr-hint-grid,.pr-hint-grid.pr-scale-grid,.pr-hint-grid.pr-chord-grid,.pr-hint-grid.pr-prog-grid,.pr-hint-grid.pr-melody-grid{grid-template-columns:minmax(0,1fr)}
+  .pr-hint-seg-btn,.pr-family-tab,.pr-hints-filter-btn{min-height:44px; font-size:13px}
   #pr-home.has-mobile-bar{padding-bottom:76px}
 }
 @media (max-width:420px){
   #pr-mode button{font-size:13px; padding:8px 6px; line-height:1.2}
 }
-@media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before, .pr-hint-card, .pr-hint-card .pr-hint-play, .pr-hint-seg-btn, .pr-family-tab, .pr-interval-card .songlist button{transition:none} }
+@media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before, .pr-hint-card, .pr-hint-card .pr-hint-play, .pr-hint-seg-btn, .pr-family-tab, .pr-interval-card .songlist button, .pr-study-btn::before{transition:none} }
 .pr-sum-sustain{margin:0 0 12px; padding:8px; border-block:1px solid var(--line); font-size:13px}
 .pr-sum-sustain small{display:block; margin-top:2px; color:var(--muted)}

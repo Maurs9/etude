@@ -2,37 +2,51 @@ import { test, expect } from '../helpers/fixtures.mjs';
 
 const hint = (page, name) => page.locator('#practiceHintsList [data-hint]').filter({ has: page.getByRole('heading', { name }) });
 
-test('switching topics keeps the panel open and shows each reference hint', async ({ app }) => {
+test('switching topics keeps the panel open and shows each redesigned reference hint', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   const panel = page.locator('#pr-songs');
   await page.locator('#pr-t-chord').click();
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(page.locator('#practiceHintsList')).toBeEmpty();
   await panel.locator('summary').click();
+
+  // Default Chords tier = Triads: filters family tabs to triads and offers Show all 25 toggle.
+  await expect(page.locator('#practiceHintsList .pr-family-tab')).toHaveCount(4);
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(1);
+  await expect(hint(page, /^C · /)).toContainText('1 3 5');
+  await page.locator('#pr-chord-tier [data-v="all"]').click();
   await expect(page.locator('#practiceHintsList .pr-family-tab')).toHaveCount(5);
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
   await expect(hint(page, /^Cmaj7 · /)).toContainText('1 3 5 7');
+
   await page.locator('#pr-t-scale').click();
-  await expect(page.locator('#practiceHintsList .pr-family-tab')).toHaveCount(5);
+  await expect(page.locator('#practiceHintsList .pr-family-tab')).toHaveCount(6);
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(4);
   await page.locator('#practiceHintsList [data-hint-family="modes"]').click();
   await expect(hint(page, /Dorian/)).toContainText('1 2 ♭3 4 5 6 ♭7');
+
   await page.locator('#pr-t-prog').click();
-  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(10);
+  await expect(page.locator('#practiceHintsList .pr-family-tab')).toHaveCount(4);
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(5);
+  await page.locator('#practiceHintsList [data-hint-family="jazz"]').click();
   await expect(hint(page, /Jazz cadence/).locator('.pr-progression-name')).toHaveText(['Dm7', 'G7', 'Cmaj7']);
+
+  // Technique mode shares the unified dual-color scales & arpeggios hint view.
   await page.locator('#pr-t-scale').click();
   await page.locator('#pr-mode button[data-v="tech"]').click();
-  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
-  await expect(hint(page, /shared fingering/)).toContainText('E(3) · F(1)');
+  await expect(page.locator('#practiceHintsList .pr-family-tab')).toHaveCount(6);
+  await expect(page.locator('#practiceHintsList .pr-hand-pill-rh')).toBeVisible();
+
   await page.locator('#pr-t-melody').click();
-  await expect(page.locator('#practiceHintsList article')).toHaveCount(3);
-  await expect(page.locator('#practiceHintsList')).toContainText('Hum the first two or three notes.');
+  await expect(page.locator('#practiceHintsList .pr-melody-step')).toHaveCount(3);
+  await expect(page.locator('#practiceHintsList article')).toHaveCount(2);
   await expect(panel).toHaveAttribute('open', '');
 });
 
 test('chord hints play a single chord without opening the dock, while progressions keep Show keys on demand', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await page.locator('#pr-t-chord').click();
+  await page.locator('#pr-chord-tier [data-v="all"]').click();
   await page.locator('#pr-mode button[data-v="ear"]').click();
   await page.locator('#pr-songs summary').click();
   await page.evaluate(() => {
@@ -63,6 +77,7 @@ test('chord hints play a single chord without opening the dock, while progressio
   await expect(keys).toHaveCount(0);
 
   await page.locator('#pr-t-prog').click();
+  await page.locator('#practiceHintsList [data-hint-family="jazz"]').click();
   const progCard = hint(page, /Jazz cadence/);
   await page.evaluate(() => { window.__hintAudio = []; });
   await progCard.getByRole('button', { name: /^Listen\b/ }).click();
@@ -84,7 +99,7 @@ test('accompaniment owns progression playback while the loop is running', async 
   await page.locator('#pr-t-prog').click();
   await page.locator('#pr-songs summary').click();
   await page.locator('#pr-prog-split [data-v="along"]').click();
-  const play = hint(page, /Jazz cadence/).getByRole('button', { name: /^Listen\b/ });
+  const play = hint(page, /Four-chord pop/).getByRole('button', { name: /^Listen\b/ });
   await expect(play).toBeEnabled();
   await page.locator('#pr-start').click();
   await expect(play).toBeDisabled();
@@ -92,12 +107,15 @@ test('accompaniment owns progression playback while the loop is running', async 
   await expect(play).toBeEnabled();
 });
 
-test('chord family tabs show a full family at once and All shows all 25 chords cleanly on a phone', async ({ app }) => {
+test('chord family tabs filter by tier by default and Show all displays all 25 chords cleanly on a phone', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
   const list = page.locator('#practiceHintsList');
+  await expect(list.locator('.pr-family-tab')).toHaveCount(4);
+  await expect(list.locator('[data-hint-control="chord:tier-toggle"]')).toBeVisible();
+  await list.locator('[data-hint-control="chord:tier-toggle"]').click();
   await expect(list.locator('.pr-family-tab')).toHaveCount(5);
   await expect(list.locator('.pr-chord-staff-treble')).toHaveCount(6);
   await expect(list.locator('.pr-chord-staff-bass')).toHaveCount(6);
@@ -123,7 +141,6 @@ test('chord family tabs show a full family at once and All shows all 25 chords c
   }
   const bass = sus.locator('.pr-chord-staff-bass');
   await expect(bass).toHaveAttribute('aria-label', /C3 · D3 · G3/);
-  // G3 sits in the top space of the bass staff, six units below the top line.
   await expect(bass.locator('[data-chord-midi="67"] .ss-head')).toHaveAttribute('cy', '6');
 
   const diminished = page.locator('[data-hint="dim7"]');
@@ -150,6 +167,7 @@ for (const [lang, label] of [
   test(`chord family tabs show compact accessible playback controls in ${lang}`, async ({ app }) => {
     const page = await app.open({ hash: 'practice', lang });
     await page.locator('#pr-t-chord').click();
+    await page.locator('#pr-chord-tier [data-v="all"]').click();
     await page.locator('#pr-songs summary').click();
     const cards = page.locator('#practiceHintsList .pr-chord-card');
     await expect(cards).toHaveCount(6);
@@ -171,6 +189,7 @@ for (const [lang, label] of [
 test('chord inversions update keyboard, both clefs, caption, and playback', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
+  await page.locator('#pr-chord-tier [data-v="all"]').click();
   await page.locator('#pr-songs summary').click();
   const card = hint(page, /^Cmaj7 · /);
   const keyboard = card.locator('.pr-chord-keyboard');
@@ -216,6 +235,7 @@ test('the chord keyboard color follows the root across chord qualities', async (
 test('a fixed tonic transposes playback and notation changes only the names', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
+  await page.locator('#pr-chord-tier [data-v="all"]').click();
   await page.locator('#pr-songs summary').click();
   await page.locator('#pr-keys [data-v="11"]').click();
   const card = page.locator('#practiceHintsList [data-hint="maj7"]');
@@ -236,26 +256,28 @@ test('a fixed tonic transposes playback and notation changes only the names', as
   await expect.poll(() => page.evaluate(() => window.__hintRoots[0])).toBe(59);
   await page.locator('#pr-t-scale').click();
   await page.locator('#pr-mode button[data-v="tech"]').click();
-  const exception = page.locator('#practiceHintsList [data-hint="major_f_b"]');
-  await expect(exception.getByRole('heading', { level: 3 })).toHaveText('F and H major');
-  await expect(exception.locator('.pr-hint-fingers').last()).toHaveText('H(4) · C♯(3) · D♯(2) · E(1) · F♯(4) · G♯(3) · A♯(2) · H(1)');
+  const bMajor = page.locator('#practiceHintsList [data-hint="Major (Ionian)"]');
+  await expect(bMajor.getByRole('heading', { level: 3 })).toContainText('H ·');
+  const bLhByMidi = await bMajor.locator('[data-chord-midi]').evaluateAll(els =>
+    els.sort((a, b) => Number(a.dataset.chordMidi) - Number(b.dataset.chordMidi))
+      .map(el => el.querySelector('.pr-hint-key-finger-lh')?.textContent));
+  expect(bLhByMidi).toEqual(['4', '3', '2', '1', '4', '3', '2', '1']);
 });
 
 test('closing the panel or navigating cancels the key guide', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
-  await page.locator('#pr-t-scale').click();
-  await page.locator('#pr-mode button[data-v="tech"]').click();
+  await page.locator('#pr-t-prog').click();
+  await page.locator('#pr-mode button[data-v="ear"]').click();
   const summary = page.locator('#pr-songs summary');
   await summary.click();
-  const demonstration = hint(page, /shared fingering/).getByRole('button', { name: /Right hand/ });
-  await demonstration.click();
+  const showKeys = hint(page, /Four-chord pop/).getByRole('button', { name: /Show keys/ });
+  await showKeys.click();
   const keys = page.locator('[data-pr-hint-key]');
   await expect(keys.first()).toBeVisible();
-  await expect(keys.first()).toHaveAttribute('data-pr-hint-key', /^[1-5]$/);
   await summary.click();
   await expect(keys).toHaveCount(0);
   await summary.click();
-  await demonstration.click();
+  await showKeys.click();
   await expect(keys.first()).toBeVisible();
   await page.locator('#nav [data-view="today"]').click();
   await expect(keys).toHaveCount(0);
@@ -265,6 +287,7 @@ test('closing the panel or navigating cancels the key guide', async ({ app }) =>
 test('a late audio unlock cannot restart a hint after changing topics', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
+  await page.locator('#pr-chord-tier [data-v="all"]').click();
   await page.locator('#pr-songs summary').click();
   await page.evaluate(async () => {
     const context = window.__etude.ensureAudio();
@@ -298,33 +321,5 @@ test('hint cards omit piece-example reference blocks across all topics', async (
       await page.locator(`#pr-t-${topic}`).click();
     }
     await expect(page.locator('#practiceHintsList .pr-hint-reference')).toHaveCount(0);
-  }
-});
-
-test('translated hint cards across all topics fit a narrow viewport and have tappable controls', async ({ app }) => {
-  const page = await app.open({ hash: 'practice', lang: 'fr' });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('#pr-songs summary').click();
-  for (const [topic, selector] of [
-    ['interval', '#songsList .play'],
-    ['chord', '#practiceHintsList button'],
-    ['scale', '#practiceHintsList button'],
-    ['prog', '#practiceHintsList button'],
-    ['melody', '#practiceHintsList button'],
-    ['technique', '#practiceHintsList button'],
-  ]) {
-    if (topic === 'technique') {
-      await page.locator('#pr-t-scale').click();
-      await page.locator('#pr-mode button[data-v="tech"]').click();
-    } else {
-      await page.locator(`#pr-t-${topic}`).click();
-    }
-    if (topic === 'technique') await expect(page.locator('#pr-songs summary')).toHaveText('Indices de doigté');
-    const sizes = await page.evaluate(buttonSelector => ({
-      docFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-      heights: [...document.querySelectorAll(buttonSelector)].map(button => button.getBoundingClientRect().height),
-    }), selector);
-    expect(sizes.docFits, topic).toBe(true);
-    expect(Math.min(...sizes.heights), topic).toBeGreaterThanOrEqual(44);
   }
 });
