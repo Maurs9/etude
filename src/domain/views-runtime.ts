@@ -60,8 +60,8 @@ import '../styles/voice.css';
 import '../styles/explore.css';
 import '../styles/pieces.css';
 import '../styles/score-fullscreen.css';
-import { performanceTimeline, performanceAt, performanceOf, performanceMarkers, performanceWindow, type PerformanceRange, type PerformanceTimeline } from './performance-timeline.js';
-import { repeatRanges, scoreXmlRepeatBars } from './score-repeats.js';
+import type { performanceTimeline as performanceTimelineFn, performanceAt as performanceAtFn, performanceOf as performanceOfFn, performanceMarkers as performanceMarkersFn, performanceWindow as performanceWindowFn, PerformanceRange, PerformanceTimeline } from './performance-timeline.js';
+import type { repeatRanges as repeatRangesFn, scoreXmlRepeatBars as scoreXmlRepeatBarsFn } from './score-repeats.js';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
@@ -129,6 +129,13 @@ let practicePassageBounds: typeof practicePassageBoundsFn;
 let createCursorCurves: typeof createCursorCurvesFn;
 let cursorCurveAt: typeof cursorCurveAtFn;
 let bindScoreGestures: typeof bindScoreGesturesFn;
+let performanceTimeline: typeof performanceTimelineFn;
+let performanceAt: typeof performanceAtFn;
+let performanceOf: typeof performanceOfFn;
+let performanceMarkers: typeof performanceMarkersFn;
+let performanceWindow: typeof performanceWindowFn;
+let repeatRanges: typeof repeatRangesFn;
+let scoreXmlRepeatBars: typeof scoreXmlRepeatBarsFn;
 let analysisModulesReady = false;
 let analysisModulesLoading: Promise<void> | null = null;
 function ensureAnalysisModules(): Promise<void> {
@@ -144,7 +151,9 @@ function ensureAnalysisModules(): Promise<void> {
             import('./practice-mistakes.js'),
             import('./score-cursor.js'),
             import('./score-gestures.js'),
-        ]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression, notationMod, scoringMod, mistakesMod, cursorMod, gesturesMod]) => {
+            import('./performance-timeline.js'),
+            import('./score-repeats.js'),
+        ]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression, notationMod, scoringMod, mistakesMod, cursorMod, gesturesMod, perfTimelineMod, repeatsMod]) => {
         scoreFeature = feature;
         ({ AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight: importMxlPreflight, anParse, anReadXml: importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } = scoreImport);
         ({ isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, rememberScorePedalLayout, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList } = scoreSvgPost);
@@ -155,6 +164,8 @@ function ensureAnalysisModules(): Promise<void> {
         ({ classifyUnmatchedKeyPress, extractSustainMistakes, groupPracticeMistakes, practicePassageBounds } = mistakesMod);
         ({ createCursorCurves, cursorCurveAt } = cursorMod);
         ({ bindScoreGestures } = gesturesMod);
+        ({ performanceTimeline, performanceAt, performanceOf, performanceMarkers, performanceWindow } = perfTimelineMod);
+        ({ repeatRanges, scoreXmlRepeatBars } = repeatsMod);
         if (!cancelScoreGesture) {
             const roll = maybeById('an-roll');
             if (roll) {
@@ -15292,7 +15303,7 @@ function scoreRepeatRoute(from: number) {
     return first < 0 ? undefined : route.slice(first).map((r, i) => ({ a: i ? r.a : from, b: r.b }));
 }
 const PERFORMANCE: { notes?: readonly AnNote[]; tempos?: typeof SCORE.tempoList; xml?: string; timeline: PerformanceTimeline; position: number; score: number; elapsed: number } = {
-    timeline: performanceTimeline([]), position: 0, score: 0, elapsed: 0,
+    timeline: { ranges: [], duration: 0 }, position: 0, score: 0, elapsed: 0,
 };
 function performancePlan() {
     if (PERFORMANCE.notes !== AN.notes || PERFORMANCE.tempos !== SCORE.tempoList || PERFORMANCE.xml !== SCORE.xml) {
@@ -16444,7 +16455,7 @@ function syncMobileStartBars() {
             rdBtn.disabled = !!rdGoBtn?.disabled;
         }
     }
-    const mobileBarVisible = (v === 'practice' && !!prBar && !prBar.hidden) || (v === 'read' && !!rdBar && !rdBar.hidden);
+    const mobileBarVisible = v === 'practice' && !!prBar && !prBar.hidden;
     document.body.classList.toggle('has-mobile-start-bar', mobileBarVisible);
 }
 /* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
