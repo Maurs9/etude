@@ -1,125 +1,207 @@
-# Étude — Piano Theory Trainer
+<div align="center">
+  <img src="public/icons/icon-192.png" alt="Étude icon" width="84" height="84" />
+  <h1>Étude</h1>
+  <p><strong>Ear &amp; hand</strong> — piano theory, sight-reading, ear training, and interactive score practice.</p>
 
-Étude is a browser-based piano theory and practice app for developing your ear, reading skills, and keyboard technique. It is a static Vite application: `etude.html` remains the stable shell URL, while the app module, styles, piano recordings, and OSMD bundle are built from `src/`.
+  <p>
+    <a href="https://maurs9.github.io/etude/etude.html">
+      <img src="https://img.shields.io/badge/Live_App-Open_Étude-8b2635?style=for-the-badge" alt="Open Live App" />
+    </a>
+    <a href="https://github.com/Maurs9/etude/releases/latest">
+      <img src="https://img.shields.io/github/v/release/Maurs9/etude?style=for-the-badge&label=Android_Release&color=2d5a43" alt="Latest Release" />
+    </a>
+    <img src="https://img.shields.io/badge/MIDI-USB_%26_Bluetooth-3b4d61?style=for-the-badge" alt="USB and Bluetooth MIDI" />
+    <img src="https://img.shields.io/badge/Languages-7-7a5c3e?style=for-the-badge" alt="7 Languages" />
+  </p>
 
-**Live app:** [https://maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html)
+  <p>
+    <a href="#features">Features</a> •
+    <a href="#screenshots">Screenshots</a> •
+    <a href="#digital-piano--midi-setup">MIDI Setup</a> •
+    <a href="#run-locally">Run Locally</a> •
+    <a href="#testing--maintenance">Tests</a> •
+    <a href="#project-structure">Architecture</a>
+  </p>
+</div>
+
+<br />
+
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/score-player-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/score-player-light.png" />
+    <img src="docs/screenshots/score-player-light.png" alt="Étude interactive score player with engraved sheet music and playable keyboard" width="100%" />
+  </picture>
+  <sub><em>Interactive score player with OpenSheetMusicDisplay engraving, hands-separate practice, tempo control, and live keyboard (auto-switches Light / Dark with GitHub theme).</em></sub>
+</div>
+
+---
+
+## Overview
+
+**Étude** is an offline-first, privacy-respecting piano theory and practice studio built as a static Vite PWA and Android Trusted Web Activity (TWA). Everything runs locally in your browser or Android app—your practice history, recordings, and imported scores never leave your device.
+
+- **Web App:** [maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html)
+- **Android APK:** [Latest GitHub Release](https://github.com/Maurs9/etude/releases/latest)
+- **Languages:** English, Romanian, German, Spanish, French, Italian, and Portuguese (BR)
+
+---
 
 ## Features
 
-- Theory handbook with every lesson open in any order, and reading exercises with generated sight-reading melodies. Reading levels include eighths, dotted notes, syncopation and ties.
-- Read: sight-reading in 8 levels and 24 keys. Each level has a book of 96 generated pieces in mixed keys, any key can be pinned for a run of 20 pieces, and Today's set gives 5 new pieces a day. A piece is 8 to 16 bars, laid out like a printed page with dynamics, finger numbers, staccato and slurs. It shows as soon as it opens; its first attempt is its first sight, scored for pitch, rhythm and timing with up to three stars. With a MIDI or Bluetooth piano the first right note starts the attempt and the next piece follows by itself. A long piece (24 to 48 bars) starts below the level and climbs to it. The Read home is laid out like Today: the set card, a three-step plan (warm-up, today's set, long piece), the book, and the other ways to practice. A 2-minute warm-up starts with one-bar flash cards that are shown for a moment and played from memory.
-- Pieces: 23 built-in pieces by level and your own MIDI or MusicXML files (My Library) play in one score player, with tempo, loops, hands separate, Wait for me, note names on the score and a full-window view. A run through the whole piece saves your best accuracy, also when you paused and resumed it, and a full Wait for me pass marks a built-in piece as learned.
-- Reading drills (on the Read page, under More): every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars. Reading statistics are in Progress, under Reading.
-- Targeted drills, with song hints for intervals and a choice of direction by ear, a play-along accompaniment loop for progressions, a scale and arpeggio technique drill, and ear training
-- Voice: sight-sing a melody from the staff with live pitch feedback, or hum one and get the notes back as MIDI or text. Keys or MIDI can answer in place of the voice.
-- Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
-- Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering. The key card lists the seven chords of the key: tap one to hear it and see it on the keys.
-- Progress tracking and practice planning
-- USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards. Notes are judged by their event time, a dropped input re-attaches when it comes back, and **Settings → MIDI** calibrates input latency for touch, USB and Bluetooth.
-- On a phone held sideways, the keyboard dock gets wider, playable keys.
-- Progress stays on the device: Étude asks the browser to keep it, warns when a save fails, keeps 3 days of automatic backups plus a copy before each reset, import or restore, and refuses to overwrite progress saved by a newer version. Export and import a backup file in **Settings → Your data**.
-- Installable app shell (PWA) with offline support and Screen Wake Lock after an initial online visit. When the app comes back to the screen, it resumes sound and checks for a new version.
+| Area | What you get |
+| --- | --- |
+| **Sight-Reading (`Read`)** | 8 progressive levels across 24 keys (eighths, dotted notes, syncopation, ties). Each level includes a 96-piece generated book, 20-piece key runs, **Today's set** (5 fresh pieces/day), 24–48 bar long pieces, and a 2-minute flash-card warm-up. First-sight attempts are scored for pitch, rhythm, and timing (up to 3 stars). |
+| **Pieces & My Library (`Pieces`)** | 23 built-in pieces plus your own **MIDI** or **MusicXML** files in one unified player with tempo control, passage loops, hands separate, **Wait for me** mode, note names, mistake breakdowns, sustain-pedal grading, automatic 5-axis difficulty stars, and full-window view. |
+| **Explore (`Explore`)** | Free play on a single screen pairing an interactive **Circle of Fifths** with live bass & treble staves. Hold any note or chord to identify it in Roman numerals, inspect scale fingerings, and audition the seven diatonic chords of any key. |
+| **Theory & Targeted Drills** | Open-order theory handbook, spaced-repetition daily sessions, interval drills with song hints, chord progression play-along loops, scale & arpeggio technique drills, and reading challenges (*Time Attack*, *Survival*, *Marathon*). |
+| **Voice (`Voice`)** | Sight-sing a melody from the staff with live pitch feedback, or hum a melody and convert it back to MIDI or text. Keys or MIDI can answer in place of voice. |
+| **Error-Aware Feedback** | Wrong answers compare what you played against the target with a **Hear both** button; repeated mix-ups automatically trigger a short contrast drill at the end of the session. |
+| **Hardware MIDI & Mobile UX** | Wired **USB MIDI** and direct **Web Bluetooth MIDI** with event-time judging, auto-reconnect, and per-input latency calibration (**Settings → MIDI**). Landscape phone mode widens the keyboard dock for comfortable play. |
+| **Offline & Data Safety** | Installable PWA with offline caching, Screen Wake Lock, persistent storage requests, 3 days of automatic local backups, pre-reset/import snapshots, and JSON export/import (**Settings → Your data**). |
 
-## Digital piano and MIDI keyboard setup
+---
 
-1. Open [https://maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html) in **Google Chrome** or **Microsoft Edge** (Android, Windows, or macOS).
-2. In **Settings → App & screen**, click **Install** to install Étude as a standalone offline app and enable **Keep the screen on**.
-3. Connect your piano:
-   - **Bluetooth MIDI (wireless):** If your piano or keyboard supports Bluetooth MIDI, turn it on (disconnect the instrument from other apps first), then go to **Settings → Bluetooth MIDI (direct) → Connect**.
-   - **USB MIDI (wired):** Connect the piano's **USB to Host** port to your device via USB-C; it will appear automatically under **Settings → MIDI input**.
+## Screenshots
 
-## Run locally
+### Desktop
 
-Install the locked toolchain and start Vite:
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/sight-reading.png" alt="Sight-reading view with generated sheet music and keyboard" width="100%" /><br />
+      <sub><strong>Sight-Reading</strong> — engraved daily sets with dynamics, instant feedback, and star grading</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/explore.png" alt="Explore view with Circle of Fifths and live grand staff" width="100%" /><br />
+      <sub><strong>Explore</strong> — interactive Circle of Fifths, live chord detection, and scale fingerings</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/today.png" alt="Today daily practice dashboard" width="100%" /><br />
+      <sub><strong>Today</strong> — spaced-repetition review queue and 5-step daily practice plan</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/score-player-dark.png" alt="Dark mode score player" width="100%" /><br />
+      <sub><strong>Dark Mode</strong> — comfortable low-light practice with high-contrast score framing</sub>
+    </td>
+  </tr>
+</table>
+
+### Mobile & Android TWA
+
+<div align="center">
+  <img src="docs/screenshots/mobile-score.png" alt="Mobile score player with fit-width layout" width="290" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-today.png" alt="Mobile Today dashboard" width="290" />
+  <br />
+  <sub><em>Fit-width mobile score layout, touch navigation, and native-feeling bottom tab bar on Android TWA &amp; mobile browsers.</em></sub>
+</div>
+
+---
+
+## Digital Piano & MIDI Setup
+
+1. Open [maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html) in **Google Chrome** or **Microsoft Edge** (Android, Windows, or macOS), or install the [Android APK](https://github.com/Maurs9/etude/releases/latest).
+2. In **Settings → App & screen**, click **Install** for offline standalone mode and enable **Keep the screen on**.
+3. Connect your instrument:
+   - **Bluetooth MIDI (wireless):** Enable Bluetooth MIDI on your piano (disconnect it from other apps first), then open **Settings → Bluetooth MIDI (direct) → Connect**.
+   - **USB MIDI (wired):** Connect the piano's **USB to Host** port via USB-C; it appears automatically under **Settings → MIDI input**.
+   - With a MIDI piano connected, playing the first right note in **Read** starts the attempt automatically and advances to the next piece when finished.
+
+---
+
+## Run Locally
+
+Requires **Node.js 22+**.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open [http://localhost:5173/etude.html](http://localhost:5173/etude.html). Serving over localhost or HTTPS is recommended for browser features such as the service worker and microphone access; permissions may be required.
+Open [http://localhost:5173/etude.html](http://localhost:5173/etude.html). Serving over `localhost` or HTTPS is recommended for Service Worker caching, Web MIDI, and microphone access.
 
-The Pages-shaped build is available with `npm run build` and `npm run preview`.
-For a single offline file, run `npm run build:standalone`; it writes
-`dist/etude-standalone.html`, which can be opened directly with `file://`.
+| Build Command | Output |
+| --- | --- |
+| `npm run build` | Production GitHub Pages-shaped bundle in `dist/etude/` |
+| `npm run preview` | Build and preview locally on port `8778` |
+| `npm run build:standalone` | Single-file offline build at `dist/etude-standalone.html` (opens directly via `file://`) |
 
-## Tests & Dependency Maintenance
+---
 
-The test suite uses Node.js, npm, Python 3, Vitest, and Playwright. By default Playwright launches an installed Google Chrome browser.
+## Testing & Maintenance
+
+The test suite uses **Node.js**, **Vitest**, **Playwright** (using installed Google Chrome by default), and **Python 3**.
 
 ```sh
-npm ci
-npm run typecheck
-npm run lint
-npm run test:unit        # Vitest unit tests (tests/unit/)
-npm run test:i18n        # Multi-language i18n pack tests (i18n/tests/)
-npm test                 # Playwright E2E against built dist/etude/ and @sw tests
-npm run build:standalone -- --test-surface  # Build the file required by the dev standalone specs
-npm run test:dev         # Playwright app project against the Vite dev server
-npm run deps:check       # Check npm devDependencies + runtime vendor versions
-npm run osmd:check       # Verify OSMD bundle contract and check npm for updates
+npm run typecheck    # Strict TypeScript + suppression guard
+npm run lint         # ESLint
+npm run test:unit    # Vitest unit & architecture invariant tests (tests/unit/)
+npm run test:i18n    # Multi-language pack tests (i18n/tests/)
+npm test             # Playwright E2E against built dist/etude/ + @sw tests
+npm run deps:check   # Check npm devDependencies + vendor versions
+npm run osmd:check   # Verify OSMD bundle contract and check for updates
 ```
 
-Alternatively, install Playwright's Chromium with `npx playwright install chromium` and set `PW_CHANNEL` to an empty value before running the tests. The Playwright configuration starts its own local server on port 8787.
-
-### Experimental score difficulty report
-
-Run `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs` with Node.js 22.
-Use `--level 1` through `--level 8` to select a book and `--json` for individual pieces,
-their fingerprints, and the decisive measures with per-axis scores. The report runs both
-estimators on the existing books. Use `--fresh` to check new exercises on separate seeds and
-keys, their candidate rankings, same-shape transpositions and selection times.
-
-To benchmark difficulty estimates, create a local JSON manifest of arrangements graded 1–6.
-Use rows such as `{"file":"scores/example.mxl","level":2,"split":"fit","group":"exact-work"}`.
-Put related arrangements in the same group. Give every grade both fit and held-out references
-and keep distinct work groups in each split. Use the written starting tempo, or add a verified starting tempo as `"bpm":108` when it is missing.
+To run Playwright against the Vite dev server (including standalone specs):
 
 ```sh
+npm run build:standalone -- --test-surface
+npm run test:dev
+```
+
+> **Tip:** To use Playwright's bundled Chromium instead of system Chrome, run `npx playwright install chromium` and set `PW_CHANNEL=` (empty). Playwright starts its own local server on port `8787`.
+
+---
+
+## Project Structure
+
+<details>
+<summary><strong>Directory layout &amp; TypeScript safety gates</strong></summary>
+
+<br />
+
+- `etude.html` — stable application shell URL
+- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts`, `data-safety.ts`, `midi-timing.ts`, `technique.ts`, `technique-drill.ts`, `feedback.ts`, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`, `practice-mistakes.ts`, `score-library-*.ts`)
+- `src/sight-reading/` — sight-reading generators, evaluation, ledger, and notation (`levels.ts`, `patterns.ts`, `rules.ts`, `melody.ts`, `book.ts`, `progress.ts`, `score.ts`, `warmup.ts`)
+- `src/locales/` — English, Romanian, German, Spanish, French, Italian, and Portuguese (BR) UI strings, lessons, and quizzes
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, modular feature CSS, and hashed piano audio samples
+- `public/` — static public assets, `manifest.webmanifest`, app icons, and lazy-loaded OSMD 3.0.0 bundle (`public/vendor/osmd-3.0.0.min.js`)
+- `android-twa/` — Bubblewrap Trusted Web Activity configuration (`twa-manifest.json`) for Android APK/AAB builds
+- `i18n/` — supplementary multi-language pack runtime (`i18n/framework/`) and tests (`i18n/tests/`)
+- `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), Android release verification (`android-release.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)
+- `tests/` — Vitest unit/invariant tests (`tests/unit/`), Playwright E2E specs (`tests/e2e/`, `tests/e2e/sight-reading/`), shared helpers (`tests/helpers/`), and MusicXML fixtures/baselines (`tests/fixtures/`, `tests/golden/`)
+- `docs/` — screenshots (`docs/screenshots/`), plans (`docs/plans/`), i18n notes (`docs/i18n/`), and runbooks (`docs/runbooks/device-smoke.md`, `docs/runbooks/android-twa.md`)
+
+`npm run typecheck` runs the strict compiler gate for typed domain modules and enforces `scripts/check-ts-suppressions.mjs` (rejecting `@ts-nocheck`, `@ts-ignore`, unexplained `@ts-expect-error`, explicit `any`, unchecked application JS, and dynamically compiled runtime payloads).
+
+</details>
+
+<details>
+<summary><strong>Experimental Score Difficulty Scorer &amp; Calibration CLI</strong></summary>
+
+<br />
+
+**My Library** automatically calculates and saves 5-axis difficulty star ratings for existing and newly imported scores:
+
+- Sort by **Difficulty (stars)** from fewest to most stars; open a title to start or resume from your saved position.
+- Combine an overall star range with a single-axis range in **Filters**, and inspect decisive measures under **More → Difficulty details**.
+- If a score lacks a written tempo, it receives a provisional rating—use **Set BPM** in difficulty details to enter a verified starting tempo and recalculate. Star ratings are preserved in library backups.
+- In **Read**, **New reading exercise** selects a fresh piece using the experimental scorer with a fingerprint-based ID, leaving numbered book results and daily sets intact.
+
+#### CLI Reports & Calibration (Node.js 22)
+
+```sh
+# Inspect books (levels 1–8) or fresh generated exercises
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs --level 1 --json
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs --fresh
+
+# Calibrate thresholds against a local manifest of graded arrangements (grades 1–6)
 node scripts/calibrate-score-difficulty.mjs manifest.json > profile.json
 ```
 
-The tool fits thresholds on the fit split, reports the held-out error and baseline on stderr,
-and writes a profile when it beats the constant-grade baseline. `--report-only` accepts rows
-with just a file and lists scores and decisive measures. Originals stay local.
+Manifest rows follow `{"file":"scores/example.mxl","level":2,"split":"fit","group":"exact-work"}` (with optional `"bpm":108` when starting tempo is missing). Keep related arrangements in the same `group`, include both `fit` and held-out references per grade, and pass `--report-only` to inspect scores and decisive measures without fitting.
 
-In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
-These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
-
-My Library automatically calculates and saves difficulty stars for existing and newly imported
-scores. **Difficulty (stars)** sorts from the fewest to the most stars. The title opens the score
-or resumes it when a position was saved. The five axes are visible
-beside the title on wide screens and below it on narrow screens. In **Filters**, combine an overall
-star range with a range for one axis. **More → Difficulty details** shows the decisive measures. A missing tempo
-produces a provisional rating. Choose **Set BPM** in the piece's difficulty details to enter a
-verified starting tempo, then recalculate and save the rating.
-Star ratings travel with library backups. This experimental rubric uses the strongest window and
-typical difficulty independently on each axis.
-Its star scale keeps separating stronger passages above the ceiling of the original 0–100 score.
-
-## Project structure
-
-- `etude.html` — stable application shell
-- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts` with the saved-record schema and its migrations, `data-safety.ts` for persistent storage and automatic backups, `midi-timing.ts` for input event times and latency offsets, `technique.ts` and `technique-drill.ts` for the scale and arpeggio drill, `feedback.ts` for error-aware feedback, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
-- `src/sight-reading/` — sight-reading generators, evaluation, ledger and notation. The level pieces of the Read page are in `levels.ts` (levels, keys, limits), `patterns.ts`, `rules.ts`, `melody.ts` (generator), `book.ts` (books, key runs, daily set), `progress.ts` (saved state), `score.ts` (engraver tokens and timing) and `warmup.ts`
-- `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
-- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`, `reading.css`, `read-home.css`) instead of being appended to the order-sensitive `etude.css`.
-- `public/vendor/osmd-3.0.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 3.0.0 bundle
-- `i18n/` — supplementary multi-language pack (`de`, `es`, `fr`, `it`, `pt-BR`), runtime (`i18n/framework/`), and test suite (`i18n/tests/`)
-- `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and safe dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)
-- `tests/` — organized into:
-  - `tests/unit/` — Vitest unit and architecture invariant tests (`*.test.mjs`)
-  - `tests/e2e/` — Playwright E2E and golden score/audio tests (`*.spec.mjs`)
-  - `tests/e2e/sight-reading/` — Sight-Reading Playwright E2E specs
-  - `tests/helpers/` — shared Playwright fixtures and score audit helpers
-  - `tests/fixtures/` & `tests/golden/` — MusicXML/MXL fixtures and golden baselines
-- `docs/` — organized into `docs/i18n/`, `docs/plans/`, and `docs/runbooks/` (`device-smoke.md` is the real-phone check for storage, offline, audio and MIDI)
-- `TODO.md` — roadmap checklist and dependency inventory
-
-`npm run typecheck` runs the strict compiler gate for the typed domain modules.
-The view entry is a compatibility boundary while the remaining legacy-shaped
-view operations are narrowed incrementally; it is still checked for forbidden
-compiler bypasses and indirect `any` aliases. The suppression guard
-rejects `@ts-nocheck`, `@ts-ignore`, unexplained or excessive
-`@ts-expect-error`, explicit `any`, unchecked application JavaScript, and
-encoded or dynamically compiled application runtime payloads.
+</details>
