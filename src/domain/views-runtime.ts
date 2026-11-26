@@ -361,7 +361,7 @@ const themeMQ = typeof window.matchMedia === 'function'
 function applyTheme() {
     const dark = theme === 'dark' || (theme === 'auto' && themeMQ && themeMQ.matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    (document).querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#171412' : '#f7f3ec')); // browser/app bar follows the chosen theme
+    (document).querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#13161b' : '#f5f4ef')); // browser/app bar follows the chosen theme
     queryAllHtml(document, '#set-theme button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === theme ? 'true' : 'false'));
 }
 if (themeMQ && themeMQ.addEventListener)
@@ -18151,7 +18151,7 @@ interface FallState { mode: 'score' | 'fall'; raf: number; position: number; ori
     kbCache?: { canvas: HTMLCanvasElement; key: string } | null;
     tlCache?: { p?: string; valText?: string; loopHidden?: boolean; loopLeft?: string; loopWidth?: string; aHidden?: boolean; aLeft?: string; bHidden?: boolean; bLeft?: string } | null; }
 const FALL: FallState = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null, end: 0, lanes: new Set() };
-const FALL_SEC = 3.2, FALL_FONT = '"Hanken Grotesk",system-ui,sans-serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE: Readonly<Record<number, number>> = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
+const FALL_SEC = 3.2, FALL_FONT = '"Bodoni Moda",Georgia,serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE: Readonly<Record<number, number>> = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
 // Right hand: warm coral from the app's accent family; left hand: cool teal. lit = sounding.
 interface FallHandColours { a: string; b: string; lit: string[]; rgb: string; key: string[]; ink: string; }
 interface FallPalette { rh: FallHandColours; lh: FallHandColours; }
@@ -20443,7 +20443,7 @@ function showSummary(..._args: unknown[]) {
     byId('sum-streak').textContent = String(currentStreak());
     const r = byId('sum-ring');
     const C = 2 * Math.PI * 52;
-    r.innerHTML = '<circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - acc / 100)) + '" transform="rotate(-90 60 60)"/><text x="60" y="60" text-anchor="middle" dy=".35em" font-family="var(--serif)" font-weight="900" font-size="26" fill="var(--ink)">' + acc + '%</text>';
+    r.innerHTML = '<circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - acc / 100)) + '" transform="rotate(-90 60 60)"/><text x="60" y="60" text-anchor="middle" dy=".35em" font-family="var(--script)" font-weight="400" font-size="38" fill="var(--ink)">' + acc + '%</text>';
     if (SES.placement || arguments[0]) {
         byId('sum-title').textContent = t('sum_place');
         byId('sum-note').textContent = t('sum_placenote', SES.correct, SES.total);

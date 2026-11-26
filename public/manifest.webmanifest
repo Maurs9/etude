@@ -10,8 +10,8 @@
   "display": "standalone",
   "display_override": ["standalone", "fullscreen"],
   "orientation": "any",
-  "background_color": "#f7f3ec",
-  "theme_color": "#f7f3ec",
+  "background_color": "#f5f4ef",
+  "theme_color": "#f5f4ef",
   "categories": ["education", "music"],
   "launch_handler": { "client_mode": "focus-existing" },
   "icons": [

@@ -140,7 +140,7 @@ async function printReport() {
     {
       Asset: 'Self-hosted Fonts (WOFF2)',
       Location: `src/assets/fonts/ (${fontFiles.length} WOFF2 files)`,
-      Includes: 'Fraunces & Hanken Grotesk (latin + latin-ext)',
+      Includes: 'Bodoni Moda & Mr De Haviland (latin + latin-ext)',
       UpdateCmd: 'src/styles/fonts.css',
     },
   ]);

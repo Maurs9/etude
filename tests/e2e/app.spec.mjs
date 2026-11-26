@@ -3355,7 +3355,7 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.locator('#pr-start').hover();
     await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector('#pr-start')).backgroundColor))
-      .toBe('rgb(234, 160, 144)');
+      .toBe('rgb(154, 192, 232)');
     const results = await page.evaluate(() => {
       const parseRgb = str => {
         const srgb = str.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);

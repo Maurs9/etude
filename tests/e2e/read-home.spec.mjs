@@ -294,7 +294,7 @@ test.describe('Read home', () => {
     await page.evaluate(() => { window.__etude.theme = 'dark'; window.__etude.applyTheme(); });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     const colours = await page.locator('.rdn-today').evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el.querySelector('h2')).color }));
-    expect(colours.bg).toBe('rgb(33, 29, 25)');
-    expect(colours.ink).toBe('rgb(236, 229, 216)');
+    expect(colours.bg).toBe('rgb(27, 32, 40)');
+    expect(colours.ink).toBe('rgb(235, 232, 224)');
   });
 });

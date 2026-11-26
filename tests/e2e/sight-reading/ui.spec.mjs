@@ -39,7 +39,7 @@ test.describe('Sight-Reading semantics and accessibility', () => {
     const ratios = await page.evaluate(() => {
       const api = window.__etude;
       const result = {};
-      for (const [theme, background] of [['light', '#fffdf8'], ['dark', '#211d19']]) {
+      for (const [theme, background] of [['light', '#fdfcf9'], ['dark', '#1b2028']]) {
         api.theme = theme;
         api.applyTheme();
         api.SR.results = {};
