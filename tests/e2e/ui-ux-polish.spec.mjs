@@ -317,4 +317,43 @@ test.describe('Wave 2A UX and localization regressions', () => {
     expect(dark.mutedRatio).toBeGreaterThanOrEqual(4.5);
     expect(dark.ctaRatio).toBeGreaterThanOrEqual(4.5);
   });
+
+  test('Urtext Prussian palette and Mr De Haviland / Bodoni Moda typography apply to titles, hero numbers, and body text', async ({ app, page }) => {
+    await app.open({ hash: 'today' });
+    const today = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const fontOf = sel => getComputedStyle(document.querySelector(sel)).fontFamily;
+      return {
+        bodyFont: fontOf('body'),
+        markFont: fontOf('.brand .mark'),
+        tagFont: fontOf('.brand .tag'),
+        h1Font: fontOf('#greet-title'),
+        streakFont: fontOf('#streakN'),
+        countFont: fontOf('#c-due'),
+        cardTitleFont: fontOf('#hero-title'),
+        accent: root.getPropertyValue('--accent').trim(),
+        paper: root.getPropertyValue('--paper').trim(),
+      };
+    });
+    expect(today.bodyFont).toContain('Bodoni Moda');
+    expect(today.cardTitleFont).toContain('Bodoni Moda');
+    expect(today.markFont).toContain('Mr De Haviland');
+    expect(today.tagFont).toContain('Mr De Haviland');
+    expect(today.h1Font).toContain('Mr De Haviland');
+    expect(today.streakFont).toContain('Mr De Haviland');
+    expect(today.countFont).toContain('Mr De Haviland');
+    expect(today.accent).toBe('#1e4266');
+    expect(today.paper).toBe('#f5f4ef');
+
+    await page.evaluate(() => { window.__etude.show('progress'); });
+    await expect(page.locator('#view-progress')).toHaveClass(/active/);
+    const prog = await page.evaluate(() => ({
+      h1Font: getComputedStyle(document.querySelector('#view-progress h1')).fontFamily,
+      statFont: getComputedStyle(document.querySelector('#progStats .s b')).fontFamily,
+      statLabelFont: getComputedStyle(document.querySelector('#progStats .s span')).fontFamily,
+    }));
+    expect(prog.h1Font).toContain('Mr De Haviland');
+    expect(prog.statFont).toContain('Mr De Haviland');
+    expect(prog.statLabelFont).toContain('Bodoni Moda');
+  });
 });

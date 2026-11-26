@@ -264,8 +264,8 @@ test.describe('Read warm-up', () => {
     await page.evaluate(() => { window.__etude.theme = 'dark'; window.__etude.applyTheme(); });
     await start(page, { flash: 5000, result: 100 });
     const colours = await page.locator('#rdn-w-flash').evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el.querySelector('#rdn-f-prompt')).color }));
-    expect(colours.bg).toBe('rgb(33, 29, 25)');
-    expect(colours.ink).toBe('rgb(236, 229, 216)');
+    expect(colours.bg).toBe('rgb(27, 32, 40)');
+    expect(colours.ink).toBe('rgb(235, 232, 224)');
     await page.evaluate(() => window.__etude.setLang('ro'));
     await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
     const ro = STRINGS.ro;
