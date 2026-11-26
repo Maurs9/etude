@@ -1,17 +1,17 @@
 import {
-  CHORD_HINTS, CHORD_HINT_FAMILIES, SCALE_HINTS, SCALE_HINT_FAMILIES, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
-  chordHintInversionCount, chordHintTones, chordSingleSteps,
-  melodyHintExample, progressionHintChords, progressionHintSteps,
-  scaleHintFormula, scaleHintTones, scaleSingleSteps, techniqueHintSteps, techniqueHintTonic,
-  type PracticeHintDiagram,
+  ARPEGGIO_HINTS, CHORD_HINTS, CHORD_HINT_FAMILIES, MELODY_HINTS, PROGRESSION_HINTS, PROGRESSION_HINT_FAMILIES,
+  SCALE_HINTS, SCALE_HINT_FAMILIES,
+  arpeggioHintSteps, arpeggioHintTones, chordHintInTier, chordHintInversionCount, chordHintTones, chordSingleSteps,
+  melodyHintExample, progressionHintChords, progressionHintSteps, progressionHintVoicings,
+  scaleHintFormula, scaleHintTones, scaleSingleSteps,
+  type ArpeggioHint, type ChordHintTier, type MelodyHintDifficulty, type PracticeHintDiagram, type ProgressionHint,
 } from './practice-hints.js';
 import { createChordHintDiagrams } from './chord-hint-diagrams.js';
 import { renderGrandStaff } from './grand-staff.js';
-import { createHintKeyboard } from './hint-keyboard.js';
+import { createHintKeyboard, hintSvg } from './hint-keyboard.js';
 import { control, element, playControl, segmentedControl } from './practice-hint-dom.js';
-import { renderProgressionStudy, renderTechniqueStudy, type StudyHintOptions, type StudyHintState } from './practice-study-view.js';
+import { renderProgressionStudy, type StudyHintOptions, type StudyHintState } from './practice-study-view.js';
 import { SR_LET, type SrToken } from './score-types.js';
-import { techniqueSpellDegree, techniqueTonicSpelling, type TechniqueHand } from './technique.js';
 import { keyFifths, spellMidi } from './theory.js';
 
 export type PracticeHintsTopic = 'chord' | 'scale' | 'prog' | 'technique' | 'melody';
@@ -26,6 +26,9 @@ interface HintViewOptions extends StudyHintOptions {
   readonly formatChord?: (root: string, symbol: string) => string;
   readonly scaleName: (name: string) => string;
   readonly study: StudyHintState;
+  readonly chordTier?: ChordHintTier;
+  readonly scaleTier?: 'core' | 'modes' | 'all';
+  readonly melodyDiff?: MelodyHintDifficulty;
 }
 
 function buildCardHeader(title: string, formula?: string, playButton?: HTMLButtonElement) {
@@ -47,6 +50,51 @@ function buildCard(id: string, title: string, formula?: string, playButton?: HTM
   return article;
 }
 
+function buildMelodyContour(notes: readonly { readonly midi: number; readonly degree: number }[], label: string) {
+  const wrap = element('div', 'pr-hint-stage pr-melody-contour-stage');
+  const width = 240, height = 58, padX = 20, padY = 12;
+  const minMidi = Math.min(...notes.map(n => n.midi));
+  const maxMidi = Math.max(...notes.map(n => n.midi));
+  const span = Math.max(1, maxMidi - minMidi);
+  const stepX = notes.length > 1 ? (width - padX * 2) / (notes.length - 1) : 0;
+  const pts = notes.map((note, i) => ({
+    x: padX + i * stepX,
+    y: height - padY - ((note.midi - minMidi) / span) * (height - padY * 2),
+    degree: note.degree,
+  }));
+  const svg = hintSvg('pr-melody-contour', `0 0 ${width} ${height}`);
+  svg.setAttribute('aria-label', label);
+  const polyPoints = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const dots = pts.map((p, i) =>
+    `<g class="pr-contour-node" data-contour-step="${i}"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5"/></g>`).join('');
+  svg.innerHTML = `<polyline class="pr-contour-line" points="${polyPoints}" fill="none"/>${dots}`;
+
+  const degreeBar = element('ol', 'pr-melody-degrees');
+  degreeBar.setAttribute('role', 'list');
+  const degreeChips = pts.map((p, i) => {
+    const li = element('li', 'pr-melody-deg', String(p.degree));
+    li.dataset.contourDeg = String(i);
+    return li;
+  });
+  degreeBar.append(...degreeChips);
+  wrap.append(svg, degreeBar);
+
+  const nodes = [...svg.querySelectorAll('[data-contour-step]')];
+  let activeIndex: number | undefined;
+  const highlight = (index?: number) => {
+    if (activeIndex !== undefined) {
+      nodes[activeIndex]?.removeAttribute('data-s');
+      degreeChips[activeIndex]?.removeAttribute('data-s');
+    }
+    activeIndex = index;
+    if (activeIndex !== undefined) {
+      nodes[activeIndex]?.setAttribute('data-s', 'now');
+      degreeChips[activeIndex]?.setAttribute('data-s', 'now');
+    }
+  };
+  return { wrap, highlight };
+}
+
 export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTopic, options: HintViewOptions): void {
   const { text, spell, play, chordName, scaleName, disabled, audioOnly } = options;
   const tonic = options.tonic ?? 0;
@@ -61,52 +109,38 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
   const contents = document.createDocumentFragment();
   const contextLabel = options.tonic !== null
     ? text('pr_hints_tonic_active', rootName(options.tonic))
-    : topic === 'technique'
-      ? text('pr_hints_tonic_groups')
-      : text('pr_hints_tonic_default', rootName(0));
+    : text('pr_hints_tonic_default', rootName(0));
   const contextBadge = element('p', 'pr-hints-context', contextLabel);
-  if (topic !== 'chord' && topic !== 'scale') contents.append(contextBadge);
-
-  const appendGroup = (label: string) => {
-    const section = element('section', 'pr-chord-group');
-    const grid = element('div', 'pr-hint-grid');
-    section.append(element('h2', 'pr-chord-group-title', label), grid);
-    contents.append(section);
-    return grid;
-  };
-  const studyToggles = new Map<string, (open: boolean) => void>();
-  function appendStudy(el: HTMLElement, kind: 'prog' | 'technique', hint: string, title: string, build: () => HTMLElement) {
-    const id = `${kind}:${hint}`;
-    const heading = el.querySelector('h3');
-    const detail = element('div', 'pr-study-detail');
-    detail.id = `pr-study-detail-${encodeURIComponent(id)}`;
-    const setOpen = (open: boolean) => {
-      detail.hidden = !open;
-      el.classList.toggle('pr-study-open', open);
-      toggle.setAttribute('aria-expanded', String(open));
-      if (open) detail.replaceChildren(build());
-      else detail.replaceChildren();
-    };
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'pr-study-toggle';
-    toggle.textContent = title;
-    toggle.dataset.hintControl = `${id}:toggle`;
-    toggle.setAttribute('aria-controls', detail.id);
-    toggle.addEventListener('click', () => {
-      options.stop();
-      const previous = options.study.open[kind];
-      if (previous) studyToggles.get(previous)?.(false);
-      options.study.open[kind] = previous === hint ? null : hint;
-      if (options.study.open[kind]) setOpen(true);
-    });
-    heading?.replaceChildren(toggle);
-    el.classList.add('pr-study-card');
-    el.append(detail);
-    studyToggles.set(hint, setOpen);
-    setOpen(options.study.open[kind] === hint);
-  }
   const formatChord = options.formatChord ?? ((root: string, symbol: string) => symbol === 'maj' ? root : root + symbol);
+
+  const makeTabBar = (
+    kind: 'chord' | 'scale' | 'prog' | 'melody',
+    ariaLabel: string,
+    tabs: readonly { id: string; label: string; count: number }[],
+    activeTab: string,
+    onSelect: (id: string) => void,
+  ) => {
+    const tabBar = element('div', 'pr-family-tabs');
+    tabBar.setAttribute('role', 'group');
+    tabBar.setAttribute('aria-label', ariaLabel);
+    for (const tab of tabs) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pr-family-tab';
+      btn.dataset.hintFamily = tab.id;
+      btn.dataset.hintControl = `family:${kind}:${tab.id}`;
+      btn.setAttribute('aria-pressed', String(activeTab === tab.id));
+      btn.append(document.createTextNode(`${tab.label} `), element('span', 'pr-family-tab-count', `(${tab.count})`));
+      btn.addEventListener('click', () => {
+        if (activeTab === tab.id) return;
+        options.stop();
+        onSelect(tab.id);
+      });
+      tabBar.append(btn);
+    }
+    return tabBar;
+  };
+
   const buildChordCard = (symbol: string) => {
     const id = `chord:${symbol}`;
     const invCount = chordHintInversionCount(symbol);
@@ -164,7 +198,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     const lhTones = scaleHintTones(hint.name, tonic, 'lh');
     const names = rhTones.map(tone => spell(tone.li, tone.acc)).join(' · ');
     const keyboard = createHintKeyboard(rhTones[0].midi, rhTones.map(tone => tone.midi));
-    const visuals = element('div', 'pr-hint-stage pr-hint-visuals');
+    const visuals = element('div', 'pr-hint-stage pr-hint-visuals pr-scale-stage');
     visuals.append(keyboard.svg);
     const caption = element('p', 'pr-hint-detail pr-chord-caption', names);
     const rhFingers = rhTones.map(t => t.finger ?? '-').join(' ');
@@ -187,207 +221,418 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       () => play(id, scaleSingleSteps(hint.name, tonic, 'rh'), false, diagram, `${id}:hear`));
     const el = buildCard(hint.name, title, scaleHintFormula(hint), playBtn, visuals);
     el.classList.add('pr-scale-card');
-    el.append(caption, element('p', 'pr-hint-hand-legend', text('pr_hints_dual_legend')));
+    el.append(caption);
     return el;
   };
 
-  const renderFamilyTabs = (kind: 'chord' | 'scale') => {
-    const families = kind === 'chord'
-      ? CHORD_HINT_FAMILIES.map(f => ({ id: f.id, label: text(`pr_hints_chord_family_${f.id}`), items: f.symbols }))
-      : SCALE_HINT_FAMILIES.map(f => ({ id: f.id, label: text(`pr_hints_scale_family_${f.id}`), items: f.names }));
-    const totalCount = kind === 'chord' ? CHORD_HINTS.length : SCALE_HINTS.length;
+  const buildArpeggioCard = (arp: ArpeggioHint) => {
+    const arpTitle = text(`pr_hints_arp_${arp.id}`);
+    const minor = arp.id === 'arpMinor';
+    const title = `${rootName(tonic, tonic, minor)} · ${arpTitle}`;
+    const id = `scale:${arp.id}`;
+    const tones = arpeggioHintTones(arp.id, tonic);
+    const names = tones.map(tone => spell(tone.li, tone.acc)).join(' · ');
+    const keyboard = createHintKeyboard(tones[0].midi, tones.map(tone => tone.midi));
+    const visuals = element('div', 'pr-hint-stage pr-hint-visuals pr-scale-stage');
+    visuals.append(keyboard.svg);
+    const caption = element('p', 'pr-hint-detail pr-chord-caption', names);
+    const rhFingers = tones.map(t => t.fingerRh).join(' ');
+    const lhFingers = tones.map(t => t.fingerLh).join(' ');
+    const label = text('pr_hints_chord_keyboard', `${arpTitle} · ${text('tq_h_rh')} (${rhFingers}) · ${text('tq_h_lh')} (${lhFingers})`, names);
+    keyboard.draw(tones.map(tone => ({
+      midi: tone.midi,
+      tonic: tone.tonic,
+      fingerRh: tone.fingerRh,
+      fingerLh: tone.fingerLh,
+    })), label);
+    const diagram: PracticeHintDiagram = {
+      followWithoutDock: true,
+      paint(_rawKey, sounding = []) {
+        keyboard.paint(new Set(sounding.map(note => note.midi)));
+      },
+    };
+    const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
+      () => play(id, arpeggioHintSteps(arp.id, tonic), false, diagram, `${id}:hear`));
+    const el = buildCard(arp.id, title, arp.formula, playBtn, visuals);
+    el.classList.add('pr-scale-card', 'pr-arp-card');
+    el.append(caption);
+    return el;
+  };
+
+  box.classList.add('pr-chord-groups');
+
+  if (topic === 'chord') {
+    const requestedTier: ChordHintTier = options.chordTier ?? 'all';
+    const effectiveTier: ChordHintTier = options.study.chordShowAll ? 'all' : requestedTier;
+    const families = CHORD_HINT_FAMILIES
+      .map(f => ({
+        id: f.id,
+        label: text(`pr_hints_chord_family_${f.id}`),
+        items: f.symbols.filter(sym => chordHintInTier(sym, effectiveTier)),
+      }))
+      .filter(f => f.items.length > 0);
+    const totalCount = families.reduce((sum, f) => sum + f.items.length, 0);
     const validFamilies = new Set<string>(['all', ...families.map(f => f.id)]);
-    let activeFamily = options.study.family[kind];
+    let activeFamily = options.study.family.chord;
     if (!validFamilies.has(activeFamily)) {
-      activeFamily = families[0].id;
-      options.study.family[kind] = activeFamily;
+      activeFamily = effectiveTier === 'triads' ? 'all' : families[0].id;
+      options.study.family.chord = activeFamily;
     }
 
     const topBar = element('div', 'pr-family-bar');
-    topBar.append(contextBadge);
-    const tabBar = element('div', 'pr-family-tabs');
-    tabBar.setAttribute('role', 'group');
-    tabBar.setAttribute('aria-label', text(`pr_hints_${kind}_title`));
-    const tabs: readonly { id: string; label: string; count: number }[] = [
+    const metaRow = element('div', 'pr-family-meta');
+    const tierLabel = requestedTier === 'triads'
+      ? text('pr_ch_triads')
+      : requestedTier === 'sevenths'
+        ? text('pr_ch_sevenths')
+        : text('pr_ch_all');
+    const badgeText = requestedTier !== 'all' && !options.study.chordShowAll
+      ? `${contextLabel} · ${tierLabel}`
+      : contextLabel;
+    metaRow.append(element('p', 'pr-hints-context', badgeText));
+    if (requestedTier !== 'all') {
+      const toggleAll = document.createElement('button');
+      toggleAll.type = 'button';
+      toggleAll.className = 'pr-hints-filter-btn';
+      toggleAll.dataset.hintControl = 'chord:tier-toggle';
+      toggleAll.textContent = options.study.chordShowAll
+        ? text('pr_hints_chord_filter_tier', tierLabel)
+        : text('pr_hints_chord_show_all', String(CHORD_HINTS.length));
+      toggleAll.addEventListener('click', () => {
+        options.stop();
+        options.study.chordShowAll = !options.study.chordShowAll;
+        renderPracticeHintCards(box, topic, options);
+      });
+      metaRow.append(toggleAll);
+    }
+    topBar.append(metaRow);
+    const tabs = [
       ...families.map(f => ({ id: f.id, label: f.label, count: f.items.length })),
       { id: 'all', label: text('pr_hints_family_all'), count: totalCount },
     ];
-    for (const tab of tabs) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pr-family-tab';
-      btn.dataset.hintFamily = tab.id;
-      btn.dataset.hintControl = `family:${kind}:${tab.id}`;
-      btn.setAttribute('aria-pressed', String(activeFamily === tab.id));
-      btn.append(document.createTextNode(`${tab.label} `), element('span', 'pr-family-tab-count', `(${tab.count})`));
-      btn.addEventListener('click', () => {
-        if (options.study.family[kind] === tab.id) return;
-        options.stop();
-        options.study.family[kind] = tab.id;
-        renderPracticeHintCards(box, topic, options);
-      });
-      tabBar.append(btn);
-    }
-    topBar.append(tabBar);
+    topBar.append(makeTabBar('chord', text('pr_hints_chord_title'), tabs, activeFamily, (id) => {
+      options.study.family.chord = id;
+      renderPracticeHintCards(box, topic, options);
+    }));
     contents.append(topBar);
 
-    const buildCardFor = (itemId: string) => (kind === 'chord' ? buildChordCard(itemId) : buildScaleCard(itemId));
     if (activeFamily === 'all') {
       for (const family of families) {
         const section = element('section', 'pr-chord-group');
-        const grid = element('div', 'pr-hint-grid pr-family-grid');
-        for (const itemId of family.items) grid.append(buildCardFor(itemId));
+        const grid = element('div', 'pr-hint-grid pr-chord-grid');
+        for (const sym of family.items) grid.append(buildChordCard(sym));
         section.append(element('h2', 'pr-chord-group-title', family.label), grid);
         contents.append(section);
       }
     } else {
       const selected = families.find(f => f.id === activeFamily) ?? families[0];
       const section = element('section', 'pr-chord-group');
-      const grid = element('div', 'pr-hint-grid pr-family-grid');
-      for (const itemId of selected.items) grid.append(buildCardFor(itemId));
+      const grid = element('div', 'pr-hint-grid pr-chord-grid');
+      for (const sym of selected.items) grid.append(buildChordCard(sym));
       section.append(element('h2', 'pr-chord-group-title', selected.label), grid);
       contents.append(section);
     }
-  };
+  } else if (topic === 'scale' || topic === 'technique') {
+    const scaleFamilies = SCALE_HINT_FAMILIES.map(f => ({
+      id: f.id as string,
+      label: text(`pr_hints_scale_family_${f.id}`),
+      kind: 'scale' as const,
+      items: f.names,
+    }));
+    const arpeggioGroup = {
+      id: 'arpeggios',
+      label: text('pr_hints_technique_arpeggios'),
+      kind: 'arpeggio' as const,
+      items: ARPEGGIO_HINTS.map(a => a.id),
+    };
+    const families = [scaleFamilies[0], arpeggioGroup, ...scaleFamilies.slice(1)];
+    const totalCount = SCALE_HINTS.length + ARPEGGIO_HINTS.length;
+    const validFamilies = new Set<string>(['all', ...families.map(f => f.id)]);
+    let activeFamily = options.study.family.scale;
+    if (!validFamilies.has(activeFamily)) {
+      activeFamily = 'core';
+      options.study.family.scale = activeFamily;
+    }
 
-  box.classList.toggle('pr-chord-groups', topic !== 'melody');
-  if (topic === 'chord' || topic === 'scale') {
-    renderFamilyTabs(topic);
+    const topBar = element('div', 'pr-family-bar');
+    const metaRow = element('div', 'pr-family-meta');
+    metaRow.append(contextBadge);
+    const legend = element('div', 'pr-hand-legend');
+    const rhPill = element('span', 'pr-hand-pill pr-hand-pill-rh', text('pr_hints_rh_badge'));
+    const lhPill = element('span', 'pr-hand-pill pr-hand-pill-lh', text('pr_hints_lh_badge'));
+    legend.append(rhPill, lhPill);
+    metaRow.append(legend);
+    topBar.append(metaRow);
+
+    const tabs = [
+      ...families.map(f => ({ id: f.id, label: f.label, count: f.items.length })),
+      { id: 'all', label: text('pr_hints_family_all'), count: totalCount },
+    ];
+    topBar.append(makeTabBar('scale', text('pr_hints_scale_title'), tabs, activeFamily, (id) => {
+      options.study.family.scale = id;
+      renderPracticeHintCards(box, topic, options);
+    }));
+    contents.append(topBar);
+
+    const appendGroupCards = (group: (typeof families)[number]) => {
+      const section = element('section', 'pr-chord-group');
+      const grid = element('div', 'pr-hint-grid pr-scale-grid');
+      if (group.kind === 'arpeggio') {
+        for (const arp of ARPEGGIO_HINTS) grid.append(buildArpeggioCard(arp));
+      } else {
+        for (const name of group.items) grid.append(buildScaleCard(name));
+      }
+      section.append(element('h2', 'pr-chord-group-title', group.label), grid);
+      contents.append(section);
+    };
+
+    if (activeFamily === 'all') {
+      for (const group of families) appendGroupCards(group);
+    } else {
+      const selected = families.find(f => f.id === activeFamily) ?? families[0];
+      appendGroupCards(selected);
+    }
   } else if (topic === 'prog') {
-    const groups = new Map([['three', 'cadences'], ['pop', 'popular'], ['blues', 'forms']]);
-    let grid = element('div', 'pr-hint-grid');
-    for (const hint of PROGRESSION_HINTS) {
-      const group = groups.get(hint.cue);
-      if (group) grid = appendGroup(text(`pr_hints_prog_group_${group}`));
+    const families = PROGRESSION_HINT_FAMILIES.map(f => ({
+      id: f.id,
+      label: text(`pr_hints_prog_tab_${f.id}`),
+      items: f.names.map(name => PROGRESSION_HINTS.find(h => h.name === name)!).filter(Boolean),
+    }));
+    const validFamilies = new Set<string>(['all', ...families.map(f => f.id)]);
+    let activeFamily = options.study.family.prog;
+    if (!validFamilies.has(activeFamily)) {
+      activeFamily = 'popular';
+      options.study.family.prog = activeFamily;
+    }
+
+    const topBar = element('div', 'pr-family-bar');
+    topBar.append(contextBadge);
+    const tabs = [
+      ...families.map(f => ({ id: f.id, label: f.label, count: f.items.length })),
+      { id: 'all', label: text('pr_hints_family_all'), count: PROGRESSION_HINTS.length },
+    ];
+    topBar.append(makeTabBar('prog', text('pr_hints_prog_title'), tabs, activeFamily, (id) => {
+      options.study.family.prog = id;
+      renderPracticeHintCards(box, topic, options);
+    }));
+    contents.append(topBar);
+
+    const studyToggles = new Map<string, (open: boolean) => void>();
+    const buildProgCard = (hint: ProgressionHint) => {
       const title = text(`pr_hints_p_${hint.cue}_title`);
       const chords = progressionHintChords(hint, tonic);
-      const stage = element('div', 'pr-hint-stage');
+      const voicings = progressionHintVoicings(hint, tonic);
+      const names = chords.map(({ root, symbol }) => formatChord(rootName(root, tonic, hint.minor), symbol));
+      const id = `prog:${hint.name}`;
+      const stage = element('div', 'pr-hint-stage pr-prog-stage');
       const sequence = element('ol', `pr-progression-sequence${chords.length === 12 ? ' pr-progression-grid-12' : ''}`);
       sequence.setAttribute('role', 'list');
-      const names = chords.map(({ root, symbol }) => formatChord(rootName(root, tonic, hint.minor), symbol));
+
+      let selectedStep = Math.max(0, Math.min(options.study.chords.get(hint.name) ?? 0, voicings.length - 1));
+      const allMidis = voicings.flatMap(v => [v.bass.midi, ...v.upper.map(t => t.midi)]);
+      const keyboard = createHintKeyboard(voicings[selectedStep].bass.midi, allMidis);
+      const drawStepOnKeyboard = (index: number) => {
+        const v = voicings[index] ?? voicings[0];
+        const stepTones = [
+          { midi: v.bass.midi, tonic: true },
+          ...v.upper.map(t => ({ midi: t.midi, tonic: t.degree === 1 })),
+        ];
+        keyboard.svg.dataset.chordRoot = String(((v.bass.midi % 12) + 12) % 12);
+        const stepDesc = `${v.roman} ${names[index]}`;
+        keyboard.draw(stepTones, text('pr_hints_chord_keyboard', stepDesc, stepTones.map(t => String(t.midi)).join(' ')), undefined, true);
+      };
+      drawStepOnKeyboard(selectedStep);
+
+      let currentStepEl: HTMLElement | undefined;
+      const buttons: HTMLButtonElement[] = [];
       const columns = chords.map(({ roman }, i) => {
         const item = element('li', 'pr-progression-chord');
-        item.append(element('span', 'pr-progression-degree', roman), element('strong', 'pr-progression-name', names[i]));
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pr-progression-chord-btn';
+        btn.dataset.hintControl = `${id}:step:${i}`;
+        btn.setAttribute('aria-pressed', String(i === selectedStep));
+        btn.append(element('span', 'pr-progression-degree', roman), element('strong', 'pr-progression-name', names[i]));
+        btn.addEventListener('click', () => {
+          selectedStep = i;
+          options.study.chords.set(hint.name, i);
+          buttons.forEach((b, bi) => b.setAttribute('aria-pressed', String(bi === i)));
+          drawStepOnKeyboard(i);
+          play(`${id}:step:${i}`, progressionHintSteps(hint, tonic, i), !audioOnly, diagram, `${id}:step:${i}`);
+        });
+        buttons.push(btn);
+        item.append(btn);
         return item;
       });
       sequence.append(...columns);
-      stage.append(sequence);
-      let current: HTMLElement | undefined;
+      stage.append(sequence, keyboard.svg);
+
       const diagram: PracticeHintDiagram = {
         followWithoutDock: true,
-        paint(key) {
-          const next = key === undefined ? undefined : columns[Number(key)];
-          if (current === next) return;
-          current?.removeAttribute('aria-current');
-          next?.setAttribute('aria-current', 'step');
-          current = next;
+        paint(key, sounding = []) {
+          const idx = key !== undefined && /^\d+$/.test(key) ? Number(key) : undefined;
+          const next = idx === undefined ? undefined : columns[idx];
+          if (currentStepEl !== next) {
+            currentStepEl?.removeAttribute('aria-current');
+            next?.setAttribute('aria-current', 'step');
+            currentStepEl = next;
+          }
+          if (idx !== undefined && voicings[idx]) {
+            selectedStep = idx;
+            buttons.forEach((b, bi) => b.setAttribute('aria-pressed', String(bi === idx)));
+            drawStepOnKeyboard(idx);
+          }
+          keyboard.paint(new Set(sounding.map(n => n.midi)));
         },
       };
-      const id = `prog:${hint.name}`;
+
       const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
         () => play(id, progressionHintSteps(hint, tonic), !audioOnly, diagram, `${id}:hear`));
       const keyLabel = formatChord(rootName(tonic, tonic, hint.minor), hint.minor ? 'm' : '');
       const el = buildCard(hint.name, title, keyLabel, playBtn, stage, text(`pr_hints_p_${hint.cue}`));
+      el.classList.add('pr-study-card', 'pr-prog-card');
+
+      const detail = element('div', 'pr-study-detail');
+      detail.id = `pr-study-detail-${encodeURIComponent(id)}`;
+      const studyBtn = document.createElement('button');
+      studyBtn.type = 'button';
+      studyBtn.className = 'btn ghost sm pr-study-btn';
+      studyBtn.dataset.hintControl = `${id}:toggle`;
+      studyBtn.setAttribute('aria-controls', detail.id);
+      const setOpen = (open: boolean) => {
+        detail.hidden = !open;
+        el.classList.toggle('pr-study-open', open);
+        studyBtn.setAttribute('aria-expanded', String(open));
+        studyBtn.textContent = text(open ? 'pr_hints_prog_hide_study' : 'pr_hints_prog_show_study');
+        if (open) detail.replaceChildren(renderProgressionStudy(hint, tonic, title, names, options, options.study));
+        else detail.replaceChildren();
+      };
+      studyBtn.addEventListener('click', () => {
+        options.stop();
+        const previous = options.study.open.prog;
+        if (previous) studyToggles.get(previous)?.(false);
+        options.study.open.prog = previous === hint.name ? null : hint.name;
+        if (options.study.open.prog) setOpen(true);
+      });
+      studyToggles.set(hint.name, setOpen);
+
+      const foot = element('div', 'pr-hint-foot');
       if (audioOnly) {
-        const foot = element('div', 'pr-hint-foot');
         const keysBtn = control(`${id}:keys`, text('pr_hints_show_keys'), title, disabled,
           () => play(id, progressionHintSteps(hint, tonic), true, diagram, `${id}:keys`));
         keysBtn.setAttribute('aria-pressed', 'false');
         keysBtn.dataset.labelPlay = `${text('pr_hints_show_keys')} — ${title}`;
         keysBtn.dataset.labelStop = `${stopLabel} — ${title}`;
         foot.append(keysBtn);
-        el.append(foot);
       }
-      appendStudy(el, 'prog', hint.name, title, () => renderProgressionStudy(hint, tonic, title, names, options, options.study));
-      grid.append(el);
-    }
-  } else if (topic === 'technique') {
-    let grid = appendGroup(text('cat_scale'));
-    for (const hint of TECHNIQUE_HINTS) {
-      if (hint.id === 'arp_major') grid = appendGroup(text('pr_hints_technique_arpeggios'));
-      const pitch = techniqueHintTonic(hint, options.tonic);
-      const spelling = techniqueTonicSpelling(hint.kind, pitch);
-      const namedTonics = hint.namedTonics?.map(key => rootName(key)) ?? [];
-      const title = text(`pr_hints_t_${hint.id}_title`, ...namedTonics);
-      const tonicName = spell(spelling.letter, spelling.acc);
-      const el = buildCard(hint.id, title, tonicName, undefined, undefined, text(`pr_hints_t_${hint.id}`, ...namedTonics));
-      for (const hand of ['rh', 'lh'] as const satisfies readonly TechniqueHand[]) {
-        const { ascending, fragment, steps } = techniqueHintSteps(hint, pitch, hand);
-        const handName = text(`tq_h_${hand}`);
-        const fingers = element('p', 'pr-hint-detail pr-hint-fingers');
-        for (const [i, note] of ascending.entries()) {
-          const name = techniqueSpellDegree(hint.kind, pitch, note.degree);
-          const label = `${spell(name.letter, name.acc)}(${note.finger})`;
-          if (i) fingers.append(' · ');
-          fingers.append(fragment.includes(note) ? element('strong', 'pr-hint-focus', label) : label);
-        }
-        const id = `technique:${hint.id}:${hand}`;
-        const keyboard = createHintKeyboard(ascending[0].midi, ascending.map(note => note.midi));
-        const description = `${title} · ${tonicName} · ${handName}`;
-        keyboard.draw(ascending.map((note, i) => ({ ...note, tonic: i === 0 || i === ascending.length - 1 })),
-          text('pr_hints_chord_keyboard', description, fingers.textContent ?? ''));
-        const diagram: PracticeHintDiagram = {
-          followWithoutDock: true,
-          paint(_key, sounding = []) {
-            keyboard.paint(new Set(sounding.map(note => note.midi)));
-          },
-        };
-        const handBox = element('div', 'pr-hint-hand');
-        const handHeader = element('div', 'pr-hint-hand-hd');
-        const playBtn = playControl(id, listenLabel, stopLabel, description, disabled, () => play(id, steps, true, diagram, id));
-        handHeader.append(element('h4', 'pr-hint-hand-title', handName), playBtn);
-        const stage = element('div', 'pr-hint-stage pr-hint-visuals');
-        stage.append(keyboard.svg);
-        handBox.append(handHeader, stage, fingers);
-        el.append(handBox);
-      }
-      appendStudy(el, 'technique', hint.id, title, () => renderTechniqueStudy(hint, pitch, `${title} · ${tonicName}`, options, options.study));
-      grid.append(el);
+      foot.append(studyBtn);
+      el.append(foot, detail);
+      setOpen(options.study.open.prog === hint.name);
+      return el;
+    };
+
+    if (activeFamily === 'all') {
+      const section = element('section', 'pr-chord-group');
+      const grid = element('div', 'pr-hint-grid pr-prog-grid');
+      for (const hint of PROGRESSION_HINTS) grid.append(buildProgCard(hint));
+      section.append(grid);
+      contents.append(section);
+    } else {
+      const selected = families.find(f => f.id === activeFamily) ?? families[0];
+      const section = element('section', 'pr-chord-group');
+      const grid = element('div', 'pr-hint-grid pr-prog-grid');
+      for (const hint of selected.items) grid.append(buildProgCard(hint));
+      section.append(element('h2', 'pr-chord-group-title', selected.label), grid);
+      contents.append(section);
     }
   } else {
-    contents.append(element('p', 'pr-hint-method', text('pr_hints_melody_cue')));
-    for (const [i, hint] of MELODY_HINTS.entries()) {
+    // Melodies (on keys): 3-step method strip + difficulty tabs + visual contour & degrees + reveal keyboard & staff.
+    const diffs: readonly { id: MelodyHintDifficulty; label: string; items: readonly (typeof MELODY_HINTS)[number][] }[] = [
+      { id: 'easy', label: text('pr_mel_easy'), items: MELODY_HINTS.filter(h => h.difficulty === 'easy') },
+      { id: 'medium', label: text('pr_mel_medium'), items: MELODY_HINTS.filter(h => h.difficulty === 'medium') },
+      { id: 'advanced', label: text('pr_mel_advanced'), items: MELODY_HINTS.filter(h => h.difficulty === 'advanced') },
+    ];
+    const validDiffs = new Set<string>(['all', ...diffs.map(d => d.id)]);
+    let activeDiff = options.study.family.melody;
+    if (!validDiffs.has(activeDiff)) {
+      activeDiff = options.melodyDiff ?? 'easy';
+      options.study.family.melody = activeDiff;
+    }
+
+    const topBar = element('div', 'pr-family-bar');
+    topBar.append(contextBadge);
+    const stepsGuide = element('ol', 'pr-melody-steps');
+    for (const stepNum of [1, 2, 3] as const) {
+      const li = element('li', 'pr-melody-step');
+      li.append(element('strong', 'pr-melody-step-t', text(`pr_hints_melody_step_${stepNum}_t`)),
+        element('span', 'pr-melody-step-d', text(`pr_hints_melody_step_${stepNum}_d`)));
+      stepsGuide.append(li);
+    }
+    topBar.append(stepsGuide);
+    const tabs = [
+      ...diffs.map(d => ({ id: d.id, label: d.label, count: d.items.length })),
+      { id: 'all', label: text('pr_hints_family_all'), count: MELODY_HINTS.length },
+    ];
+    topBar.append(makeTabBar('melody', text('pr_hints_melody_title'), tabs, activeDiff, (id) => {
+      options.study.family.melody = id;
+      renderPracticeHintCards(box, topic, options);
+    }));
+    contents.append(topBar);
+
+    const buildMelodyCard = (hint: (typeof MELODY_HINTS)[number]) => {
       const id = `melody:${hint.id}`;
-      const title = text('pr_hints_melody_example', String(i + 1));
+      const title = text(`pr_hints_melody_title_${hint.id}`);
+      const { notes, steps, fifths } = melodyHintExample(hint, tonic);
+      const diffLabel = text(`pr_mel_${hint.difficulty}`);
+      const meta = `${diffLabel} · ${text('pr_hints_melody_notes_count', String(notes.length))}`;
+      const contour = buildMelodyContour(notes, `${title} · ${notes.map(n => n.degree).join('–')}`);
+
       const answer = element('div', 'pr-hint-stage pr-melody-answer');
       answer.id = `pr-melody-answer-${hint.id}`;
       answer.hidden = true;
-      const { notes, steps, fifths } = melodyHintExample(hint, tonic);
       let positions: Element[] = [];
+      let answerKeyboard: ReturnType<typeof createHintKeyboard> | null = null;
       let activeIndex: number | undefined;
+
       const diagram: PracticeHintDiagram = {
         followWithoutDock: true,
         paint(key, sounding = []) {
           if (activeIndex !== undefined) positions[activeIndex]?.removeAttribute('data-s');
           activeIndex = sounding.length && key !== undefined ? Number(key) : undefined;
+          contour.highlight(activeIndex);
           if (activeIndex !== undefined) positions[activeIndex]?.setAttribute('data-s', 'now');
+          answerKeyboard?.paint(new Set(sounding.map(n => n.midi)));
         },
       };
       const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
         () => play(id, steps, false, diagram, `${id}:hear`));
-      const el = buildCard(
-        hint.id,
-        title,
-        text('pr_hints_melody_notes_count', String(notes.length)),
-        playBtn,
-        undefined,
-        text(`pr_hints_melody_cue_${hint.id}`),
-      );
+      const el = buildCard(hint.id, title, meta, playBtn, contour.wrap, text(`pr_hints_melody_cue_${hint.id}`));
+      el.classList.add('pr-melody-card');
+
       const foot = element('div', 'pr-hint-foot');
       const reveal = control(`${id}:notes`, text('pr_hints_melody_show_notes'), title, false, () => {
         if (answer.hidden && !positions.length) {
+          const midis = notes.map(n => n.midi);
+          const uniqueMidis = new Map<number, boolean>();
+          for (const n of notes) uniqueMidis.set(n.midi, uniqueMidis.get(n.midi) || n.degree === 1);
+          const kb = createHintKeyboard(notes[0].midi, midis);
+          const names = notes.map(({ li, acc }) => spell(li, acc)).join(' · ');
+          kb.draw([...uniqueMidis.entries()].map(([midi, isTonic]) => ({ midi, tonic: isTonic })),
+            text('pr_hints_chord_keyboard', title, names));
+          answerKeyboard = kb;
+
           const tokens: SrToken[] = notes.map(({ li, acc, oct, beats }) =>
             [`${SR_LET[li]}${acc > 0 ? '#' : acc < 0 ? 'b' : ''}${oct}`, beats]);
           const score = renderGrandStaff({ ts: [4, 4], keyN: fifths, rh: tokens, compact: true, engrave: 2 },
             undefined, { namesVisible: false, notation: 'letter' });
-          answer.innerHTML = score.svg;
-          const names = notes.map(({ li, acc }) => spell(li, acc)).join(' · ');
-          const svg = answer.querySelector('svg');
+          const staffBox = element('div', 'pr-melody-staff-wrap');
+          staffBox.innerHTML = score.svg;
+          const svg = staffBox.querySelector('svg');
           svg?.setAttribute('role', 'img');
           svg?.setAttribute('aria-label', `${text('rdx_clef_treble')} · ${title} · ${names}`);
-          positions = [...answer.querySelectorAll('.ss-n')];
+          positions = [...staffBox.querySelectorAll('.ss-n')];
           if (activeIndex !== undefined) positions[activeIndex]?.setAttribute('data-s', 'now');
-          answer.append(element('p', 'pr-hint-detail', names));
+          answer.append(kb.svg, staffBox, element('p', 'pr-hint-detail pr-chord-caption', names));
         }
         answer.hidden = !answer.hidden;
         const label = text(answer.hidden ? 'pr_hints_melody_show_notes' : 'pr_hints_melody_hide_notes');
@@ -399,9 +644,19 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       reveal.setAttribute('aria-expanded', 'false');
       foot.append(reveal);
       el.append(foot, answer);
-      contents.append(el);
-    }
+      return el;
+    };
+
+    const itemsToShow = activeDiff === 'all'
+      ? MELODY_HINTS
+      : (diffs.find(d => d.id === activeDiff)?.items ?? MELODY_HINTS);
+    const section = element('section', 'pr-chord-group');
+    const grid = element('div', 'pr-hint-grid pr-melody-grid');
+    for (const hint of itemsToShow) grid.append(buildMelodyCard(hint));
+    section.append(grid);
+    contents.append(section);
   }
+
   box.replaceChildren(contents);
   if (focused) [...box.querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.hintControl === focused)?.focus({ preventScroll: true });
 }

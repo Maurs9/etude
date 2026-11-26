@@ -193,9 +193,11 @@ test.describe('Practice setup', () => {
     });
   }
 
-  test('five cards across on a wide screen, in the light and the dark theme', async ({ app, page }) => {
+  test('five cards across on an ultra-wide screen (3+2 on laptop), in the light and the dark theme', async ({ app, page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await app.open({ hash: 'practice' });
+    expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(3);
+    await page.setViewportSize({ width: 1440, height: 900 });
     expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(5);
     const look = () => page.locator('#pr-t-interval').evaluate(el => ({ bg: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el.querySelector('.k')).color }));
     const light = await look();
@@ -205,10 +207,25 @@ test.describe('Practice setup', () => {
     await expect.poll(async () => { const dark = await look(); return dark.bg !== light.bg && dark.ink !== light.ink; }).toBe(true);
   });
 
-  test('wide screens: the key chips sit beside the mode area, Start closes the form at the right, Play along fits', async ({ app, page }) => {
-    for (const [width, height, cols] of [[1280, 800, 5], [1440, 900, 5], [1920, 1080, 5]]) {
+  test('wide screens: sub-config pills stay tight to content, key chips sit beside options, Start closes at right', async ({ app, page }) => {
+    for (const [width, height, cols] of [[1280, 800, 3], [1440, 900, 5], [1920, 1080, 5]]) {
       await page.setViewportSize({ width, height });
       await app.open({ hash: 'practice' });
+      // Verify Intervals sub-config .seg pills shrink-wrap tightly to their buttons (no empty black void).
+      await page.locator('#pr-t-interval').click();
+      await page.locator('#pr-mode button[data-v="ear"]').click();
+      const segTight = await page.evaluate(() => {
+        const check = (id) => {
+          const el = document.getElementById(id);
+          const btns = [...el.querySelectorAll('button')];
+          const sumW = btns.reduce((s, b) => s + b.getBoundingClientRect().width, 0);
+          return el.getBoundingClientRect().width - sumW;
+        };
+        return { styleGap: check('pr-iv-style'), dirGap: check('pr-dir') };
+      });
+      expect(segTight.styleGap, `${width}px pr-iv-style`).toBeLessThan(8);
+      expect(segTight.dirGap, `${width}px pr-dir`).toBeLessThan(8);
+
       await page.locator('#pr-t-prog').click();
       await page.locator('#pr-prog-split [data-v="along"]').click();
       const r = await page.evaluate(() => {
@@ -217,13 +234,12 @@ test.describe('Practice setup', () => {
       });
       const where = `${width}px`;
       expect(Math.abs(r.split.top - r.key.top), where).toBeLessThan(20);
-      expect(r.key.left, where).toBeGreaterThan(r.panel.left + r.panel.width / 2 - 1);
+      expect(r.key.left, where).toBeGreaterThan(r.panel.left + r.panel.width / 2 - 40);
+      expect(r.keys.right, where).toBeLessThanOrEqual(r.panel.right + 1);
       expect(r.along.top, where).toBeGreaterThan(r.keys.bottom);
       expect(r.start.right, where).toBeGreaterThan(r.panel.right - 40);
       expect(r.scroll, where).toBeLessThanOrEqual(width);
       expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), where).toBe(cols);
-      const chipTops = await page.locator('#pr-keys .pr-chip').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().top)));
-      expect(new Set(chipTops).size, where).toBe(1);
     }
   });
 

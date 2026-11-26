@@ -546,55 +546,64 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <h2 class="pr-sec" id="pr-topic-h" data-i18n="pr_topic">Topic</h2>
         <div class="pr-topics" id="pr-topics" role="radiogroup" aria-labelledby="pr-topic-h"></div>
         <select id="pr-cat" hidden tabindex="-1" aria-hidden="true"><option value="interval" data-i18n="cat_interval">Intervals</option><option value="chord" data-i18n="cat_chord">Chords</option><option value="scale" data-i18n="cat_scale">Scales</option><option value="prog" data-i18n="cat_prog">Progressions</option><option value="melody" data-i18n="cat_melody">Melodies (on keys)</option><option value="technique" data-i18n="cat_technique">Scales &amp; arpeggios</option></select>
-        <div class="pr-prog-split" id="pr-prog-split" role="tablist" aria-label="Progressions mode" data-i18n-aria="pr_prog_split_aria" hidden>
-          <button type="button" role="tab" data-v="drill" aria-selected="true" data-i18n="pr_prog_tab_drill">Exercise</button>
-          <button type="button" role="tab" data-v="along" aria-selected="false" data-i18n="pr_prog_tab_along">Play along</button>
-        </div>
-        <h2 class="pr-sec" id="pr-mode-h" data-i18n="pr_answer">How to answer</h2>
-        <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="tech" data-i18n="pr_m_sc_tech" aria-pressed="false" hidden>Play with fingering</button><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button><button type="button" data-v="along" data-i18n="pr_along" aria-pressed="false" hidden>Play along</button></div>
-        <p class="pr-mode-hint" id="pr-mode-hint" role="status" aria-live="polite"></p>
-        <p class="pr-mode-note" id="pr-mode-note" role="status" aria-live="polite" hidden></p>
-        <!-- Intervals by ear: presentation style (melodic/harmonic) + direction (prSetIvStyle, prSetDir). -->
-        <div id="pr-dir-row" class="pr-subcfg" hidden>
-          <div class="pr-subrow">
-            <h2 class="pr-sec" id="pr-iv-style-h" data-i18n="pr_iv_style">Presentation</h2>
-            <div class="seg" id="pr-iv-style" role="group" aria-labelledby="pr-iv-style-h"><button type="button" data-v="both" data-i18n="pr_iv_both" aria-pressed="true">Both</button><button type="button" data-v="melodic" data-i18n="pr_iv_melodic" aria-pressed="false">Melodic</button><button type="button" data-v="harmonic" data-i18n="pr_iv_harmonic" aria-pressed="false">Harmonic</button></div>
-          </div>
-          <div id="pr-dir-wrap" class="pr-subrow">
-            <h2 class="pr-sec" id="pr-dir-h" data-i18n="aria_dir">Direction</h2>
-            <div class="seg" id="pr-dir" role="group" aria-labelledby="pr-dir-h"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button><button type="button" data-v="both" data-i18n="dir_both" aria-pressed="false">Both</button></div>
-          </div>
-        </div>
-        <!-- Chords configuration: complexity tier (triads default) + inversions disclosure. -->
-        <div id="pr-chord-cfg" class="pr-subcfg" hidden>
-          <h2 class="pr-sec" id="pr-chord-tier-h" data-i18n="pr_chord_tier">Chord types</h2>
-          <div class="seg" id="pr-chord-tier" role="group" aria-labelledby="pr-chord-tier-h"><button type="button" data-v="triads" data-i18n="pr_ch_triads" aria-pressed="true">Triads</button><button type="button" data-v="sevenths" data-i18n="pr_ch_sevenths" aria-pressed="false">+ 7ths</button><button type="button" data-v="all" data-i18n="pr_ch_all" aria-pressed="false">+ Jazz (all)</button></div>
-          <details class="pr-extra" id="pr-chord-more">
-            <summary data-i18n="pr_chord_more">Chord options</summary>
-            <div class="pr-extra-body">
-              <label class="switch-inline"><input type="checkbox" id="pr-chord-inv"> <span data-i18n="pr_chord_inv">Include inversions</span></label>
+        <div class="pr-setup-cols">
+          <div class="pr-setup-main">
+            <div class="pr-prog-split" id="pr-prog-split" role="tablist" aria-label="Progressions mode" data-i18n-aria="pr_prog_split_aria" hidden>
+              <button type="button" role="tab" data-v="drill" aria-selected="true" data-i18n="pr_prog_tab_drill">Exercise</button>
+              <button type="button" role="tab" data-v="along" aria-selected="false" data-i18n="pr_prog_tab_along">Play along</button>
             </div>
-          </details>
-        </div>
-        <!-- Scales configuration: core major/minor vs modes & exotic (hidden when in Technique fingering mode). -->
-        <div id="pr-scale-cfg" class="pr-subcfg" hidden>
-          <h2 class="pr-sec" id="pr-scale-tier-h" data-i18n="pr_scale_tier">Scales included</h2>
-          <div class="seg" id="pr-scale-tier" role="group" aria-labelledby="pr-scale-tier-h"><button type="button" data-v="core" data-i18n="pr_sc_core" aria-pressed="true">Major &amp; Minor</button><button type="button" data-v="modes" data-i18n="pr_sc_modes" aria-pressed="false">+ Modes &amp; Pentatonic</button><button type="button" data-v="all" data-i18n="pr_sc_all" aria-pressed="false">All (+ Exotic)</button></div>
-        </div>
-        <!-- Melodies by ear configuration: difficulty + example listen + length/scale in More options. -->
-        <div id="pr-mel-cfg" class="pr-subcfg" hidden>
-          <h2 class="pr-sec" id="pr-mel-diff-h" data-i18n="pr_mel_diff">Difficulty</h2>
-          <div class="row pr-mel-row">
-            <div class="seg" id="pr-mel-diff" role="group" aria-labelledby="pr-mel-diff-h"><button type="button" data-v="easy" data-i18n="pr_mel_easy" aria-pressed="true">Easy</button><button type="button" data-v="medium" data-i18n="pr_mel_medium" aria-pressed="false">Medium</button><button type="button" data-v="advanced" data-i18n="pr_mel_advanced" aria-pressed="false">Advanced</button></div>
-            <button type="button" class="btn ghost sm" id="pr-mel-demo" data-i18n="pr_mel_demo">▶ Listen example</button>
-          </div>
-          <details class="pr-extra" id="pr-mel-more">
-            <summary data-i18n="pr_extra_opts">More options</summary>
-            <div class="pr-extra-body">
-              <label class="field"><span data-i18n="pr_mel_len">Length</span> <select id="pr-mel-len"><option value="auto" data-i18n="pr_mel_len_auto">Auto</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
-              <label class="field"><span data-i18n="pr_mel_scale">Scale</span> <select id="pr-mel-scale"><option value="auto" data-i18n="pr_mel_scale_auto">Auto</option></select></label>
+            <h2 class="pr-sec" id="pr-mode-h" data-i18n="pr_answer">How to answer</h2>
+            <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="tech" data-i18n="pr_m_sc_tech" aria-pressed="false" hidden>Play with fingering</button><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button><button type="button" data-v="along" data-i18n="pr_along" aria-pressed="false" hidden>Play along</button></div>
+            <p class="pr-mode-hint" id="pr-mode-hint" role="status" aria-live="polite"></p>
+            <p class="pr-mode-note" id="pr-mode-note" role="status" aria-live="polite" hidden></p>
+            <!-- Intervals by ear: presentation style (melodic/harmonic) + direction (prSetIvStyle, prSetDir). -->
+            <div id="pr-dir-row" class="pr-subcfg" hidden>
+              <div class="pr-subrow">
+                <h2 class="pr-sec" id="pr-iv-style-h" data-i18n="pr_iv_style">Presentation</h2>
+                <div class="seg" id="pr-iv-style" role="group" aria-labelledby="pr-iv-style-h"><button type="button" data-v="both" data-i18n="pr_iv_both" aria-pressed="true">Both</button><button type="button" data-v="melodic" data-i18n="pr_iv_melodic" aria-pressed="false">Melodic</button><button type="button" data-v="harmonic" data-i18n="pr_iv_harmonic" aria-pressed="false">Harmonic</button></div>
+              </div>
+              <div id="pr-dir-wrap" class="pr-subrow">
+                <h2 class="pr-sec" id="pr-dir-h" data-i18n="aria_dir">Direction</h2>
+                <div class="seg" id="pr-dir" role="group" aria-labelledby="pr-dir-h"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button><button type="button" data-v="both" data-i18n="dir_both" aria-pressed="false">Both</button></div>
+              </div>
             </div>
-          </details>
+            <!-- Chords configuration: complexity tier (triads default) + inversions disclosure. -->
+            <div id="pr-chord-cfg" class="pr-subcfg" hidden>
+              <h2 class="pr-sec" id="pr-chord-tier-h" data-i18n="pr_chord_tier">Chord types</h2>
+              <div class="seg" id="pr-chord-tier" role="group" aria-labelledby="pr-chord-tier-h"><button type="button" data-v="triads" data-i18n="pr_ch_triads" aria-pressed="true">Triads</button><button type="button" data-v="sevenths" data-i18n="pr_ch_sevenths" aria-pressed="false">+ 7ths</button><button type="button" data-v="all" data-i18n="pr_ch_all" aria-pressed="false">+ Jazz (all)</button></div>
+              <details class="pr-extra" id="pr-chord-more">
+                <summary data-i18n="pr_chord_more">Chord options</summary>
+                <div class="pr-extra-body">
+                  <label class="switch-inline"><input type="checkbox" id="pr-chord-inv"> <span data-i18n="pr_chord_inv">Include inversions</span></label>
+                </div>
+              </details>
+            </div>
+            <!-- Scales configuration: core major/minor vs modes & exotic (hidden when in Technique fingering mode). -->
+            <div id="pr-scale-cfg" class="pr-subcfg" hidden>
+              <h2 class="pr-sec" id="pr-scale-tier-h" data-i18n="pr_scale_tier">Scales included</h2>
+              <div class="seg" id="pr-scale-tier" role="group" aria-labelledby="pr-scale-tier-h"><button type="button" data-v="core" data-i18n="pr_sc_core" aria-pressed="true">Major &amp; Minor</button><button type="button" data-v="modes" data-i18n="pr_sc_modes" aria-pressed="false">+ Modes &amp; Pentatonic</button><button type="button" data-v="all" data-i18n="pr_sc_all" aria-pressed="false">All (+ Exotic)</button></div>
+            </div>
+            <!-- Melodies by ear configuration: difficulty + example listen + length/scale in More options. -->
+            <div id="pr-mel-cfg" class="pr-subcfg" hidden>
+              <h2 class="pr-sec" id="pr-mel-diff-h" data-i18n="pr_mel_diff">Difficulty</h2>
+              <div class="row pr-mel-row">
+                <div class="seg" id="pr-mel-diff" role="group" aria-labelledby="pr-mel-diff-h"><button type="button" data-v="easy" data-i18n="pr_mel_easy" aria-pressed="true">Easy</button><button type="button" data-v="medium" data-i18n="pr_mel_medium" aria-pressed="false">Medium</button><button type="button" data-v="advanced" data-i18n="pr_mel_advanced" aria-pressed="false">Advanced</button></div>
+                <button type="button" class="btn ghost sm" id="pr-mel-demo" data-i18n="pr_mel_demo">▶ Listen example</button>
+              </div>
+              <details class="pr-extra" id="pr-mel-more">
+                <summary data-i18n="pr_extra_opts">More options</summary>
+                <div class="pr-extra-body">
+                  <label class="field"><span data-i18n="pr_mel_len">Length</span> <select id="pr-mel-len"><option value="auto" data-i18n="pr_mel_len_auto">Auto</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+                  <label class="field"><span data-i18n="pr_mel_scale">Scale</span> <select id="pr-mel-scale"><option value="auto" data-i18n="pr_mel_scale_auto">Auto</option></select></label>
+                </div>
+              </details>
+            </div>
+          </div>
+          <div class="pr-setup-key">
+            <h2 class="pr-sec" id="pr-key-h" data-i18n="pr_key">Key</h2>
+            <div class="pr-keys" id="pr-keys" role="radiogroup" aria-labelledby="pr-key-h"></div>
+            <select id="pr-key" hidden tabindex="-1" aria-hidden="true"></select>
+          </div>
         </div>
         <!-- Progressions · Play along: starter surface (Progression + Tempo) + optional Accompaniment options. -->
         <div class="pr-along" id="pr-along" hidden>
@@ -612,9 +621,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             </div>
           </details>
         </div>
-        <h2 class="pr-sec" id="pr-key-h" data-i18n="pr_key">Key</h2>
-        <div class="pr-keys" id="pr-keys" role="radiogroup" aria-labelledby="pr-key-h"></div>
-        <select id="pr-key" hidden tabindex="-1" aria-hidden="true"></select>
         <button type="button" class="btn primary pr-go" id="pr-start">Start drilling</button>
         <div id="pr-along-out" hidden>
           <div id="ac-chain" class="verdict neutral pr-chain"></div>

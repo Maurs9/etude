@@ -1,16 +1,11 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
 const hint = (page, id) => page.locator('#practiceHintsList').locator(`[data-hint="${id}"]`);
-const toggle = card => card.getByRole('heading').getByRole('button');
+const toggle = card => card.locator('.pr-study-btn');
 
 async function openHints(page, topic, ear = false) {
-  if (topic === 'technique') {
-    await page.locator('#pr-t-scale').click();
-    await page.locator('#pr-mode button[data-v="tech"]').click();
-  } else {
-    await page.locator(`#pr-t-${topic}`).click();
-    if (ear) await page.locator('#pr-mode button[data-v="ear"]').click();
-  }
+  await page.locator(`#pr-t-${topic}`).click();
+  if (ear) await page.locator('#pr-mode button[data-v="ear"]').click();
   await page.locator('#pr-songs summary').click();
 }
 
@@ -33,6 +28,7 @@ async function mockPreview(page) {
 test('jazz cadence shows the sounding stack, separate bass, and isolated resolution', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await openHints(page, 'prog', true);
+  await page.locator('#practiceHintsList [data-hint-family="jazz"]').click();
   const jazz = hint(page, 'ii–V–I (jazz)');
   await expect(jazz.getByRole('heading')).toHaveText('Jazz cadence');
   await expect(jazz.locator('.pr-prog-staff')).toHaveCount(0);
@@ -45,7 +41,7 @@ test('jazz cadence shows the sounding stack, separate bass, and isolated resolut
   await jazz.getByRole('button', { name: /^Hear the progression/ }).click();
   await expect.poll(audio.notes).toEqual([50, 62, 65, 69, 72, 43, 67, 71, 74, 77, 36, 60, 64, 67, 71]);
   await audio.onset(5);
-  await expect(jazz.getByRole('button', { name: /^V G7/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(jazz.locator('.pr-study-chords button', { hasText: /^V G7/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(jazz.locator('[data-study-chord="1"] .pr-study-playing')).toHaveCount(5);
   await expect(jazz.locator('.pr-study-keyboard .pr-chord-sounding')).toHaveCount(5);
   await expect(page.locator('[data-pr-hint-key]')).toHaveCount(0);
@@ -65,11 +61,11 @@ test('jazz cadence shows the sounding stack, separate bass, and isolated resolut
   await expect(jazz.locator('.pr-study-keyboard .pr-chord-sounding')).toHaveCount(2);
 
   await audio.clear();
-  await jazz.getByRole('button', { name: /^I Cmaj7/ }).click();
+  await jazz.locator('.pr-study-chords button', { hasText: /^I Cmaj7/ }).click();
   await expect.poll(audio.notes).toEqual([36, 60, 64, 67, 71]);
   await page.locator('#pr-keys [data-v="2"]').click();
   await expect(toggle(jazz)).toHaveAttribute('aria-expanded', 'true');
-  await expect(jazz.getByRole('button', { name: /^I Dmaj7/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(jazz.locator('.pr-study-chords button', { hasText: /^I Dmaj7/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(jazz.locator('.pr-chord-sounding')).toHaveCount(0);
 });
 
@@ -77,6 +73,7 @@ test('all twelve blues bars stay visible in order on mobile and select independe
   const page = await app.open({ hash: 'practice', dock: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await openHints(page, 'prog', true);
+  await page.locator('#practiceHintsList [data-hint-family="jazz"]').click();
   const blues = hint(page, '12-bar blues');
   await toggle(blues).click();
   await expect(blues.locator('.pr-prog-staff')).toHaveCount(3);
@@ -89,37 +86,4 @@ test('all twelve blues bars stay visible in order on mobile and select independe
   await toggle(hint(page, 'ii–V–I (jazz)')).click();
   await expect(toggle(blues)).toHaveAttribute('aria-expanded', 'false');
   await expect(blues.locator('.pr-prog-staff')).toHaveCount(0);
-});
-
-test('technique highlights the thumb crossing, then tracks the descending occurrence separately', async ({ app }) => {
-  const page = await app.open({ hash: 'practice', dock: false });
-  await openHints(page, 'technique');
-  const scale = hint(page, 'major_common');
-  await toggle(scale).click();
-  await expect(scale.locator('.pr-technique-staff .ss-head')).toHaveCount(15);
-  await expect(scale.locator('.pr-study-passage .pr-study-finger')).toHaveText(['3', '1']);
-  await expect(scale.locator('.pr-technique-keyboard')).toHaveClass(/pr-chord-keyboard/);
-  await expect(scale.locator('.pr-technique-keyboard')).toHaveAttribute('data-chord-root', '0');
-  await expect(scale.locator('.pr-study-key-finger').first()).toBeVisible();
-  const audio = await mockPreview(page);
-  await scale.getByRole('button', { name: /^Hear the passage/ }).click();
-  await expect.poll(audio.notes).toEqual([64, 65, 64, 65]);
-  await audio.onset(0);
-  await expect(scale.locator('[data-study-step="2"]')).toHaveClass(/pr-study-playing/);
-  await expect(scale.locator('.pr-chord-sounding .pr-study-key-finger')).toBeVisible();
-  await expect(scale.locator('.pr-chord-sounding .pr-study-key-finger')).toHaveText('3');
-
-  await audio.clear();
-  await scale.getByRole('button', { name: /^Hear the full run/ }).click();
-  await expect.poll(audio.notes).toEqual([60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60]);
-  await audio.onset(8);
-  await expect(scale.locator('[data-study-step="8"]')).toHaveClass(/pr-study-playing/);
-  await expect(scale.locator('[data-study-step="6"]')).not.toHaveClass(/pr-study-playing/);
-  await scale.getByRole('button', { name: /^Left hand/ }).click();
-  await expect(scale.getByRole('button', { name: /^Left hand/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(scale.locator('.pr-study-playing, .pr-chord-sounding')).toHaveCount(0);
-  await expect(scale.locator('.pr-technique-staff').first()).toHaveAttribute('aria-label', /Left hand.*C\(5\)/);
-  await page.locator('#pr-keys [data-v="7"]').click();
-  await expect(scale.getByRole('button', { name: /^Left hand/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(scale.locator('.pr-technique-staff').first()).toHaveAttribute('aria-label', /G\(5\).*F♯\(2\)/);
 });

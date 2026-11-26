@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CHORD_HINTS, CHORD_HINT_FAMILIES, SCALE_HINTS, SCALE_HINT_FAMILIES, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
-  chordHintFormula, chordHintInversionCount, chordHintTones, chordSingleSteps, defaultCompareChord, defaultCompareScale, hintPitchClassDiff,
+  ARPEGGIO_HINTS, CHORD_HINTS, CHORD_HINT_FAMILIES, SCALE_HINTS, SCALE_HINT_FAMILIES, PROGRESSION_HINTS, PROGRESSION_HINT_FAMILIES, TECHNIQUE_HINTS, MELODY_HINTS,
+  arpeggioHintSteps, arpeggioHintTones, chordHintFormula, chordHintInTier, chordHintInversionCount, chordHintTones, chordSingleSteps, defaultCompareChord, defaultCompareScale, hintPitchClassDiff,
   melodyHintExample, progressionHintChords, progressionHintResolution, progressionHintSteps, progressionHintVoicings, scaleHintFingering, scaleHintFormula, scaleHintTones, scaleSingleSteps,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
@@ -232,5 +232,21 @@ describe('Practice hint catalog', () => {
     const diff = hintPitchClassDiff(chordHintTones('maj7', 0, 0), chordHintTones('7', 0, 0));
     expect(diff.onlyA.map(n => n.midi % 12)).toEqual([11]);
     expect(diff.onlyB.map(n => n.midi % 12)).toEqual([10]);
+  });
+
+  it('provides valid 12-key arpeggio RH/LH fingerings, chord tier filters, and progression style tabs', () => {
+    for (const arp of ARPEGGIO_HINTS) {
+      for (let tonic = 0; tonic < 12; tonic++) {
+        const tones = arpeggioHintTones(arp.id, tonic);
+        expect(tones).toHaveLength(4);
+        expect(tones.every(t => t.fingerRh >= 1 && t.fingerRh <= 5 && t.fingerLh >= 1 && t.fingerLh <= 5)).toBe(true);
+        expect(arpeggioHintSteps(arp.id, tonic)).toHaveLength(7);
+      }
+    }
+    expect(CHORD_HINTS.filter(h => chordHintInTier(h.symbol, 'triads')).length).toBe(4);
+    expect(CHORD_HINTS.filter(h => chordHintInTier(h.symbol, 'sevenths')).length).toBe(14);
+    expect(CHORD_HINTS.filter(h => chordHintInTier(h.symbol, 'all')).length).toBe(25);
+    const progSet = new Set(PROGRESSION_HINT_FAMILIES.flatMap(f => f.names));
+    expect([...progSet].sort()).toEqual(PROGRESSION_HINTS.map(h => h.name).sort());
   });
 });
