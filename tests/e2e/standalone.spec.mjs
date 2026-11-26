@@ -19,6 +19,8 @@ test('the single-file build boots over file://', async ({ page }) => {
   await page.locator('#nav [data-view=practice]').click();
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(1);
+  await page.locator('#practiceHintsList [data-hint-control="chord:tier-toggle"]').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
   await page.locator('#practiceHintsList [data-hint-family="all"]').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(25);
