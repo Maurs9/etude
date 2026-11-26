@@ -3,7 +3,8 @@ import { test, expect } from '../helpers/fixtures.mjs';
 test('scale and arpeggio cards show the fingerings for each hand and track the hand being played', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('#pr-t-technique').click();
+  await page.locator('#pr-t-scale').click();
+  await page.locator('#pr-mode button[data-v="tech"]').click();
   await page.locator('#pr-songs summary').click();
   const list = page.locator('#practiceHintsList');
   await expect(list.getByRole('heading', { level: 2 })).toHaveText(['Scales', 'Arpeggios']);

@@ -1,4 +1,4 @@
-import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES } from './theory.js';
+import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, TWELVE_BAR_BLUES_ROOTS } from './theory.js';
 import type { SrPiece, SrToken } from './score-types.js';
 
 export const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
@@ -180,7 +180,14 @@ const PROGS = PROGRESSION_TEMPLATES;
 export function progChordTpl(sym: string) { return CHORDS.find((c) => c.symbol === sym); }
 export function dispSym(s: string) { return s === 'maj' ? '' : s; }
 /* Accompaniment: extra popular progressions + rhythmic playing patterns. */
-export const ACCOMP_PROGS = PROGS.concat([
+export const ACCOMP_PROGS = PROGS.map((p) =>
+    p.name === '12-bar blues'
+        ? {
+            name: '12-bar blues',
+            chords: TWELVE_BAR_BLUES_ROOTS.map((offset) => [offset, '7', offset === 0 ? 'I⁷' : offset === 5 ? 'IV⁷' : 'V⁷'] as const),
+        }
+        : p,
+).concat([
     { name: 'I–V–vi–iii–IV–I (Pachelbel pop)', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [0, 'maj', 'I']] },
     { name: 'Andalusian i–♭VII–♭VI–V', chords: [[0, 'm', 'i'], [10, 'maj', '♭VII'], [8, 'maj', '♭VI'], [7, 'maj', 'V']] },
     { name: 'Jazz turnaround I–vi–ii–V', chords: [[0, 'maj7', 'I'], [9, 'm7', 'vi'], [2, 'm7', 'ii'], [7, '7', 'V']] },
@@ -188,15 +195,15 @@ export const ACCOMP_PROGS = PROGS.concat([
     { name: 'Ballad I–iii–IV–V', chords: [[0, 'maj', 'I'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
 ]);
 export const ACCOMP_PATTERNS: Record<string, AccompanimentPattern> = {
-    block: { beats: 4, en: 'Block chords', ro: 'Acorduri bloc', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); c.right.forEach((m) => ev.push({ beat: b, midi: m, durB: 4, hand: 'R' })); } },
-    arp: { beats: 4, en: 'Arpeggio (broken)', ro: 'Arpegiu (frânt)', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const up = c.right, seq = up.concat(up.slice(0, -1).reverse()); for (let i = 0; i < 8; i++)
+    block: { beats: 4, en: 'Block chords', ro: 'Acorduri pline', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); c.right.forEach((m) => ev.push({ beat: b, midi: m, durB: 4, hand: 'R' })); } },
+    arp: { beats: 4, en: 'Arpeggio (broken)', ro: 'Acorduri arpegiate', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const up = c.right, seq = up.concat(up.slice(0, -1).reverse()); for (let i = 0; i < 8; i++)
             ev.push({ beat: b + i * 0.5, midi: seq[i % seq.length], durB: 0.55, hand: 'R' }); } },
     alberti: { beats: 4, en: 'Alberti bass', ro: 'Bas Alberti', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const r = c.right, fig = [r[0], r[r.length - 1], r[1] || r[0], r[r.length - 1]]; for (let i = 0; i < 8; i++)
             ev.push({ beat: b + i * 0.5, midi: fig[i % 4], durB: 0.55, hand: 'R' }); } },
     waltz: { beats: 3, en: 'Waltz (3/4)', ro: 'Vals (3/4)', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 1, hand: 'L' }); [1, 2].forEach((k) => c.right.forEach((m) => ev.push({ beat: b + k, midi: m, durB: 1, hand: 'R' }))); } },
     ballad: { beats: 4, en: 'Pop ballad', ro: 'Baladă pop', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const r = c.right; for (let i = 0; i < 4; i++)
             ev.push({ beat: b + i, midi: r[i % r.length], durB: 4 - i, hand: 'R' }); } },
-    boomchick: { beats: 4, en: 'Boom-chick', ro: 'Boom-chick', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 1, hand: 'L' }); ev.push({ beat: b + 2, midi: c.fifth, durB: 1, hand: 'L' }); [1, 3].forEach((k) => c.right.forEach((m) => ev.push({ beat: b + k, midi: m, durB: 0.85, hand: 'R' }))); } },
+    boomchick: { beats: 4, en: 'Boom-chick', ro: 'Bas–acord (alternativ)', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 1, hand: 'L' }); ev.push({ beat: b + 2, midi: c.fifth, durB: 1, hand: 'L' }); [1, 3].forEach((k) => c.right.forEach((m) => ev.push({ beat: b + k, midi: m, durB: 0.85, hand: 'R' }))); } },
 };
 export const ACCOMP_I18N = {
     block: { es: 'Acordes en bloque', fr: 'Accords plaqués', de: 'Blockakkorde', it: 'Accordi a blocchi', 'pt-BR': 'Acordes em bloco' },

@@ -192,14 +192,14 @@ test.describe('Intervals by ear: Direction', () => {
     await page.locator('#pr-mode button[data-v="ear"]').click();
     await expect(row).toBeVisible();
     await expect(page.locator('#pr-dir button')).toHaveText(['Ascending', 'Descending', 'Both']);
-    await expect(page.locator('#pr-start')).toHaveText('Start: Intervals · By ear · Ascending · All keys');
+    await expect(page.locator('#pr-start')).toHaveText('Start: Intervals · Recognise interval · Ascending · All keys');
     await page.locator('#pr-mode button[data-v="keys"]').click();
     await expect(row).toBeVisible();
     await page.locator('#pr-t-chord').click();
     await expect(row).toBeHidden();
     await page.locator('#pr-t-interval').click();
     await page.locator('#pr-dir button[data-v="both"]').click();
-    await expect(page.locator('#pr-start')).toHaveText('Start: Intervals · By ear, on keys · Both · All keys');
+    await expect(page.locator('#pr-start')).toHaveText('Start: Intervals · Play back by ear · Both · All keys');
     await page.locator('#pr-start').click();
     expect(await page.evaluate(() => window.__etude.SES.targeted)).toEqual({ cat: 'interval', mode: 'ear', key: 'all', dir: 'both' });
   });
@@ -348,27 +348,28 @@ const loop = page => page.evaluate(() => { const a = window.__etude.accomp; retu
 const litKeys = page => page.evaluate(() => document.querySelectorAll('#keys .key[data-s="lh"], #keys .key[data-s="rh"]').length);
 const alongOn = async page => {
   await page.locator('#pr-t-prog').click();
-  await page.locator('#pr-mode button[data-v="along"]').click();
+  await page.locator('#pr-prog-split [data-v="along"]').click();
 };
 
 test.describe('Progressions · Play along', () => {
   test('Play along is offered for Progressions only, with every progression and pattern', async ({ app }) => {
     const page = await app.open({ hash: 'practice' });
-    const along = page.locator('#pr-mode button[data-v="along"]');
-    for (const cat of ['interval', 'chord', 'scale', 'melody', 'technique']) {
+    const split = page.locator('#pr-prog-split');
+    for (const cat of ['interval', 'chord', 'scale', 'melody']) {
       await page.locator(`#pr-t-${cat}`).click();
-      await expect(along, cat).toBeHidden();
+      await expect(split, cat).toBeHidden();
     }
     await page.locator('#pr-t-prog').click();
-    await expect(along).toBeVisible();
+    await expect(split).toBeVisible();
     await expect(page.locator('#pr-along')).toBeHidden();
-    await along.click();
+    await page.locator('#pr-prog-split [data-v="along"]').click();
     await expect(page.locator('#pr-along')).toBeVisible();
     await expect(page.locator('#ac-prog option')).toHaveCount(15);
     await expect(page.locator('#ac-pat option')).toHaveCount(6);
     const names = await page.evaluate(() => ({ progs: window.__etude.ACCOMP_PROGS.map(p => p.name), pats: Object.keys(window.__etude.ACCOMP_PATTERNS) }));
-    await expect(page.locator('#ac-prog option')).toHaveText(names.progs);
+    expect((await page.locator('#ac-prog option').allTextContents()).sort()).toEqual([...names.progs].sort());
     expect(await page.locator('#ac-pat option').evaluateAll(os => os.map(o => o.value))).toEqual(names.pats);
+    await page.locator('#ac-more summary').click();
     await expect(page.locator('#ac-hands button')).toHaveText(['Both hands', 'Left only', 'Right only']);
     await expect(page.locator('#ac-bpm')).toHaveAttribute('min', '40');
     await expect(page.locator('#ac-bpm')).toHaveAttribute('max', '180');
@@ -376,10 +377,10 @@ test.describe('Progressions · Play along', () => {
     await expect(page.locator('#pr-start')).toHaveText('Play loop');
     // All keys plays in C, and says so.
     await expect(page.locator('#pr-mode-hint')).toContainText('With All keys, the loop plays in C.');
-    await expect(page.locator('#ac-chain .ch').first()).toHaveText('C');
+    await expect(page.locator('#ac-chain .ch .ch-nm').first()).toHaveText('C');
     await page.locator('#pr-keys [data-v="7"]').click();
     await expect(page.locator('#pr-mode-hint')).not.toContainText('All keys');
-    await expect(page.locator('#ac-chain .ch').first()).toHaveText('G');
+    await expect(page.locator('#ac-chain .ch .ch-nm').first()).toHaveText('G');
   });
 
   test('Play loop starts the loop and lights the dock keys; a control change restarts it; Stop stops it', async ({ app }) => {
@@ -389,10 +390,11 @@ test.describe('Progressions · Play along', () => {
     expect(await page.evaluate(() => window.__etude.dockWanted())).toBe(true);
     await page.locator('#pr-start').click();
     await expect(page.locator('#pr-start')).toHaveText('Stop');
-    expect(await loop(page)).toMatchObject({ on: true, prog: 0, pattern: 'block', key: 0, bpm: 90, hands: 'both', click: false });
+    expect(await loop(page)).toMatchObject({ on: true, prog: 1, pattern: 'block', key: 0, bpm: 90, hands: 'both', click: false });
     await expect.poll(() => litKeys(page)).toBeGreaterThan(0);
     await expect(page.locator('#pr-along-out')).toBeVisible();
     await expect.poll(() => page.locator('#ac-chain .ch.on').count()).toBe(1);
+    await page.locator('#ac-more summary').click();
     // Each control restarts the running loop (a new build) with its new value.
     const restarted = async change => {
       await page.evaluate(() => { window.__built = window.__etude.accomp.built; });
@@ -400,14 +402,14 @@ test.describe('Progressions · Play along', () => {
       expect(await page.evaluate(() => window.__etude.accomp.on && window.__etude.accomp.built !== window.__built)).toBe(true);
       await expect(page.locator('#pr-start')).toHaveText('Stop');
     };
-    await restarted(() => page.locator('#ac-prog').selectOption('3'));
+    await restarted(() => page.locator('#ac-prog').selectOption('0'));
     await restarted(() => page.locator('#ac-pat').selectOption({ index: 2 }));
     await restarted(() => page.locator('#ac-hands button[data-v="left"]').click());
     await restarted(async () => { await page.locator('#ac-bpm').fill('120'); await page.locator('#ac-bpm').dispatchEvent('change'); });
     await restarted(() => page.locator('#ac-click').check());
     await restarted(() => page.locator('#pr-keys [data-v="5"]').click());
     const pat2 = await page.locator('#ac-pat option').nth(2).getAttribute('value');
-    expect(await loop(page)).toMatchObject({ on: true, prog: 3, pattern: pat2, key: 5, bpm: 120, hands: 'left', click: true });
+    expect(await loop(page)).toMatchObject({ on: true, prog: 0, pattern: pat2, key: 5, bpm: 120, hands: 'left', click: true });
     await expect(page.locator('#ac-bpmLbl')).toHaveText('120');
     await expect.poll(() => litKeys(page)).toBeGreaterThan(0);
     await page.locator('#pr-start').click();
@@ -428,14 +430,14 @@ test.describe('Progressions · Play along', () => {
     expect((await loop(page)).on).toBe(false);
     await page.evaluate(() => window.__etude.show('practice'));
     // Back on Practice the setup offers the last drill mode again.
-    await expect(page.locator('#pr-mode button[data-v="along"]')).toHaveAttribute('aria-pressed', 'false');
-    await page.locator('#pr-mode button[data-v="along"]').click();
+    await expect(page.locator('#pr-prog-split [data-v="along"]')).toHaveAttribute('aria-selected', 'false');
+    await page.locator('#pr-prog-split [data-v="along"]').click();
     await play();
     await page.locator('#pr-t-chord').click();
     expect((await loop(page)).on).toBe(false);
     await alongOn(page);
     await play();
-    await page.locator('#pr-mode button[data-v="ear"]').click();
+    await page.locator('#pr-prog-split [data-v="drill"]').click();
     expect((await loop(page)).on).toBe(false);
     await expect(page.locator('#pr-along')).toBeHidden();
     expect(await page.evaluate(() => window.__etude.dockWanted())).toBe(false);
@@ -447,7 +449,7 @@ test.describe('Progressions · Play along', () => {
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
     await expect(page).toHaveURL(/#practice$/);
     expect(await checkedTopic(page)).toEqual(['prog']);
-    await expect(page.locator('#pr-mode button[data-v="along"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#pr-prog-split [data-v="along"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#pr-along')).toBeVisible();
     await expect(page.locator('#dock')).toBeVisible();
     await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Voice', 'Explore']);
@@ -459,8 +461,9 @@ test.describe('Progressions · Play along', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await app.open({ hash: 'accompany' });
     await expect(page.locator('#pr-along')).toBeVisible();
+    await page.locator('#ac-more summary').click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-    for (const sel of ['#pr-mode button:not([hidden])', '#ac-hands button', '#pr-start']) {
+    for (const sel of ['#pr-prog-split [role=tab]', '#ac-hands button', '#pr-start']) {
       const sizes = await page.locator(sel).evaluateAll(els => els.map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); }));
       for (const s of sizes) expect(s, sel).toBeGreaterThanOrEqual(44);
     }

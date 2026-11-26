@@ -22,7 +22,7 @@ export function detectVoicePitch(samples: Float32Array, sampleRate: number): num
 
   const minLag = Math.max(2, Math.floor(sampleRate / MAX_FREQUENCY));
   const maxLag = Math.min(Math.floor(samples.length / 2) - 1, Math.ceil(sampleRate / MIN_FREQUENCY));
-  const windowLength = samples.length - maxLag - 2;
+  const windowLength = Math.min(samples.length - maxLag - 2, Math.max(512, maxLag));
   if (maxLag <= minLag + 1 || windowLength < 16) return -1;
 
   if (yinBuffer.length < maxLag + 2) yinBuffer = new Float32Array(maxLag + 2);

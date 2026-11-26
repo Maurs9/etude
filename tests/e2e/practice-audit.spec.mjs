@@ -113,7 +113,7 @@ test('Drill again restores an interval direction after reload', async ({ app, pa
 
 test('backgrounding a rhythm round leaves it ungraded and silent input has no timing judgment', async ({ app, page }) => {
   await app.open({ hash: 'read' });
-  await page.locator('#rdn-all-drills').click();
+  await page.locator('#rdt-drills').click();
   await page.locator('[data-lv=rh1]').click();
   await page.locator('#rdx-body [data-mode=practice]').click();
   await page.clock.install();

@@ -71,6 +71,7 @@ export interface CircleOfFifthsHost {
   t(key: string, ...args: (string | number)[]): string;
   spellName(letter: number, acc: number): string;
   chordDisp(chord: ChordTemplate | string | undefined): string;
+  formatChord?(root: string, symbol: string): string;
   exKeyCtx(): { pc: number; minor: boolean } | null;
   fillRefNames(): void;
   updateExplore(): void;
@@ -376,20 +377,43 @@ export function createCircleOfFifths(host: CircleOfFifthsHost): CircleOfFifthsCo
     wheelSelect(byId('circle'), state.i, state.minor, state.picked);
   }
 
+const COF_ROMAN_UP = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'] as const;
+const COF_ROMAN_LO = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'] as const;
+
   function chordList(): CofChord[] {
     const tp = tonicPc();
     const minor = state.minor;
-    const scale = SCALE_DEFINITIONS[minor ? 'Aeolian (Natural minor)' : 'Major (Ionian)'];
+    const scale = SCALE_DEFINITIONS[minor ? COF_SCALE[state.flavor] : 'Major (Ionian)'];
     const names = spellDegrees((minor ? COF_MIN : COF_MAJ)[state.i], scale, [0, 1, 2, 3, 4, 5, 6]);
     const base = 60 + tp - (tp > 6 ? 12 : 0);
+    if (minor && state.flavor !== 'natural') {
+      return names.flatMap((degName, k) => {
+        const i3 = (scale[(k + 2) % 7] - scale[k] + 12) % 12;
+        const i5 = (scale[(k + 4) % 7] - scale[k] + 12) % 12;
+        let sym = 'm', suffix = 'm', roman: string = COF_ROMAN_LO[k];
+        if (i3 === 4 && i5 === 7) { sym = 'maj'; suffix = ''; roman = COF_ROMAN_UP[k]; }
+        else if (i3 === 3 && i5 === 6) { sym = 'dim'; suffix = '°'; roman = COF_ROMAN_LO[k] + '°'; }
+        else if (i3 === 4 && i5 === 8) { sym = 'aug'; suffix = '+'; roman = COF_ROMAN_UP[k] + '+'; }
+        const tpl = CHORD_TEMPLATES.find((c) => c.symbol === sym);
+        if (!tpl) return [];
+        const root = base + scale[k];
+        return [{
+          roman,
+          name: host.formatChord ? host.formatChord(degName, suffix) : degName + suffix,
+          label: degName + ' ' + host.chordDisp(tpl),
+          midis: tpl.intervals.map((iv) => root + iv),
+        }];
+      });
+    }
     return anDiatonic({ root: tp, minor, fifths: keyFifths(tp, minor) }).slice(0, 7).flatMap((d, k) => {
       const sym = d.p[1] === 4 ? 'maj' : d.p[2] === 6 ? 'dim' : 'm';
       const tpl = CHORD_TEMPLATES.find((c) => c.symbol === sym);
       if (!tpl) return [];
       const root = base + scale[k];
+      const suffix = sym === 'maj' ? '' : sym === 'm' ? 'm' : '°';
       return [{
         roman: romanFor(tp, { rootPc: d.root, chord: tpl }, scale),
-        name: names[k] + (sym === 'maj' ? '' : sym === 'm' ? 'm' : '°'),
+        name: host.formatChord ? host.formatChord(names[k], suffix) : names[k] + suffix,
         label: names[k] + ' ' + host.chordDisp(tpl),
         midis: tpl.intervals.map((iv) => root + iv),
       }];
@@ -472,7 +496,7 @@ export function createCircleOfFifths(host: CircleOfFifthsHost): CircleOfFifthsCo
     byId('cof-sig').innerHTML = sigTxt(sig) + enhTxt + ' · ' + host.t(state.minor ? 'cof_rel_maj' : 'cof_rel_min', host.t(state.minor ? 'key_major' : 'key_minor', rel));
     queryAllHtml(document, '#cof-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === state.mode ? 'true' : 'false'));
     queryAllHtml(document, '#cof-flavor button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === state.flavor ? 'true' : 'false'));
-    byId('cof-flavor').hidden = !(state.minor && state.mode === 'scale');
+    byId('cof-flavor').hidden = !state.minor;
     const ch = state.mode === 'chord';
     byId('cof-fing-t').textContent = host.t(ch ? 'cof_fing_chord' : 'cof_fing_scale');
     byId('cof-fing-s').textContent = '· ' + host.t(ch ? 'cof_fing_chord_s' : 'cof_fing_scale_s');

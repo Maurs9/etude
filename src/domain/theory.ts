@@ -178,6 +178,12 @@ export function chordTargetPitches(root: PitchClass, intervals: readonly number[
   return chordPitches(root, intervals);
 }
 
+export function formatChordSymbol(rootName: string, symbol: string, notationMode: string): string {
+  if (!symbol || symbol === 'maj') return rootName;
+  if (notationMode === 'solfege' && /^[a-z]/i.test(symbol)) return `${rootName} ${symbol}`;
+  return `${rootName}${symbol}`;
+}
+
 const MAJOR_SCALE_OFFSETS = [0, 2, 4, 5, 7, 9, 11] as const;
 
 export function formatChordFormula(intervals: readonly number[]): string {

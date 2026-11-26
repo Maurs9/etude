@@ -25,7 +25,7 @@ import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeig
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from './score-symbols.js';
 import type { ExpressiveNotePlan } from './score-expression.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
-import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
+import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssSyllables, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLabelMode, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
 import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srSpellName, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
 import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidiChange, ScoreMidiNote, ScoreMidiTime } from './score-midi.js';
@@ -409,6 +409,14 @@ function applyI18n() {
     scoreLibrary?.localize();
     renderPracticeSetup();
     fitHeader();
+    if (sing.ex) {
+        sing.ex.syl = ssSyllables(sing.ex.minor, lang);
+        ssDraw();
+    }
+    renderAccompany(true);
+    renderPracticeMelodyScales();
+    const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
+    if (labelCBtn) labelCBtn.textContent = notation === 'solfege' ? 'Do' : 'C';
 }
 async function setLang(l: string|undefined, synchronized = false): Promise<void> {
     if (!isRuntimeLanguage(l))
@@ -644,7 +652,7 @@ async function timedAudioReady(context: AudioContext): Promise<boolean> {
 function audioUnlock() { ensureAudio(); const context = audioEngine.context; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
 function audioNoteOn(midi: number, velocity: number|undefined) { audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); }
 function audioNoteOff(midi: number) { audioEngine.noteOff(midi); }
-function stopPreviews() { clearPracticeHintPreview(); clearExplorePreview(); clearIntervalSongPreview(); clearIntervalHintPlay(); audioEngine.stopPreviews(); }
+function stopPreviews() { clearPracticeHintPreview(); clearExplorePreview(); clearIntervalSongPreview(); clearIntervalHintPlay(); clearMelodyDemoPreview(); audioEngine.stopPreviews(); }
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); }
 function masterRamp(value: number) { audioEngine.masterRamp(value); }
 function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); }
@@ -663,9 +671,9 @@ function stopClicks(clicks: Set<audio.AudioVoice>) {
 }
 let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: audio.PianoVoiceOptions = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); }
 let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); };
-function playIvDir(root: number, semitones: number, direction: string, style: 'both' | 'melodic' = 'both') {
+function playIvDir(root: number, semitones: number, direction: string, style: 'both' | 'harmonic' | 'melodic' = 'both') {
     if (style === 'melodic') stopPreviews();
-    const descending = direction === 'desc';
+    const descending = direction === 'desc' && style !== 'harmonic';
     playInterval(descending && style === 'both' ? root + semitones : root, descending ? -semitones : semitones, style);
 }
 function playChordMidis(midis: number[], arpeggio: boolean) {
@@ -689,18 +697,46 @@ function noiseBuffer() { return _noiseBuf; }
 function makeIR() { return null; }
 /* ---------- ACCOMPANIMENT LOOP ---------- */
 interface AccompanimentBuild { events: AccompanimentEvent[]; beatsTotal: number }
-interface AccompanimentState { on: boolean; progIdx: number; key: number; pattern: string; bpm: number; hands: string; click: boolean; timer: number | null; hlTimers: number[]; built: AccompanimentBuild | null; beatSec: number; loopDur: number; nextLoop: number }
-const accomp: AccompanimentState = { on: false, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
+interface AccompanimentState { on: boolean; runId: number; progIdx: number; key: number; pattern: string; bpm: number; hands: string; click: boolean; improScale: string; timer: number | null; hlTimers: number[]; built: AccompanimentBuild | null; beatSec: number; loopDur: number; nextLoop: number }
+const accomp: AccompanimentState = { on: false, runId: 0, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, improScale: 'off', timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
+function clearAccompImproScale() {
+    keyEl.forEach((el) => { delete el.dataset.impro; });
+    const leg = maybeById('ac-impro-legend');
+    if (leg) leg.hidden = true;
+}
+function paintAccompImproScale() {
+    clearAccompImproScale();
+    if (!prAlongWanted() || !accomp.improScale || accomp.improScale === 'off') return;
+    let scaleName = accomp.improScale;
+    if (scaleName === 'auto') {
+        const prog = ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0];
+        const firstSym = prog?.chords[0]?.[1] ?? 'maj';
+        const isMinor = firstSym.startsWith('m') && !firstSym.startsWith('maj');
+        scaleName = isMinor ? 'Aeolian (Natural minor)' : 'Major (Ionian)';
+    }
+    const offs = SCALES[scaleName];
+    if (!offs) return;
+    const key = accompKey();
+    const pcs = new Set(offs.map((iv) => (((key + iv) % 12) + 12) % 12));
+    keyEl.forEach((el, m) => {
+        if (pcs.has(pc(m))) el.dataset.impro = '1';
+    });
+    const leg = maybeById('ac-impro-legend');
+    if (leg) leg.hidden = false;
+}
 function accompVoicing(ch: readonly [number, string, string]) {
     const rootPc = (((accomp.key + ch[0]) % 12) + 12) % 12;
     const tpl = progChordTpl(ch[1]) || progChordTpl('maj');
     if (!tpl)
         throw new Error('Étude: no major chord template');
     const ivs = tpl.intervals.filter((i) => i < 24);
-    let rRoot = 60 + rootPc;
-    if (rRoot > 71)
-        rRoot -= 12; // right hand sits around C4
-    return { bass: 36 + rootPc, fifth: 36 + ((rootPc + 7) % 12), right: ivs.map((i) => rRoot + i) };
+    const right = ivs.map((i) => {
+        let m = 60 + rootPc + i;
+        while (m > 72) m -= 12;
+        while (m < 57) m += 12;
+        return m;
+    }).sort((a, b) => a - b);
+    return { bass: 36 + rootPc, fifth: 36 + ((rootPc + 7) % 12), right };
 }
 ;
 function buildAccomp() {
@@ -747,11 +783,18 @@ function accompTick() { if (!accomp.on || !audioEngine.context)
     scheduleAccompAt(accomp.nextLoop);
     accomp.nextLoop += accomp.loopDur;
 } }
+function startAccompLoop(ctx: AudioContext) {
+    accomp.nextLoop = ctx.currentTime + 0.18;
+    if (accomp.click) startMetro(accomp.bpm, accomp.nextLoop);
+    accomp.timer = window.setInterval(accompTick, 40);
+    accompTick();
+}
 function accompStart() {
     const ctx = ensureAudio();
     accompStop(true);
     if (!ctx)
         return;
+    const runId = ++accomp.runId;
     accomp.on = true;
     const built = accomp.built = buildAccomp();
     accomp.beatSec = 60 / accomp.bpm;
@@ -760,12 +803,20 @@ function accompStart() {
         accomp.on = false;
         return;
     }
-    accomp.nextLoop = ctx.currentTime + 0.18;
-    if (accomp.click) startMetro(accomp.bpm, accomp.nextLoop);
-    accomp.timer = window.setInterval(accompTick, 40);
-    accompTick();
+    if (ctx.state === 'running') {
+        startAccompLoop(ctx);
+        return;
+    }
+    void timedAudioReady(ctx).then((ready) => {
+        if (!ready || !accomp.on || accomp.runId !== runId || audioEngine.context !== ctx) {
+            if (accomp.runId === runId && accomp.on) accompStop();
+            return;
+        }
+        startAccompLoop(ctx);
+    });
 }
 function accompStop(silent?: boolean) {
+    accomp.runId++;
     accomp.on = false;
     if (accomp.timer) {
         clearInterval(accomp.timer);
@@ -778,14 +829,17 @@ function accompStop(silent?: boolean) {
     kbClear('rh');
     stopPreviews();
     acChainHL(-1);
-    if (!silent) // a restart (accompStart) keeps the Stop label
+    if (!silent) { // a restart (accompStart) keeps the Stop label
+        clearAccompImproScale();
+        paintAccompImproScale();
         updatePracticeModeHint(); // the Practice Start button reads Play loop again
+    }
 }
 /* ---------- TRANSCRIBE (hum → notes) ---------- */
 interface TranscribeNote { midi: number; start: number; dur: number }
 interface TranscribeDisplayNote { midi: number; sb: number; db: number; label: string }
-interface TranscribeState { on: boolean; pending: boolean; micRequest: number; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; analyser: AnalyserNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; notes: TranscribeNote[]; display: TranscribeDisplayNote[] | null; curMidi: number | null; curStart: number; lastVoice: number; ring: number[]; hlTimers: number[]; bpm?: number }
-const trx: TranscribeState = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, ring: [], hlTimers: [] };
+interface TranscribeState { on: boolean; pending: boolean; micRequest: number; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; analyser: AnalyserNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; notes: TranscribeNote[]; display: TranscribeDisplayNote[] | null; curMidi: number | null; curStart: number; lastVoice: number; lastPitchTs: number; ring: number[]; hlTimers: number[]; bpm?: number }
+const trx: TranscribeState = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, lastPitchTs: 0, ring: [], hlTimers: [] };
 function trxFreqToMidi(f: number) { return Math.round(69 + 12 * Math.log2(f / 440)); }
 /* ---------- VOICE microphone: the one path both activities (Sing from the staff, Hum to notes) listen through ---------- */
 interface MicTap { stream: MediaStream; src: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> }
@@ -837,16 +891,41 @@ function livePitch(el: HTMLElement, midi: number, cents?: number) {
     el.dataset.lastPitch = key;
     el.innerHTML = noteName(midi, false) + (cents === undefined ? '' : '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>');
 }
+const trxCountTimers: number[] = [];
+function trxClearCountTimers() {
+    while (trxCountTimers.length) clearTimeout(trxCountTimers.pop());
+}
 async function trxStart()  {
     if (trx.on || trx.pending)
         return;
     stopPreviews();
     trx.hlTimers.forEach(clearTimeout);
     trx.hlTimers = [];
+    trxClearCountTimers();
     kbClear('rh');
     const request = ++trx.micRequest;
     trx.pending = true;
     byId('tr-rec').textContent = t('tr_stop');
+    const wantCountIn = maybeById('tr-countin') instanceof HTMLInputElement && inputById('tr-countin').checked;
+    if (wantCountIn) {
+        const ctx = ensureAudio();
+        const bpm = +(inputById('tr-bpm').value || 90);
+        const beatSec = 60 / Math.max(40, bpm);
+        const countPromise = new Promise<boolean>((resolve) => {
+            for (let b = 0; b < 4; b++) {
+                trxCountTimers.push(window.setTimeout(() => {
+                    if (request !== trx.micRequest || !trx.pending) { resolve(false); return; }
+                    byId('tr-msg').textContent = t('tr_countin_msg', b + 1);
+                    if (ctx) audioEngine.scheduleClick(ctx.currentTime + 0.01, b === 0);
+                }, b * beatSec * 1000));
+            }
+            trxCountTimers.push(window.setTimeout(() => {
+                resolve(request === trx.micRequest && trx.pending);
+            }, 4 * beatSec * 1000));
+        });
+        const ok = await countPromise;
+        if (!ok) return;
+    }
     const tap = await micOpen(() => request === trx.micRequest && voiceActive('hum'));
     if (tap === 'stale')
         return;
@@ -885,7 +964,7 @@ function trxMedian() { const a = trx.ring.slice().sort((x, y) => x - y); return 
 function trxCloseNote(tEnd: number) { if (trx.curMidi == null)
     return; const dur = tEnd - trx.curStart; if (dur >= 0.09)
     trx.notes.push({ midi: trx.curMidi, start: trx.curStart, dur }); trx.curMidi = null; }
-function trxLoop() {
+function trxLoop(ts: number = performance.now()) {
     if (!trx.on)
         return;
     if (!trx.analyser || !trx.buf || !audioEngine.context) {
@@ -897,33 +976,37 @@ function trxLoop() {
         byId('tr-msg').textContent = t('tr_micended');
         return;
     }
-    trx.analyser.getFloatTimeDomainData(trx.buf);
-    const f = trxAutoCorrelate(trx.buf, audioEngine.context.sampleRate), now = audioEngine.context.currentTime;
-    if (f < 0) {
-        if (trx.curMidi != null && now - trx.lastVoice > 0.12) {
-            trxCloseNote(now);
-            trx.ring = [];
-        }
-        byId('tr-live').textContent = '—';
-    }
-    else {
-        trx.lastVoice = now;
-        let m = trxFreqToMidi(f);
-        m = Math.max(36, Math.min(88, m));
-        trx.ring.push(m);
-        if (trx.ring.length > 5)
-            trx.ring.shift();
-        const sm = trxMedian(), cents = Math.round(1200 * Math.log2(f / midiToFreq(sm)));
-        livePitch(byId('tr-live'), sm, cents);
-        if (trx.ring.length >= 3) {
-            if (trx.curMidi == null) {
-                trx.curMidi = sm;
-                trx.curStart = now;
-            }
-            else if (sm !== trx.curMidi) {
+    if (ts - trx.lastPitchTs >= 33) {
+        trx.lastPitchTs = ts;
+        trx.analyser.getFloatTimeDomainData(trx.buf);
+        const f = trxAutoCorrelate(trx.buf, audioEngine.context.sampleRate), now = audioEngine.context.currentTime;
+        if (f < 0) {
+            if (trx.curMidi != null && now - trx.lastVoice > 0.12) {
                 trxCloseNote(now);
-                trx.curMidi = sm;
-                trx.curStart = now;
+                trx.ring = [];
+            }
+            if (now - trx.lastVoice > 0.15)
+                byId('tr-live').textContent = '—';
+        }
+        else {
+            trx.lastVoice = now;
+            let m = trxFreqToMidi(f);
+            m = Math.max(36, Math.min(88, m));
+            trx.ring.push(m);
+            if (trx.ring.length > 5)
+                trx.ring.shift();
+            const sm = trxMedian(), cents = Math.round(1200 * Math.log2(f / midiToFreq(sm)));
+            livePitch(byId('tr-live'), sm, cents);
+            if (trx.ring.length >= 3) {
+                if (trx.curMidi == null) {
+                    trx.curMidi = sm;
+                    trx.curStart = now;
+                }
+                else if (sm !== trx.curMidi) {
+                    trxCloseNote(now);
+                    trx.curMidi = sm;
+                    trx.curStart = now;
+                }
             }
         }
     }
@@ -931,10 +1014,13 @@ function trxLoop() {
 }
 function trxStop() {
     trx.micRequest++;
+    trxClearCountTimers();
     trx.pending = false;
     byId('tr-rec').textContent = t('tr_rec');
-    if (!trx.on)
+    if (!trx.on) {
+        if (!trx.notes.length) byId('tr-msg').textContent = '';
         return;
+    }
     trx.on = false;
     cancelAnimationFrame(trx.raf);
     trxCloseNote(audioEngine.context?.currentTime ?? 0);
@@ -971,6 +1057,8 @@ function trxRender() {
     out.innerHTML = '';
     if (!trx.notes.length) {
         byId('tr-msg').textContent = t('tr_none');
+        const staff = maybeById('tr-staff');
+        if (staff) { staff.hidden = true; staff.innerHTML = ''; }
         byId('tr-actions').style.display = 'none';
         return;
     }
@@ -994,6 +1082,22 @@ function trxRender() {
         el.innerHTML = '<span class="nm">' + noteName(n.midi, false) + '</span><span class="bar" style="width:' + w + 'px"></span>' + (n.label ? '<span class="dl">' + n.label + '</span>' : '');
         out.appendChild(el);
     });
+    const staff = maybeById('tr-staff');
+    if (staff) {
+        const durs = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
+        const snapDur = (d: number) => durs.reduce((best, cur) => (Math.abs(cur - d) < Math.abs(best - d) ? cur : best), 1);
+        const midis = trx.display.map((n) => n.midi).sort((a, b) => a - b);
+        const isBass = (midis[Math.floor(midis.length / 2)] ?? 60) < 57;
+        const flatKey = [5, 10, 3, 8, 1, 6].includes(+(selectById('tr-skey').value || 0));
+        const tokens: SrToken[] = trx.display.slice(0, 16).map((n) => {
+            const sym = (flatKey ? PC_FLAT : PC_SHARP)[pc(n.midi)];
+            return [sym + (Math.floor(n.midi / 12) - 1), snapDur(n.db)];
+        });
+        const score: SrScore = isBass ? { ts: [4, 4], keyN: 0, lh: tokens } : { ts: [4, 4], keyN: 0, rh: tokens };
+        staff.hidden = false;
+        const lay = srPaperOf(staff) ?? { width: 520 };
+        staff.innerHTML = srRender(score, { width: Math.max(320, lay.width), maxBars: 4 }).svg;
+    }
     byId('tr-actions').style.display = 'flex';
 }
 function trxPlay() {
@@ -1050,8 +1154,8 @@ async function trxOpenInPieces() {
     await anOpenFile(file);
 }
 function trxExportTxt() { if (!trx.display || !trx.display.length)
-    return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map((n) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
-function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); byId('tr-out').innerHTML = ''; byId('tr-actions').style.display = 'none'; byId('tr-msg').textContent = ''; }
+    return; const txt = t('tr_export_melody') + '\nTempo: ' + (trx.bpm || 90) + ' BPM\n\n' + t('tr_export_note') + '\t' + t('tr_export_val') + '\n' + trx.display.map((n) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
+function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); const staff = maybeById('tr-staff'); if (staff) { staff.hidden = true; staff.innerHTML = ''; } byId('tr-out').innerHTML = ''; byId('tr-actions').style.display = 'none'; byId('tr-msg').textContent = ''; }
 function renderTranscribe() {
     const ks = selectById('tr-skey');
     if (ks) {
@@ -1073,17 +1177,17 @@ function renderTranscribe() {
    ============================================================================ */
 /* ---- state + draw ---- */
 interface SightSingState {
-    ex: SightSingExercise | null; render: SightSingRender | null; level: number; clef: string; mode: string; idx: number; active: boolean; results: string[]; bpm: number;
+    ex: SightSingExercise | null; render: SightSingRender | null; level: number; clef: string; range: 'soprano' | 'tenor' | 'bass'; labelMode: SightSingLabelMode; mode: string; idx: number; active: boolean; results: string[]; bpm: number;
     runId: number; micRequest: number; analyser: AnalyserNode | null; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; ring: number[]; stable: number; hint: number;
     samples: { t: number; pc: number; cents: number }[]; keyEvents: { t: number; midi: number }[];
     hlTimers: number[]; playRaf: number; playStart: number; loopA: number | null; loopB: number | null;
-    flat: SightSingNote[] | null; holdT: number; wrongT: number; countInMs: number; phraseStartPN: number; phraseSingPN: number; freePN: number; trail: [number, number][];
+    flat: SightSingNote[] | null; holdT: number; wrongT: number; muteUntil: number; lastPitchTs: number; countInMs: number; phraseStartPN: number; phraseSingPN: number; freePN: number; trail: [number, number][];
 }
 // flat…trail are filled in by the modes before they are read; phraseSingPN starts as NaN so key presses before the count-in never match a note.
-const sing: SightSingState = { ex: null, render: null, level: 0, clef: 'treble', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
+const sing: SightSingState = { ex: null, render: null, level: 0, clef: 'treble', range: 'soprano', labelMode: 'solfege', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
     runId: 0, micRequest: 0, analyser: null, stream: null, src: null, buf: null, raf: 0, ring: [], stable: 0, hint: 0, samples: [], keyEvents: [],
     hlTimers: [], playRaf: 0, playStart: 0, loopA: null, loopB: null,
-    flat: null, holdT: 0, wrongT: 0, countInMs: 0, phraseStartPN: 0, phraseSingPN: NaN, freePN: 0, trail: [] };
+    flat: null, holdT: 0, wrongT: 0, muteUntil: 0, lastPitchTs: 0, countInMs: 0, phraseStartPN: 0, phraseSingPN: NaN, freePN: 0, trail: [] };
 /** The exercise on the staff; every caller runs after `ssNewExercise()`. */
 function requireSingExercise(): SightSingExercise {
     if (!sing.ex)
@@ -1106,7 +1210,7 @@ function ssFillLevels() {
 let ssPaperSeen: SrLayout | undefined;
 let ssStaffMetrics: { render: SightSingRender | null; clientWidth: number; scrollWidth: number; scrollLeft: number } = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 };
 function ssDraw() { if (!sing.ex)
-    return; ssPaperSeen = srPaperOf(byId('si-staff')); const r = ssRender(sing.ex, ssPaperSeen?.width ?? 0); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssStaffMetrics = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 }; ssPaint(); }
+    return; ssPaperSeen = srPaperOf(byId('si-staff')); const r = ssRender(sing.ex, ssPaperSeen?.width ?? 0, sing.labelMode, (n) => spelledName(notation, n.li, n.acc)); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssStaffMetrics = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 }; ssPaint(); }
 // Draws the staff again when its paper changed width; the cursor and the pitch trail come back on their next frame.
 function ssFit() { ssStaffMetrics.clientWidth = 0; if (sing.render && srPaperChanged(ssPaperSeen, srPaperOf(byId('si-staff'))))
     ssDraw(); }
@@ -1150,7 +1254,7 @@ function ssPaint() {
             g.removeAttribute('data-s');
     });
 }
-function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = inputById('si-bpm'); if (bp) {
+function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0, lang); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = inputById('si-bpm'); if (bp) {
     bp.value = String(sing.ex.bpm);
     byId('si-bpmLbl').textContent = String(sing.ex.bpm);
 } ssDraw(); }
@@ -1320,8 +1424,9 @@ function ssBeatToX(beat: number) {
     return pts[pts.length - 1].x;
 }
 /* ---- reference cues ---- */
+function ssTonicShift() { return sing.range === 'tenor' ? -12 : 0; }
 function ssTonic() { if (!sing.ex)
-    return; const ctx = ensureAudio(); if (ctx) previewNote(sing.ex.tonicMidi, ctx.currentTime + 0.02, 0.85, 92); }
+    return; const ctx = ensureAudio(); if (ctx) previewNote(sing.ex.tonicMidi + ssTonicShift(), ctx.currentTime + 0.02, 0.85, 92); }
 // A pulse running along the staff while the melody plays; with reduced motion the notes simply stay as they are.
 function ssFlash(i: number) { if (reduceMotion())
     return; const svg = ssSvg(); if (!svg)
@@ -1339,8 +1444,8 @@ function ssPlayIt() {
     stopPreviews();
     sing.hlTimers.forEach(clearTimeout);
     sing.hlTimers = [];
-    const beatSec = 60 / (sing.bpm || sing.ex.bpm), now = ctx ? ctx.currentTime : 0, t0 = now + 0.12;
-    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); if (ctx) previewNote(n.midi, when, dur, 92); sing.hlTimers.push(window.setTimeout(() => ssFlash(i), Math.max(0, (when - now) * 1000))); });
+    const beatSec = 60 / (sing.bpm || sing.ex.bpm), now = ctx ? ctx.currentTime : 0, t0 = now + 0.12, shift = ssTonicShift();
+    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); if (ctx) previewNote(n.midi + shift, when, dur, 92); sing.hlTimers.push(window.setTimeout(() => ssFlash(i), Math.max(0, (when - now) * 1000))); });
 }
 function ssDrone() { if (inputById('si-drone').checked) {
     if (sing.ex) {
@@ -1363,7 +1468,12 @@ function ssNoteStart() {
     byId('si-verdict').className = 'verdict neutral';
     byId('si-verdict').textContent = t('si_singit');
     const ctx = ensureAudio();
-    if (ctx) previewNote(requireSingExercise().tonicMidi, ctx.currentTime + 0.02, 0.6, 85);
+    if (ctx) {
+        previewNote(requireSingExercise().tonicMidi + ssTonicShift(), ctx.currentTime + 0.02, 0.6, 85);
+        sing.muteUntil = performance.now() + 780;
+    } else {
+        sing.muteUntil = 0;
+    }
     const run = sing.runId;
     ssMicMaybe().then((ok) => { if (run === sing.runId && sing.active && sing.mode === 'note') {
         if (!ok)
@@ -1374,31 +1484,41 @@ function ssNoteStart() {
 function ssNoteLoop(ts: number) {
     if (!sing.active || sing.mode !== 'note')
         return;
-    const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = byId('si-live');
-    if (p) {
-        livePitch(lv, p.midi, p.cents);
-        if (pc(p.midi) === tgt && Math.abs(p.cents) < 42) {
-            if (!sing.holdT)
-                sing.holdT = ts;
-            else if (ts - sing.holdT >= 320) {
-                ssNoteCorrect();
-            }
-            sing.wrongT = 0;
-        }
-        else {
-            sing.holdT = 0;
-            if (!sing.wrongT)
-                sing.wrongT = ts;
-            else if (ts - sing.wrongT > 700) {
-                sing.wrongT = 0;
-                ssHintBump(p.midi, p.cents);
-            }
-        }
-    }
-    else {
-        lv.classList.remove('rec');
+    if (ts < sing.muteUntil) {
         sing.holdT = 0;
         sing.wrongT = 0;
+        sing.raf = requestAnimationFrame(ssNoteLoop);
+        return;
+    }
+    if (ts - sing.lastPitchTs >= 33) {
+        sing.lastPitchTs = ts;
+        const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = byId('si-live');
+        if (p) {
+            livePitch(lv, p.midi, p.cents);
+            if (pc(p.midi) === tgt && Math.abs(p.cents) < 42) {
+                if (!sing.holdT)
+                    sing.holdT = ts;
+                else if (ts - sing.holdT >= 320) {
+                    ssNoteCorrect();
+                }
+                sing.wrongT = 0;
+            }
+            else {
+                sing.holdT = 0;
+                if (!sing.wrongT)
+                    sing.wrongT = ts;
+                else if (ts - sing.wrongT > 700) {
+                    sing.wrongT = 0;
+                    ssHintBump(p.midi, p.cents);
+                }
+            }
+        }
+        else {
+            lv.classList.remove('rec');
+            lv.textContent = '—';
+            sing.holdT = 0;
+            sing.wrongT = 0;
+        }
     }
     if (sing.active) sing.raf = requestAnimationFrame(ssNoteLoop);
 }
@@ -1427,7 +1547,12 @@ function ssHintBump(am: number, cents = 0) {
     else {
         byId('si-hint').textContent = t('si_hi_syl', syl);
         const ctx = ensureAudio();
-        if (ctx) previewNote(cur.midi, ctx.currentTime + 0.02, 0.6, 80);
+        if (ctx) {
+            previewNote(cur.midi, ctx.currentTime + 0.02, 0.6, 80);
+            sing.muteUntil = performance.now() + 780;
+            sing.holdT = 0;
+            sing.wrongT = 0;
+        }
     }
 }
 function ssNoteFinish() {
@@ -1493,14 +1618,19 @@ function ssPhraseLoop(ts: number) {
     const tt = (ts - sing.phraseSingPN) / 1000;
     if (tt <= dur) {
         byId('si-verdict').textContent = t('si_sing_now');
-        const p = ssReadPitch();
-        if (p)
-            sing.samples.push({ t: tt, pc: pc(p.midi), cents: p.cents });
-        const lv = byId('si-live');
-        if (p)
-            livePitch(lv, p.midi);
-        else
-            lv.classList.remove('rec');
+        if (ts - sing.lastPitchTs >= 33) {
+            sing.lastPitchTs = ts;
+            const p = ssReadPitch();
+            if (p)
+                sing.samples.push({ t: tt, pc: pc(p.midi), cents: p.cents });
+            const lv = byId('si-live');
+            if (p)
+                livePitch(lv, p.midi);
+            else {
+                lv.classList.remove('rec');
+                lv.textContent = '—';
+            }
+        }
         ssMoveCursor(ssBeatToX(tt / beatSec));
         sing.raf = requestAnimationFrame(ssPhraseLoop);
     }
@@ -1563,16 +1693,21 @@ function ssFreeLoop(ts: number) {
     }
     const x = ssBeatToX(Math.min(Math.max(tt, 0), dur) / beatSec);
     ssMoveCursor(x);
-    const p = ssReadPitch(), lv = byId('si-live');
-    if (p) {
-        livePitch(lv, p.midi, p.cents);
-        sing.trail.push([x, ssPitchY(p.f)]);
-        if (sing.trail.length > 400)
-            sing.trail.shift();
-        ssDrawTrail();
+    if (ts - sing.lastPitchTs >= 33) {
+        sing.lastPitchTs = ts;
+        const p = ssReadPitch(), lv = byId('si-live');
+        if (p) {
+            livePitch(lv, p.midi, p.cents);
+            sing.trail.push([x, ssPitchY(p.f)]);
+            if (sing.trail.length > 400)
+                sing.trail.shift();
+            ssDrawTrail();
+        }
+        else {
+            lv.classList.remove('rec');
+            lv.textContent = '—';
+        }
     }
-    else
-        lv.classList.remove('rec');
     sing.raf = requestAnimationFrame(ssFreeLoop);
 }
 /* ---- input from keyboard / MIDI (alternative to singing) ---- */
@@ -1754,6 +1889,7 @@ function buildKeyboard() {
         anKeysPaint(true);
     cofPaintDock();
     paintPracticeHintKeys();
+    paintAccompImproScale();
 }
 // Chord-member numbers (1 3 5 7 …) shown on keys; `src` maps sounding MIDI notes to labels and is folded into view.
 let kbDegSrc: Map<number, string>|null = null;
@@ -1939,6 +2075,8 @@ function dockSync() {
     }
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
+    const exKbBtn = maybeById('ex-open-kb');
+    if (exKbBtn) exKbBtn.hidden = dockShown() || !!activeInputId || bleLive();
     if (open) {
         if (was && !wasOpen)
             dockReveal();
@@ -2212,6 +2350,10 @@ function midiChipSync() {
     }
     rdnReadySync();
     anSyncPracticeLine();
+    const bleChip = maybeById('bleChip');
+    if (bleChip) bleChip.hidden = !bleCan() || bleLive();
+    const exKbBtn = maybeById('ex-open-kb');
+    if (exKbBtn) exKbBtn.hidden = dockShown() || !!activeInputId || bleLive();
     if (STAGE.on || SES.active)
         dockSync(); // a connected piano releases the keys a stage or drill opened
 }
@@ -2850,7 +2992,7 @@ document.addEventListener('keydown', (e) => {
         releaseTypingKeys();
         return;
     }
-    if ((e.key !== 'Escape' && inField()) || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || byId('appDialog').classList.contains('on') || e.repeat)
+    if ((e.key !== 'Escape' && inField()) || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || byId('appDialog').classList.contains('on') || !byId('mobileMenu').hidden || e.repeat)
         return;
     const k = e.key.toLowerCase();
     if (e.key === '?') {
@@ -2916,10 +3058,13 @@ function inversionOf(rootPc: number, tpl: { symbol: string; idx?: number; pcset?
     return chordInversion(rootPc, { idx, symbol: tpl.symbol, pcset, intervals: tpl.intervals }, bassMidi);
 }
 function identifyChord(notes: readonly number[], expected?: number) { return identifyChordDomain(notes, CHORDS , expected); }
+function formatChord(root: string, sym: string) {
+    return theory.formatChordSymbol(root, sym, notation);
+}
 function slashLabel(id: { rootPc: number; chord: { symbol: string; }; inversion: number; bassPc: number; }, rootSp?: theory.SpelledMidi, bassSp?: theory.SpelledMidi) {
     const rootLabel = rootSp ? spelledName(notation, rootSp.li, rootSp.acc, true) : rootName(id.rootPc);
     const bassLabel = bassSp ? spelledName(notation, bassSp.li, bassSp.acc, true) : rootName(id.bassPc);
-    return rootLabel + id.chord.symbol + (id.inversion > 0 ? '/' + bassLabel : '');
+    return formatChord(rootLabel, id.chord.symbol) + (id.inversion > 0 ? '/' + bassLabel : '');
 }
 /* ============================================================================
    ITEM MODEL + SPACED REPETITION
@@ -2948,6 +3093,14 @@ type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: 
 interface StoredSheetRecord { best?: number; learned?: boolean; }
 interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; dir?: IntervalDirection; }
 interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
+interface StoredPracticeLog {
+    techRuns?: number;
+    techClean?: number;
+    techBestBpm?: number;
+    melRuns?: number;
+    melCorrect?: number;
+    melTotal?: number;
+}
 type StoredTrainerData = {
     srs: Record<string, storage.StoredSrsEntry>;
     streak: number;
@@ -2969,6 +3122,7 @@ type StoredTrainerData = {
     earToday?: number;
     lastDrill?: StoredLastDrill;
     lastBuiltinPiece?: { id: string; at: number; measure?: string; speed?: number; elapsed?: number };
+    practiceLog?: StoredPracticeLog;
     learnDone?: Record<string, number>;
     learnRev?: Record<string, StoredLessonReview>;
     learnUnlock?: Record<string, number>;
@@ -3065,10 +3219,39 @@ function seedPlacement(id: string, known: boolean) {
     it.due = todayN() + Math.round(IVL[4] * (it.ease / 2.3));
     it.last = todayN();
 }
+type IntervalStyle = 'both' | 'melodic' | 'harmonic';
+type ChordTier = 'triads' | 'sevenths' | 'all';
+type ScaleTier = 'core' | 'modes' | 'all';
+type MelodyDifficulty = 'easy' | 'medium' | 'advanced';
 const SCALE_EAR_POOL = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Dorian', 'Mixolydian', 'Phrygian', 'Lydian', 'Major pentatonic', 'Minor pentatonic', 'Blues', 'Harmonic minor', 'Whole tone'];
-function scaleEarOptions(correct: string) { let pool = SCALE_EAR_POOL.filter((n) => n !== correct); pool = shuffle(pool).slice(0, 6); pool.push(correct); return shuffle(pool); }
+const CHORD_TIER_TRIADS = new Set(['maj', 'm', 'dim', 'aug']);
+const CHORD_TIER_SEVENTHS = new Set(['maj', 'm', 'dim', 'aug', 'sus2', 'sus4', '6', 'm6', 'maj7', '7', 'm7', 'mMaj7', 'm7♭5', 'dim7']);
+const SCALE_TIER_CORE = new Set(['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor']);
+const SCALE_TIER_MODES = new Set([
+    'Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor',
+    'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Locrian', 'Major pentatonic', 'Minor pentatonic', 'Blues',
+]);
+function chordMatchesTier(symbol: string, tier: ChordTier = 'all') {
+    if (tier === 'triads') return CHORD_TIER_TRIADS.has(symbol);
+    if (tier === 'sevenths') return CHORD_TIER_SEVENTHS.has(symbol);
+    return true;
+}
+function scaleMatchesTier(name: string, tier: ScaleTier = 'all') {
+    if (tier === 'core') return SCALE_TIER_CORE.has(name);
+    if (tier === 'modes') return SCALE_TIER_MODES.has(name);
+    return true;
+}
+function scaleEarOptions(correct: string) {
+    const tier = SES.targeted?.cat === 'scale' ? (SES.targeted.scaleTier ?? prScaleTier) : 'all';
+    const allowed = SCALE_EAR_POOL.filter((n) => n === correct || scaleMatchesTier(n, tier));
+    let pool = allowed.filter((n) => n !== correct);
+    pool = shuffle(pool).slice(0, 6);
+    pool.push(correct);
+    return shuffle(pool);
+}
 function chordEarOptions(correctItem: ChordTrainerItem) {
-    const others = ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord' && x.short !== correctItem.short);
+    const tier = SES.targeted?.cat === 'chord' ? (SES.targeted.chordTier ?? prChordTier) : 'all';
+    const others = ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord' && x.short !== correctItem.short && chordMatchesTier(x.short, tier));
     const same = shuffle(others.filter((x) => x.ref.pcset.length === correctItem.ref.pcset.length));
     const rest = shuffle(others.filter((x) => x.ref.pcset.length !== correctItem.ref.pcset.length));
     return shuffle(same.concat(rest).slice(0, 7).concat([correctItem]));
@@ -3089,12 +3272,12 @@ interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
 // dir: an interval by ear played downwards ('desc'); without it, upwards.
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; wasWrong?: boolean; dir?: 'asc' | 'desc'; placementKnown?: boolean; verdictText?: () => string; }
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; wasWrong?: boolean; dir?: 'asc' | 'desc'; ivStyle?: IntervalStyle; placementKnown?: boolean; verdictText?: () => string; }
 // A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
 interface TrainerGiven { text: () => string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 // dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
 type IntervalDirection = 'asc' | 'desc' | 'both';
-interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; techKind?: TechniqueKind; techOctaves?: 1 | 2; }
+interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; ivStyle?: IntervalStyle; chordTier?: ChordTier; scaleTier?: ScaleTier; melDiff?: MelodyDifficulty; melLen?: number | 'auto'; melScale?: string; techKind?: TechniqueKind; techOctaves?: 1 | 2; }
 // contrast: a short drill on two items the last session mixed up (its question order, by item id).
 interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
 const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
@@ -3154,9 +3337,12 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
     else
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
     const q: TrainerQuestion = { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
+    const ivStyle = it.cat === 'interval' && mode === 'ear' ? (SES.targeted?.ivStyle ?? 'both') : undefined;
+    if (ivStyle)
+        q.ivStyle = ivStyle;
     const dir = it.cat === 'interval' && mode === 'ear' ? SES.targeted?.dir : undefined;
     if (dir)
-        q.dir = dir === 'both' ? randItem<'asc' | 'desc'>(['asc', 'desc']) : dir;
+        q.dir = ivStyle === 'harmonic' ? 'asc' : (dir === 'both' ? randItem<'asc' | 'desc'>(['asc', 'desc']) : dir);
     return q;
 }
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
@@ -3327,11 +3513,49 @@ const TECHNIQUE_ITEM: ScaleTrainerItem = { id: TECHNIQUE_TOPIC, cat: 'scale', la
 const techniqueHost: TechniqueHost = {
     t: (key, ...args) => t(key, ...args),
     spell: (letter, acc) => spelledName(notation, letter, acc),
-    mark: (midi, state) => kbState(midi, state, true),
+    mark: (midi, state) => kbState(midi, state, !!data.settings.anyOctave),
+    ensureVisible: (midis) => {
+        if (!midis.length || !dockShown()) return;
+        if (data.settings.anyOctave) {
+            dockKeyInSight(foldToView(midis[0]));
+            return;
+        }
+        const lo = Math.min(...midis), hi = Math.max(...midis);
+        const span = view.oct * 12;
+        if (lo < view.low || hi > viewHigh()) {
+            const targetLow = Math.max(BASE_LOW, Math.min(BASE_HIGH - span, Math.floor(lo / 12) * 12));
+            if (targetLow !== view.low) {
+                view.low = targetLow;
+                buildKeyboard();
+                repaintHeld();
+            }
+        }
+        dockKeyInSight(lo);
+    },
     clearMarks: () => kbClearAll(),
     byId,
     anyOctave: () => !!data.settings.anyOctave,
+    onComplete({ clean, bpm }) {
+        const log = data.practiceLog ?? (data.practiceLog = {});
+        log.techRuns = (log.techRuns || 0) + 1;
+        if (clean) log.techClean = (log.techClean || 0) + 1;
+        if (bpm && bpm > 0) log.techBestBpm = Math.max(log.techBestBpm || 0, Math.round(bpm));
+        saveAll();
+    },
 };
+function melodyConfigForSession(diff: MelodyDifficulty = prMelDiff, lenPref: number | 'auto' = prMelLen, scalePref: string = prMelScale) {
+    const baseLen = diff === 'easy' ? (3 + Math.floor(Math.random() * 2)) : diff === 'medium' ? (4 + Math.floor(Math.random() * 2)) : (5 + Math.floor(Math.random() * 3));
+    const len = typeof lenPref === 'number' && lenPref >= 3 && lenPref <= 8 ? lenPref : baseLen;
+    const defaultScales = diff === 'easy'
+        ? ['Major (Ionian)', 'Major pentatonic']
+        : diff === 'medium'
+            ? ['Major (Ionian)', 'Aeolian (Natural minor)', 'Major pentatonic', 'Minor pentatonic']
+            : EK_MEL_SCALES;
+    const scaleNames = scalePref !== 'auto' && EK_MEL_SCALES.includes(scalePref) ? [scalePref] : defaultScales;
+    const steps = diff === 'advanced' ? [-3, -2, -1, 1, 2, 3] : [-2, -1, 1, 2];
+    const stepWeight = diff === 'easy' ? 4 : diff === 'medium' ? 2 : 2;
+    return { len, scaleNames, steps, stepWeight };
+}
 function pickTargetedItem() {
     if (!SES.targeted)
         throw new Error('Étude: no targeted drill');
@@ -3339,7 +3563,19 @@ function pickTargetedItem() {
     if (contrastItem)
         return contrastItem;
     const c = SES.targeted.cat;
-    const pool = c === 'melody' ? ITEMS.filter((it) => it.cat === 'scale' && EK_MEL_SCALES.includes(it.name)) : ITEMS.filter((it) => it.cat === c); // weakness-weighted
+    let pool: TrainerItem[];
+    if (c === 'melody') {
+        const cfg = melodyConfigForSession(SES.targeted.melDiff ?? prMelDiff, SES.targeted.melLen ?? prMelLen, SES.targeted.melScale ?? prMelScale);
+        pool = ITEMS.filter((it): it is ScaleTrainerItem => it.cat === 'scale' && cfg.scaleNames.includes(it.name));
+    } else if (c === 'chord') {
+        const tier = SES.targeted.chordTier ?? prChordTier;
+        pool = ITEMS.filter((it): it is ChordTrainerItem => it.cat === 'chord' && chordMatchesTier(it.short, tier));
+    } else if (c === 'scale') {
+        const tier = SES.targeted.scaleTier ?? prScaleTier;
+        pool = ITEMS.filter((it): it is ScaleTrainerItem => it.cat === 'scale' && scaleMatchesTier(it.name, tier));
+    } else {
+        pool = ITEMS.filter((it) => it.cat === c); // weakness-weighted
+    }
     const w = pool.map((it) => { const s = data.srs[it.id] || { box: 0 }; return 1 / (1 + s.box); });
     let tot = w.reduce((a, b) => a + b, 0), r = Math.random() * tot;
     for (let i = 0; i < pool.length; i++) {
@@ -3369,9 +3605,9 @@ function earRoot(q: { key: number; }) { return theory.practiceTonicMidi(q.key, '
 function renderPlayPrompt(q: TrainerQuestion) {
     const it = q.it, root = rootName(q.key);
     const [label, sub] = it.cat === 'interval' ? [ivName(it.semi), t('above') + ' ' + root]
-        : it.cat === 'chord' ? [root + dispSym(it.short), chordDisp(it.ref)]
+        : it.cat === 'chord' ? [formatChord(root, dispSym(it.short)), chordDisp(it.ref)]
         : it.cat === 'scale' ? [root + ' ' + scaleDisp(it.name), t('ascending')]
-        : [it.ref.name, t('in_key') + ' ' + root];
+        : [progDisp(it.ref.name), t('in_key') + ' ' + root];
     byId('q-prompt').innerHTML = label + ' <span class="sub">' + sub + '</span>';
 }
 function presentPlay(q: TrainerQuestion) {
@@ -3386,7 +3622,7 @@ function presentPlay(q: TrainerQuestion) {
     }
     else if (it.cat === 'prog') {
         q.idx = 0;
-        neutral(() => it.ref.chords.map(ch => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  '));
+        neutral(() => it.ref.chords.map(ch => formatChord(rootName((q.key + ch[0]) % 12), dispSym(ch[1]))).join('  ·  '));
         showProgTarget(q);
     }
 }
@@ -3446,7 +3682,7 @@ function presentEar(q: TrainerQuestion) {
     let opts: (number | string)[] = [];
     if (it.cat === 'interval') {
         opts = INTERVALS.map(iv => iv.semi);
-        sesPrompt(q, () => playIvDir(earRoot(q), it.semi, q.dir ?? 'asc'));
+        sesPrompt(q, () => playIvDir(earRoot(q), it.semi, q.dir ?? 'asc', q.ivStyle ?? 'both'));
     }
     else if (it.cat === 'chord') {
         opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map(x => x.short);
@@ -3480,7 +3716,7 @@ function playQuestionSound(q: TrainerQuestion) {
         return;
     }
     if (it.cat === 'interval')
-        playIvDir(earRoot(q), it.semi, q.dir ?? 'asc');
+        playIvDir(earRoot(q), it.semi, q.dir ?? 'asc', q.ivStyle ?? 'both');
     else if (it.cat === 'chord')
         playChordMidis(it.ref.intervals.map((i) => earRoot(q) + i), true);
     else if (it.cat === 'scale')
@@ -3565,15 +3801,22 @@ function ekBuild(q: TrainerQuestion): EarKeysPrompt {
     // a short tonal melody in the item's scale: starts on the tonic, moves mostly by step, ends on a stable degree
     if (it.cat !== 'scale')
         throw new Error('Étude: no ear-keys prompt for a ' + it.cat + ' item');
-    const offs = SCALES[it.name], N = offs.length, ton = earRoot(q), len = 3 + Math.floor(Math.random() * 3);
+    const cfg = SES.targeted?.cat === 'melody'
+        ? melodyConfigForSession(SES.targeted.melDiff ?? prMelDiff, SES.targeted.melLen ?? prMelLen, SES.targeted.melScale ?? prMelScale)
+        : { len: 3 + Math.floor(Math.random() * 3), scaleNames: EK_MEL_SCALES, steps: [-2, -1, 1, 2], stepWeight: 2 };
+    const offs = SCALES[it.name], N = offs.length, ton = earRoot(q), len = cfg.len;
     const at = (d: number) => ton + offs[((d % N) + N) % N] + 12 * Math.floor(d / N), stable = (d: number) => [0, 3, 4, 7].includes(pc(at(d) - ton));
     let d = 0;
     const ds = [0];
     for (let i = 1; i < len; i++) {
         const last = i === len - 1, opts: number[] = [];
-        [-2, -1, 1, 2].forEach((s) => { const nd = d + s; if (nd < -2 || nd > N + 2 || (last && !stable(nd)))
-            return; opts.push(nd); if (Math.abs(s) === 1)
-            opts.push(nd, nd); });
+        cfg.steps.forEach((s) => {
+            const nd = d + s;
+            if (nd < -2 || nd > N + 2 || (last && !stable(nd)))
+                return;
+            const w = Math.abs(s) === 1 ? cfg.stepWeight : Math.abs(s) === 2 ? 2 : 1;
+            for (let k = 0; k < w; k++) opts.push(nd);
+        });
         if (!opts.length)
             opts.push(Math.abs(d) <= Math.abs(N - d) ? 0 : N);
         d = randItem(opts);
@@ -3610,11 +3853,24 @@ function ekSound(q: TrainerQuestion) {
     const t0 = audioEngine.context.currentTime + .25, ms = ek.target;
     let last: number;
     if (ek.kind === 'iv') {
-        previewNote(ms[0], t0, .45);
-        previewNote(ms[1], t0 + .5, .45);
-        previewNote(ms[0], t0 + 1.15, .8);
-        previewNote(ms[1], t0 + 1.15, .8);
-        last = 1.15;
+        const style = q.ivStyle ?? 'both';
+        if (style === 'harmonic') {
+            previewNote(ms[0], t0, .8);
+            previewNote(ms[1], t0, .8);
+            last = 0;
+        }
+        else if (style === 'melodic') {
+            previewNote(ms[0], t0, .45);
+            previewNote(ms[1], t0 + .5, .45);
+            last = .5;
+        }
+        else {
+            previewNote(ms[0], t0, .45);
+            previewNote(ms[1], t0 + .5, .45);
+            previewNote(ms[0], t0 + 1.15, .8);
+            previewNote(ms[1], t0 + 1.15, .8);
+            last = 1.15;
+        }
     }
     else if (ek.kind === 'ch') {
         ms.forEach((m, i: number) => previewNote(m, t0 + i * .16, .4));
@@ -3760,8 +4016,27 @@ function ekMel(q: TrainerQuestion, m: number) {
     }
     const want = tg[i] + ek.off;
     if (m !== want) {
+        q.missed = true;
         q.given = givenNote(ek.seq.slice(-2).map((x) => x.m), m, want);
-        ekMiss(q, [m], t('ek_wrong_mel', i + 1, t(m > want ? 'ek_high' : 'ek_low')));
+        ek.tries++;
+        if (ek.tries >= EK_TRIES) {
+            ek.seq = [];
+            kbClear('good');
+            ekFlash([m], 'bad');
+            resolve(q, false);
+            return;
+        }
+        ekFlash([m], 'bad');
+        setTimeout(() => {
+            if (SES.active && SES.q === q) {
+                kbClear('bad');
+                if (!SES.answered) ek.seq.forEach((x) => kbState(x.m, 'good', true));
+            }
+        }, 450);
+        ekProg(q, ek.seq.length);
+        const v = byId('q-verdict');
+        v.className = 'verdict bad';
+        v.textContent = t('ek_wrong_mel_keep', i + 1, t(m > want ? 'ek_high' : 'ek_low')) + ' ' + t(ek.tries === EK_TRIES - 1 ? 'ek_last' : 'ek_again');
         return;
     }
     ek.seq.push({ m, t: performance.now() });
@@ -3826,9 +4101,9 @@ function sesInput(midi: number) {
     else if (q.it.cat === 'chord')
         scheduleEval(() => gradeChord(q), 300);
     else if (q.it.cat === 'scale')
-        gradeScaleNote(q, [...held].pop());
+        gradeScaleNote(q, midi);
     else if (q.it.cat === 'prog')
-        gradeProgChord(q);
+        scheduleEval(() => gradeProgChord(q), 220);
 }
 function gradeInterval(q: TrainerQuestion) {
     if (!SES.active || SES.answered || SES.q !== q || q.it.cat !== 'interval')
@@ -3931,7 +4206,7 @@ function gradeProgChord(q: TrainerQuestion) {
         }
         else {
             kbClear('target');
-            neutral(() => '✓ — next chord');
+            neutral(() => t('prog_next_chord'));
             setTimeout(() => { if (SES.active && SES.q === q && !SES.answered) showProgTarget(q); }, 250);
         }
         return;
@@ -3948,7 +4223,7 @@ function gradeProgChord(q: TrainerQuestion) {
 }
 /* ---------- error-aware feedback: what was given against what was expected (feedback.ts) ---------- */
 function noteNames(ms: readonly number[]) { return ms.map((m) => rootName(pc(m))).join('–'); }
-function chordLabel(rootPc: number, ref: theory.ChordTemplate) { return rootName(rootPc) + dispSym(ref.symbol) + ' · ' + chordDisp(ref); }
+function chordLabel(rootPc: number, ref: theory.ChordTemplate) { return formatChord(rootName(rootPc), dispSym(ref.symbol)) + ' · ' + chordDisp(ref); }
 // The item id an ear answer stands for, as the item list names them.
 function earOptionId(cat: string, k: number | string) { return (cat === 'interval' ? 'iv:' : cat === 'chord' ? 'ch:' : cat === 'scale' ? 'sc:' : 'pr:') + k; }
 function progMidis(rootPc: number, prog: theory.ProgressionTemplate) { return prog.chords.map((ch) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); return tpl ? tpl.intervals.map((iv) => root + iv) : []; }); }
@@ -4155,13 +4430,13 @@ function showElaboration(q: TrainerQuestion) {
     }
     else if (it.cat === 'chord') {
         const f = feelDisp(it.short);
-        html = '<b>' + rootName(q.key) + dispSym(it.short) + '</b> = ' + chordFormula(it.ref) + (f ? ' · ' + f : '');
+        html = '<b>' + formatChord(rootName(q.key), dispSym(it.short)) + '</b> = ' + chordFormula(it.ref) + (f ? ' · ' + f : '');
     }
     else if (it.cat === 'scale') {
         html = '<b>' + scaleDisp(it.name) + '</b> · ' + t('el_degrees') + ' ' + scaleFormula(SCALES[it.name]);
     }
     else if (it.cat === 'prog') {
-        const chain = it.ref.chords.map((ch) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join(' · '), rom = it.ref.chords.map((ch) => ch[2]).join(' · ');
+        const chain = it.ref.chords.map((ch) => formatChord(rootName((q.key + ch[0]) % 12), dispSym(ch[1]))).join(' · '), rom = it.ref.chords.map((ch) => ch[2]).join(' · ');
         html = '<b>' + rom + '</b> — ' + chain;
     }
     if (q.ek)
@@ -4180,7 +4455,7 @@ function showElaboration(q: TrainerQuestion) {
             const cue = differentialToneCue(it.ref.intervals, other.ref.intervals);
             if (cue?.kind === 'tones') {
                 const degs = (pcs: readonly number[]) => pcs.map((p) => SCALE_DEGREE_LABELS[p] ?? String(p)).join(', ') || '—';
-                diff = t('el_diff_tones', rootName(q.key) + dispSym(it.short), degs(cue.onlyExpected), degs(cue.onlyGiven), rootName(q.key) + dispSym(other.short));
+                diff = t('el_diff_tones', formatChord(rootName(q.key), dispSym(it.short)), degs(cue.onlyExpected), degs(cue.onlyGiven), formatChord(rootName(q.key), dispSym(other.short)));
             }
         }
         else if (other && it.cat === 'scale' && other.cat === 'scale') {
@@ -4315,6 +4590,57 @@ function setViewLoading(viewId: string, loading: boolean) {
     note.textContent = localize('loading', 'Loading…');
     host.prepend(note);
 }
+function teardownView(prev: string, next: string) {
+    if (prev === 'analysis' && next !== 'analysis') {
+        cancelScoreGesture?.();
+        anCancelOpening();
+        anLibraryNavigationResume = anLibraryCapture();
+        if (anScreen === 'player') {
+            anRecordBuiltinProgress();
+            anRenderContinueCard();
+        }
+        anLibrarySuspended = true;
+        void anLibraryFlush(false).catch(() => {});
+        if (scorePendingSignature || scoreLayoutPending) {
+            scoreLayoutGeneration++;
+            scorePendingSignature = '';
+            scoreLayoutPending = null;
+            SCORE.stale = true;
+        }
+        anStopAtCursor();
+        anKeysClear();
+        anSheet(false, true);
+        pcStageSet(false, true);
+    }
+    if (prev === 'learn' && next !== 'learn') learnHalt();
+    if (prev === 'read' && next !== 'read')
+        rdnLeaveView();
+    if (prev !== next) {
+        releaseLiveInput();
+        stopPreviews();
+        kbClear('target');
+        kbDegrees(null);
+    }
+    if (prev === 'practice' && next !== 'practice') {
+        clearAccompImproScale();
+        clearMelodyDemoPreview();
+        if (accomp.on) accompStop();
+        const pm = maybeById('pr-mode');
+        if (pm && queryHtml(pm, 'button[data-v="along"][aria-pressed="true"]')) {
+            queryAllHtml(pm, 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === prProgLastDrill ? 'true' : 'false'));
+            syncPracticeProgSplit();
+        }
+    }
+    if (prev === 'sing' && next !== 'sing')
+        voiceStop();
+    if (prev === 'read' && next !== 'read') {
+        srStopAll(undefined, false, 'navigate');
+        rdAbort();
+    }
+    if (SES.active && next !== sesHome()) { /* leaving mid-session */
+        endSession(false);
+    }
+}
 let show = function show(v: string|undefined, moveFocus = true, fromHistory = false, analysisRoute?: AnalysisRoute | null): void | Promise<void> {
     const navigation = ++featureNavigation;
     const requestedAnRoute = v === 'analysis'
@@ -4325,6 +4651,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         const prevView = _view;
         const showPendingView = !(prevView === 'read' && srtPendingSaveProtected());
         if (showPendingView) {
+            if (prevView !== 'analysis') teardownView(prevView, 'analysis');
             const wantHash = formatAnalysisHash(requestedAnRoute ?? { kind: 'catalog' });
             if (location.hash !== wantHash) {
                 const viaModal = _modalStack.length > 0;
@@ -4337,6 +4664,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
             _routed = true;
             _view = 'analysis';
             viewState.view = 'analysis';
+            stageSync();
             document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-analysis'));
             const targetGroup = navGroup('analysis');
             queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === targetGroup ? 'page' : 'false'));
@@ -4375,7 +4703,6 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         return;
     document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
     const prev = _view;
-    if (prev === 'analysis' && v !== prev) cancelScoreGesture?.();
     if (prev === 'read' && v !== 'read' && srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
             if (location.hash.slice(1) !== prev) {
@@ -4419,49 +4746,13 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         }
         saveSoon();
     }
-    if (prev === 'analysis' && v !== prev) {
-        anCancelOpening();
-        anLibraryNavigationResume = anLibraryCapture();
-        if (anScreen === 'player') {
-            anRecordBuiltinProgress();
-            anRenderContinueCard();
-        }
-        anLibrarySuspended = true;
-        void anLibraryFlush(false).catch(() => {});
-        if (scorePendingSignature || scoreLayoutPending) {
-            scoreLayoutGeneration++;
-            scorePendingSignature = '';
-            scoreLayoutPending = null;
-            SCORE.stale = true;
-        }
-        anStopAtCursor();
-        anKeysClear();
-        anSheet(false, true);
-        pcStageSet(false, true);
-    }
-    if (prev === 'learn' && v !== 'learn') learnHalt();
-    if (prev === 'read' && v !== 'read')
-        rdnLeaveView();
-    if (prev !== v) {
-        releaseLiveInput();
-        stopPreviews();
-        kbClear('target');
-        kbDegrees(null);
-    }
+    teardownView(prev, v);
     _view = v;
     stageSync();
-    if (prev === 'practice' && v !== 'practice' && accomp.on)
-        accompStop();
-    if (prev === 'sing' && v !== 'sing')
-        voiceStop();
     if (hum && voice.act !== 'hum') { // set before renderVoice below draws the screen
         if (prev === 'sing')
             voiceStop();
         voice.act = 'hum';
-    }
-    if (prev === 'read' && v !== 'read') {
-        srStopAll(undefined, false, 'navigate');
-        rdAbort();
     }
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
     const group = navGroup(v);
@@ -4470,9 +4761,6 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (dockShown())
         reflowKeys(); // reposition once the dock is laid out
     closeMobileMenu();
-    if (SES.active && v !== sesHome()) { /* leaving mid-session */
-        endSession(false);
-    }
     if (v === 'today' && !SES.active) {
         byId('today-home').style.display = 'block';
         byId('summary').style.display = 'none';
@@ -4868,7 +5156,7 @@ function fillRefNames() {
     const rt = selectById('refType').value, sel = byId('refName');
     sel.innerHTML = '';
     if (rt === 'chord') {
-        CHORDS.forEach((c) => { const o = (document).createElement('option'); o.value = c.symbol; o.textContent = c.symbol; sel.appendChild(o); });
+        CHORDS.forEach((c) => { const o = (document).createElement('option'); o.value = c.symbol; o.textContent = c.symbol + ' · ' + chordDisp(c); sel.appendChild(o); });
     }
     else {
         Object.keys(SCALES).forEach((n) => { const o = (document).createElement('option'); o.value = n; o.textContent = scaleDisp(n); sel.appendChild(o); });
@@ -4922,12 +5210,15 @@ function updateExplore() {
     byId('ro-roman').textContent = roman;
     drawExploreStaff(notes, spell, keyCtx, spelledNotes);
     cofNow(notes, chord);
+    const exKbBtn = maybeById('ex-open-kb');
+    if (exKbBtn) exKbBtn.hidden = dockShown() || !!activeInputId || bleLive();
 }
 /* ---------- CIRCLE OF FIFTHS (Explore: the key picker beside the staff) ---------- */
 const cofController = createCircleOfFifths({
     t: (key, ...args) => t(key, ...args),
     spellName: (letter, acc) => spelledName(notation, letter, acc),
     chordDisp,
+    formatChord,
     exKeyCtx,
     fillRefNames,
     updateExplore,
@@ -5003,6 +5294,25 @@ function initExploreControls() {
     byId('cof-play').addEventListener('click', () => { cofSyncRef(); cofPlay(); });
     byId('cof-chords').addEventListener('click', (e) => { const ms = eventClosest(e, '.cof-chip')?.dataset.midis; if (ms)
         cofChordPlay(ms.split(' ').map(Number)); });
+    maybeById('ex-open-kb')?.addEventListener('click', () => { dockSet(true); });
+    maybeById('ex-go-scale')?.addEventListener('click', () => {
+        prSetTopic('scale');
+        prSetMode('tech');
+        prSetKey(String(cofTonicPc()));
+        show('practice');
+    });
+    maybeById('ex-go-prog')?.addEventListener('click', () => {
+        prSetTopic('prog');
+        prSetKey(String(cofTonicPc()));
+        show('practice');
+    });
+    maybeById('ex-go-read')?.addEventListener('click', () => {
+        const rawMin = COF_MIN[cof.i];
+        const keyId = cof.minor ? (rawMin === 'D#' ? 'Ebm' : rawMin + 'm') : COF_MAJ[cof.i];
+        const match = srtReadingKeys().find((k) => k.id === keyId);
+        if (match) rdnChoose(rdnBook().level, match.id);
+        show('read');
+    });
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir: IntervalSongDirection = 'asc';
@@ -5331,7 +5641,8 @@ function syncPracticeHintsPanel() {
     const panel = byId('pr-songs');
     if (!(panel instanceof HTMLDetailsElement)) return;
     const { cat, key, mode } = prChoice();
-    const supported = isPracticeHintsTopic(cat);
+    const hintTopic = cat === 'scale' && mode === 'tech' ? 'technique' : cat;
+    const supported = isPracticeHintsTopic(hintTopic);
     const interval = cat === 'interval';
     const box = byId('practiceHintsList');
     panel.hidden = !supported && !interval;
@@ -5339,11 +5650,11 @@ function syncPracticeHintsPanel() {
     box.hidden = !supported;
     const controls = queryHtml(panel, '.pr-songs-ctl');
     if (controls) controls.hidden = !interval;
-    const state = panel.open ? `${cat}|${key}|${mode}|${lang}|${notation}|${accomp.on}` : '';
+    const state = panel.open ? `${hintTopic}|${key}|${mode}|${lang}|${notation}|${accomp.on}` : '';
     const title = queryHtml(panel, 'summary span'), lede = queryHtml(panel, '.pr-songs-lede');
     if (title && lede) {
-        title.dataset.i18n = supported ? `pr_hints_${cat}_title` : 'pr_songs';
-        lede.dataset.i18n = supported ? `pr_hints_${cat}_lede` : 'songs_lede';
+        title.dataset.i18n = supported ? `pr_hints_${hintTopic}_title` : 'pr_songs';
+        lede.dataset.i18n = supported ? `pr_hints_${hintTopic}_lede` : 'songs_lede';
         title.textContent = t(title.dataset.i18n);
         lede.textContent = t(lede.dataset.i18n);
     }
@@ -5354,13 +5665,14 @@ function syncPracticeHintsPanel() {
     if (interval) renderSongs();
     else if (supported) {
         const renderHints = (mod: typeof import('./practice-hints-view.js')) => {
-            mod.renderPracticeHintCards(box, cat, {
+            mod.renderPracticeHintCards(box, hintTopic, {
                 tonic: key === 'all' ? null : Number(key),
                 audioOnly: mode === 'ear' || mode === 'keys' || mode === 'along',
                 disabled: cat === 'prog' && accomp.on,
                 text: t,
                 spell: (letter, acc) => spelledName(notation, letter, acc),
                 chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
+                formatChord,
                 scaleName: scaleDisp,
                 play: (id, steps, keys, diagram, controlId) => { void playPracticeHint(id, steps, keys, diagram, controlId); },
                 stop: () => { if (practiceHintPreview) stopPreviews(); },
@@ -6968,7 +7280,7 @@ function srPaperOf(wrap: HTMLElement | null): SrLayout | undefined {
 function srPaper() { return srPaperOf(maybeById('rd-staff')); }
 // A level piece is laid out like a printed page: four bars a system, and as large as lets the whole piece show without
 // scrolling, between SR_PAGE_MIN (still easy to read) and SR_PAGE_MAX times its natural size. A long piece scrolls.
-const SR_PAGE_MIN = 0.85, SR_PAGE_MAX = 1.4, SR_PAGE_BELOW = 215;
+const SR_PAGE_MIN = 0.85, SR_PAGE_MAX = 1.8;
 /** The height of a piece at its natural size, for the width and the note-names setting it was measured with. */
 const srPageNatural = new WeakMap<SrScore, { width: number; names: boolean; H: number }>();
 function srPageLayout(piece: SrPiece, lay: SrLayout | undefined): SrLayout | undefined {
@@ -6978,8 +7290,13 @@ function srPageLayout(piece: SrPiece, lay: SrLayout | undefined): SrLayout | und
         return { width: lay.width, minBars: 1, cap: SR_PAGE_MAX, floor: .5, justify: true };
     if (!lay || lay.maxHeight || piece.engrave !== 2 || !SR.lvPiece || !srtGeneratedSelected() || !wrap)
         return lay;
-    // The height the paper may take: the window, less what is above the paper and the controls below it.
-    const room = Math.max(280, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - SR_PAGE_BELOW);
+    // The height the paper may take: the window, less what is above the paper, the play controls, and the live dock below it.
+    const dockEl = maybeById('dock');
+    const dockH = dockEl && !dockEl.hidden ? dockEl.getBoundingClientRect().height : 0;
+    const ctrlEl = maybeById('rd-play-controls');
+    const ctrlH = ctrlEl && !ctrlEl.hidden ? Math.max(48, ctrlEl.getBoundingClientRect().height + 16) : 64;
+    const below = Math.round(dockH + ctrlH + 84);
+    const room = Math.max(220, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - below);
     const names = srNamesVisible(piece), seen = srPageNatural.get(piece);
     const natural = seen && seen.width === lay.width && seen.names === names ? seen.H : srRender(piece, { width: lay.width, cap: 1 }, true).H;
     srPageNatural.set(piece, { width: lay.width, names, H: natural });
@@ -9752,7 +10069,7 @@ function rdRhNew(keep?: boolean) {
       <div class="seg" id="rdx-rhhands" role="group" aria-label="${t('rdx_rh_hands')}"><button type="button" data-hands="1" aria-pressed="${!pr.two}">${t('rdx_rh_one')}</button><button type="button" data-hands="2" aria-pressed="${pr.two}">${t('rdx_rh_two')}</button></div></div>
     <p class="rdx-rhhint" id="rdx-rhhint">${rdEsc(hint)}</p>
     <div class="rdx-staff ss-wrap" id="rdx-staff">${r.svg}</div><div class="rdx-fb" id="rdx-fb">${t('rdx_rh_bpm', rdLevelBpm(L))}</div><div class="rdx-rhdet" id="rdx-rhdet"></div>
-    <div class="rdx-rhbar"><button class="btn primary" id="rdx-rhgo">● ${t('rdx_rh_start')}</button>${tst ? '' : `<button class="btn ghost" id="rdx-rhlisten">▶ ${t('rd_listen')}</button>`}${pads}</div>
+    <div class="rdx-rhbar"><button class="btn primary" id="rdx-rhgo">${t('rdx_rh_start')}</button>${tst ? '' : `<button class="btn ghost" id="rdx-rhlisten">${t('rd_listen')}</button>`}${pads}</div>
     <div class="rdx-tools" id="rdx-rhnext"></div></div>`;
     rdRhFit();
     rdRhMarks(pr.two);
@@ -10749,6 +11066,14 @@ function rdSuggest() {
         return last;
     return RD_ALL.find((L) => !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
 }
+const RD_UNIT_CAT: Record<string, string> = {
+    tr: 'notes', ba: 'notes', gr: 'notes', cc: 'notes',
+    ac: 'keys', ks: 'keys',
+    iv: 'harmony', ch: 'harmony',
+    rh: 'rhythm', sr: 'rhythm',
+};
+let rdxFilter = 'all';
+let rdxShowOrch = false;
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((sum, level) => sum + rdStarCount(d.lv[level.id]?.s), 0), cont = rdSuggest();
     const unit = RD_UNITS.find((u) => u.lv.includes(cont)), rec: Partial<ReadDrillLevelStat> = d.lv[cont.id] || {}, sample = rdLvSample(cont);
@@ -10762,9 +11087,20 @@ function rdRenderHome() {
       <div class="rdx-next-go"><div class="rdx-rec">${rdStars(rec.s || 0)}${best}</div>
       <button class="btn primary" data-lv="${cont.id}" id="rdx-cont" aria-describedby="rdx-next-name rdx-next-d">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}</button></div></div>
     <div class="rdx-hero-r" role="group" aria-label="${rdEsc(t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!data.settings.weakSpotInjection, 'rdx_weak_inject')}</div>`;
-    byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
+    const filters = maybeById('rdx-filters');
+    if (filters) {
+        queryAllHtml(filters, '[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === rdxFilter)));
+    }
+    const orchInput = maybeById('rdx-show-orch');
+    if (orchInput instanceof HTMLInputElement)
+        orchInput.checked = rdxShowOrch;
+    const landBtn = maybeById('rdx-land-btn');
+    if (landBtn)
+        landBtn.hidden = rdStarCount(d.lv['tr1']?.s) >= 2 && st >= 6;
+    const visibleUnits = RD_UNITS.filter((u) => (u.u !== 'cc' || rdxShowOrch) && (rdxFilter === 'all' || RD_UNIT_CAT[u.u] === rdxFilter));
+    byId('rdx-ladder').innerHTML = visibleUnits.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => rdStarCount(d.lv[L.id]?.s) > 0).length;
-        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
+        return `<section class="rdx-unit"${u.lv.length >= 6 ? ' data-many="1"' : ''}><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
             const s = rdStarCount(d.lv[L.id]?.s);
             return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
@@ -10880,6 +11216,10 @@ function rdRenderStats() {
 /* ---- tabs, wiring, locale ---- */
 // `screen` picks between the old sight-reading screen (melody) and the player of a level piece; both use the pieces panel.
 function rdTab(tab: string|undefined, screen: 'melody' | 'player' = 'melody') {
+    if (tab === 'book') {
+        rdnHome(false);
+        return;
+    }
     // A saved tab that no longer exists (the old Statistics tab, now in Progress) opens the drills.
     if (tab === undefined || !['drills', 'pieces'].includes(tab))
         tab = 'drills';
@@ -10895,7 +11235,6 @@ function rdTab(tab: string|undefined, screen: 'melody' | 'player' = 'melody') {
     }
     rdnShowScreen(tab === 'pieces' ? screen : 'drills');
     rdData().prefs.tab = tab;
-    queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
     ['drills', 'pieces'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
         p.hidden = x !== tab; });
     if (tab !== 'drills' && RD.on) {
@@ -11041,6 +11380,12 @@ function rdOnLocale() {
         rdTab(n.dataset.tab);
     });
     dr.addEventListener('click', (e) => {
+        const cat = eventClosest(e, '#rdx-filters [data-cat]');
+        if (cat) {
+            rdxFilter = cat.dataset.cat ?? 'all';
+            rdRenderHome();
+            return;
+        }
         const lv = eventClosest(e, '[data-lv]');
         if (lv) {
             const L = RD_LV[lv.dataset.lv ?? ''];
@@ -11138,6 +11483,11 @@ function rdOnLocale() {
         rdRhRelease('k:' + k); });
     dr.addEventListener('change', (e) => {
         const el = e.target, id = el instanceof HTMLElement ? el.id : '', checked = el instanceof HTMLInputElement && el.checked, p = rdData().prefs;
+        if (id === 'rdx-show-orch') {
+            rdxShowOrch = checked;
+            rdRenderHome();
+            return;
+        }
         if (id === 'rdx-snd') {
             p.sound = checked;
             saveAll();
@@ -11259,8 +11609,6 @@ function rdnShowScreen(screen: RdnScreen) {
         view.dataset.rdn = screen;
     const home = screen === 'home', player = screen === 'player', warm = screen === 'warmup';
     byId('rdn-home').hidden = !home;
-    byId('rdn-more-h').hidden = !home;
-    byId('rdn-backrow').hidden = home || player || warm;
     byId('rd-tabs').hidden = player || warm;
     byId('rdn-player-head').hidden = !player;
     byId('rdn-warm').hidden = !warm;
@@ -11276,30 +11624,16 @@ function rdnShowScreen(screen: RdnScreen) {
         byId('rdp-drills').hidden = true;
         byId('rdp-pieces').hidden = true;
     }
-    rdnTabRoles(home);
+    rdnSyncTabs(screen);
 }
-/** On the home the old tabs are two plain buttons in a group named by the "More" heading; on the older screens, tabs. */
-function rdnTabRoles(home: boolean) {
+/** Keeps all three Read top-level tabs synced with the active screen. */
+function rdnSyncTabs(screen: RdnScreen) {
     const list = byId('rd-tabs');
-    if (home) {
-        list.setAttribute('role', 'group');
-        list.setAttribute('aria-labelledby', 'rdn-more-h');
-    }
-    else {
-        list.setAttribute('role', 'tablist');
-        list.removeAttribute('aria-labelledby');
-    }
+    const activeTab = screen === 'home' ? 'book' : screen === 'melody' ? 'pieces' : screen === 'drills' ? 'drills' : '';
     queryAllHtml(list, '[data-tab]').forEach((b) => {
-        if (home) {
-            b.removeAttribute('role');
-            b.removeAttribute('aria-selected');
-            b.removeAttribute('aria-controls');
-            b.tabIndex = 0;
-        }
-        else {
-            b.setAttribute('role', 'tab');
-            b.setAttribute('aria-controls', 'rdp-' + (b.dataset.tab ?? ''));
-        }
+        const on = b.dataset.tab === activeTab;
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+        b.tabIndex = on ? 0 : -1;
     });
 }
 /** A selector that finds a control again after the home is drawn anew: its data-rdn-focus key, or its id. */
@@ -11391,8 +11725,8 @@ function rdnRenderHome(createDaily = true) {
     const active = document.activeElement, focusKey = active instanceof HTMLElement && box.contains(active) ? active.dataset.rdnFocus ?? '' : '';
     const more = box.querySelector('#rdn-more-keys');
     const moreOpen = more instanceof HTMLDetailsElement && more.open;
-    // The same order as Today: the session card and the day's plan, then the book, then the other ways to practice.
-    box.innerHTML = `<div class="today-overview rdn-overview">${rdnHeroHtml(state)}${rdnPlanHtml(state, today)}</div>` +
+    // Single unified Today hero + companion routine, then the book, then the other ways to practice.
+    box.innerHTML = rdnHeroHtml(state, today) +
         `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-book-sec">${rdEsc(t('rdn_book_eyebrow'))}</h2>${rdnBookHtml(state, moreOpen)}` +
         `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-tools-h">${rdEsc(t('today_tools'))}</h2>${rdnToolsHtml()}`;
     rdnStreakUi(state, today);
@@ -11418,8 +11752,8 @@ function rdnLongCtx(state: ReadingBookState, today: string): RdnCtx {
     const pick = [...(today + '|' + index)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % pool.length;
     return { kind: 'long', date: today, level: state.level, key: state.focusKey ?? pool[pick].id, index };
 }
-/** The home's first card, laid out like Today's session card: the reader's numbers, today's set and its two ways in. */
-function rdnHeroHtml(state: ReadingBookState) {
+/** Unified Today card: Today's 5-piece set on the left, the two complementary routine steps (Warm-up & Long piece) on the right. */
+function rdnHeroHtml(state: ReadingBookState, today: string) {
     // The card describes the set (its level and keys), which stays for the day once a piece of it was played.
     const daily = RDN.noDaily ? null : state.daily, e = rdEsc, lv = state.level, avg = srtLevelAverage(state, lv);
     const slots = daily ? daily.slots : [], done = daily ? daily.done : [];
@@ -11439,14 +11773,28 @@ function rdnHeroHtml(state: ReadingBookState) {
         ? `<div class="rdn-suggest" id="rdn-suggest"><span>${e(t('rdn_suggest', lv + 1))}</span><span class="rdn-sp"></span>` +
             `<button type="button" class="btn" id="rdn-suggest-go" data-rdn-focus="suggest">${e(t('rdn_suggest_go', lv + 1))}</button></div>`
         : '';
-    return `<section class="hero rdn-hero rdn-today" aria-labelledby="rdn-today-h"><div class="hero-top">` +
+    const items = rdnPlanItems(state, today), nextIdx = items.findIndex((it) => !it.done && !it.off);
+    const sideItems = [items[0], items[2]];
+    const rows = sideItems.map((it) => {
+        const idx = items.indexOf(it), warm = it.id === 'rdn-warm-go';
+        return `<li><button type="button" class="plan-item${warm ? ' rdn-warm' : ''}" id="${it.id}" data-rdn-focus="${it.focus}" data-done="${it.done}"` +
+            `${idx === nextIdx ? ' data-next="true"' : ''}${it.off ? ' disabled' : ''}>` +
+            `<span class="ck" aria-hidden="true">${it.done ? '✓' : idx === 0 ? 1 : 2}</span>` +
+            `<span class="pt"><span${warm ? ' id="rdn-warm-h"' : ''}>${e(it.t)}</span>${it.done ? `<span class="visually-hidden"${warm ? ' id="rdn-warm-done"' : ''}> — ${e(t(warm ? 'rdn_warm_done' : 'done_today'))}</span>` : ''}</span>` +
+            `<span class="pd"${it.dId ? ` id="${it.dId}"` : ''}>${e(it.d)}</span>` +
+            `<span class="plan-end" aria-hidden="true"><span class="plan-go">→</span></span>` + '</button></li>';
+    }).join('');
+    const segs = items.map((it, idx) => `<i data-state="${it.done ? 'done' : it.partial ? 'partial' : idx === nextIdx ? 'next' : 'todo'}"></i>`).join('');
+    return `<section class="hero rdn-hero rdn-today" aria-labelledby="rdn-today-h"><div class="rdn-today-grid"><div class="rdn-today-main"><div class="hero-top">` +
         `<h2 id="rdn-today-h" tabindex="-1">${e(t('rdn_today_title'))}</h2>${counts}` +
         (daily ? `<p class="nextup rdn-sub">${e(rdnSetLine(state))}</p>` : `<p class="nextup rdn-sub" id="rdn-no-set">${e(t('rdn_no_set'))}</p>`) +
         (stays ? `<p class="rdn-sub rdn-stays" id="rdn-today-stays">${e(stays)}</p>` : '') +
         (daily ? `<div class="rdn-slots" role="group" aria-label="${e(t('rdn_today_title'))}">${chips}</div>` : '') +
-        `<div class="hero-actions"><button type="button" class="btn primary lg" id="rdn-today-go" data-rdn-focus="today-go"${!daily || played >= total ? ' disabled' : ''}>${e(t(daily ? go : 'rdn_today_start'))}</button>` +
-        `<button type="button" class="btn ghost" id="rdn-long-go" data-rdn-focus="long-go">${e(t('rdn_long'))}</button></div></div>` +
-        `<div class="hero-why"><span class="why">✦ ${e(t('rdn_why'))}</span>${suggest}</div></section>`;
+        `<div class="hero-actions"><button type="button" class="btn primary lg" id="rdn-today-go" data-rdn-focus="today-go"${!daily || played >= total ? ' disabled' : ''}>${e(t(daily ? go : 'rdn_today_start'))}</button></div></div>` +
+        `<div class="hero-why"><span class="why">✦ ${e(t('rdn_why'))}</span>${suggest}</div></div>` +
+        `<div class="rdn-today-side" id="rdn-plan" aria-labelledby="rdn-plan-h"><div class="plan-head"><div><h3 id="rdn-plan-h" tabindex="-1">${e(t('rdn_plan_title'))}</h3>` +
+        `<div class="plan-meta"><span class="sub" id="rdn-plan-sub">${e(t('plan_sub', items.filter((it) => it.done).length, items.length))}</span>` +
+        `<div class="plan-segs" id="rdn-plan-segs" aria-hidden="true">${segs}</div></div></div></div><ul class="plan-list rdn-side-list">${rows}</ul></div></div></section>`;
 }
 /** A step of today's reading. `off`: it cannot be done today (no set could be made). */
 type RdnPlanItem = { id: string; focus: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; dId?: string; off?: boolean };
@@ -11461,33 +11809,11 @@ function rdnPlanItems(state: ReadingBookState, today: string): RdnPlanItem[] {
         { id: 'rdn-plan-long', focus: 'plan-long', done: long, t: t('rdn_long'), d: t(long ? 'rdn_long_again' : 'rdn_long_d') },
     ];
 }
-/** Today's reading as numbered steps, laid out like Today's plan: the warm-up, today's set, a long piece. */
-function rdnPlanHtml(state: ReadingBookState, today: string) {
-    const e = rdEsc, items = rdnPlanItems(state, today), nextIdx = items.findIndex((it) => !it.done && !it.off);
-    const rows = items.map((it, idx) => {
-        const part = !it.done && !!it.partial, warm = it.id === 'rdn-warm-go';
-        return `<li><button type="button" class="plan-item${warm ? ' rdn-warm' : ''}" id="${it.id}" data-rdn-focus="${it.focus}" data-done="${it.done}"` +
-            `${idx === nextIdx ? ' data-next="true"' : ''}${part ? ' data-partial="true"' : ''}${it.off ? ' disabled' : ''}>` +
-            `<span class="ck" aria-hidden="true">${it.done ? '✓' : idx + 1}</span>` +
-            `<span class="pt"><span${warm ? ' id="rdn-warm-h"' : ''}>${e(it.t)}</span>${it.done ? `<span class="visually-hidden"${warm ? ' id="rdn-warm-done"' : ''}> — ${e(t(warm ? 'rdn_warm_done' : 'done_today'))}</span>` : ''}</span>` +
-            `<span class="pd"${it.dId ? ` id="${it.dId}"` : ''}>${e(it.d)}</span>` +
-            `<span class="plan-end" aria-hidden="true">${it.pill ? `<span class="plan-pill">${e(it.pill)}</span>` : ''}<span class="plan-go">→</span></span>` +
-            (part && it.prog ? `<span class="plan-bar" aria-hidden="true"><i style="width:${Math.round(it.prog * 100)}%"></i></span>` : '') + '</button></li>';
-    }).join('');
-    const segs = items.map((it, idx) => `<i data-state="${it.done ? 'done' : it.partial ? 'partial' : idx === nextIdx ? 'next' : 'todo'}"></i>`).join('');
-    const next = nextIdx >= 0 ? items[nextIdx] : null;
-    return `<section class="plan rdn-plan" id="rdn-plan" aria-labelledby="rdn-plan-h"><div class="plan-head"><div><h2 id="rdn-plan-h" tabindex="-1">${e(t('rdn_plan_title'))}</h2>` +
-        `<div class="plan-meta"><span class="sub" id="rdn-plan-sub">${e(t('plan_sub', items.filter((it) => it.done).length, items.length))}</span>` +
-        `<div class="plan-segs" id="rdn-plan-segs" aria-hidden="true">${segs}</div></div></div>` +
-        (next ? `<button type="button" class="btn sm" id="rdn-plan-continue" data-rdn-focus="plan-continue" data-rdn-run="${next.id}">${e(t('plan_continue', next.t))}</button>` : '') +
-        `</div><ul class="plan-list">${rows}</ul></section>`;
-}
-/** Other ways to practice, as on Today: the reading drills, the pieces, the voice. */
+/** Other ways to practice, as on Today: the scored exercise, the pieces, the voice. */
 function rdnToolsHtml() {
     const e = rdEsc, tool = (attrs: string, title: string, text: string) => `<li><button type="button" class="tool" ${attrs}><span class="tool-t">${e(title)}</span>` +
         `<span class="tool-d">${e(text)}</span><span class="tool-go" aria-hidden="true">→</span></button></li>`;
     return `<ul class="tools" aria-labelledby="rdn-tools-h">` +
-        tool('id="rdn-all-drills" data-rdn-focus="all-drills"', t('rdn_tool_drills'), t('rdn_tool_drills_d')) +
         tool('id="rdn-scored" data-rdn-focus="scored"', t('rdn_scored'), t('rdn_scored_d')) +
         tool('data-rdn-view="analysis" data-rdn-focus="tool-pieces"', t('an_title'), t('tool_analysis_d')) +
         tool('data-rdn-view="sing" data-rdn-focus="tool-voice"', t('nav_sing'), t('tool_sing_d')) + '</ul><p id="rdn-scored-status" role="status" hidden></p>';
@@ -11612,10 +11938,6 @@ function rdnHomeClick(e: MouseEvent) {
         rdnWarmupStart();
     else if (id === 'rdn-scored')
         void rdnOpenScored();
-    else if (id === 'rdn-all-drills') {
-        rdTab('drills');
-        saveAll();
-    }
     else if (id === 'rdn-suggest-go' && state.level < 8)
         rdnChoose(state.level + 1, null);
 }
@@ -12380,7 +12702,6 @@ function rdnRetry() {
     if (!home)
         return;
     home.addEventListener('click', rdnHomeClick);
-    byId('rdn-home-back').addEventListener('click', () => { rdnHome(true); saveAll(); });
     byId('rdn-back').addEventListener('click', () => rdnHome(true));
     byId('rdn-w-back').addEventListener('click', () => rdnHome(true));
     byId('rdn-w-flash').addEventListener('click', rdnWarmFlashClick);
@@ -16123,6 +16444,8 @@ function syncMobileStartBars() {
             rdBtn.disabled = !!rdGoBtn?.disabled;
         }
     }
+    const mobileBarVisible = (v === 'practice' && !!prBar && !prBar.hidden) || (v === 'read' && !!rdBar && !rdBar.hidden);
+    document.body.classList.toggle('has-mobile-start-bar', mobileBarVisible);
 }
 /* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
    leaving Pieces turn it off. body[data-stage=pieces] (pieces.css) hides everything around the player, and the size
@@ -19444,11 +19767,37 @@ function updatePrintSummaryHead(buildReport: typeof buildPracticeReport, library
 function renderProgress() {
     if (!progressView) return;
     const { html: printSummaryHtml, report } = updatePrintSummaryHead(progressView.buildPracticeReport);
+    const log = data.practiceLog ?? {};
+    const melTotal = log.melTotal || 0;
+    const singCleared = Object.values(data.singCleared || {}).filter(Boolean).length;
     progressView.renderProgress({
         data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
         t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
         printSummaryHtml,
         milestones: report.milestones,
+        studioSummary: {
+            techRuns: log.techRuns || 0,
+            techClean: log.techClean || 0,
+            techBestBpm: log.techBestBpm || 0,
+            melRuns: log.melRuns || 0,
+            melAcc: melTotal > 0 ? Math.round(100 * (log.melCorrect || 0) / melTotal) : null,
+            singCleared,
+            singTotal: SS_LEVELS.length,
+        },
+        openStudio(kind) {
+            if (kind === 'sing') {
+                show('sing');
+                return;
+            }
+            show('practice');
+            if (kind === 'tech') {
+                prSetTopic('scale');
+                prSetMode('tech');
+            } else {
+                prSetTopic('melody');
+            }
+            byId('pr-start').focus();
+        },
         openDrill(category) {
             show('practice');
             prSetTopic(category);
@@ -19515,8 +19864,19 @@ function renderPlan() {
         cb.hidden = true;
 }
 /* ---------- PRACTICE: last drill result ---------- */
-function prRecordDrill() { if (!SES.targeted || !SES.total)
-    return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, dir: tg.dir, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
+function prRecordDrill() {
+    if (!SES.targeted || !SES.total)
+        return;
+    const tg = SES.targeted;
+    data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, dir: tg.dir, c: SES.correct, n: SES.total, day: todayN() };
+    if (tg.cat === 'melody') {
+        const log = data.practiceLog ?? (data.practiceLog = {});
+        log.melRuns = (log.melRuns || 0) + 1;
+        log.melCorrect = (log.melCorrect || 0) + SES.correct;
+        log.melTotal = (log.melTotal || 0) + SES.total;
+    }
+    saveAll();
+}
 /* ---------- PRACTICE: setup mode and hints ---------- */
 // The setup screen holds one choice: the topic in #pr-cat, the mode in #pr-mode (aria-pressed) and the key in #pr-key.
 // #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
@@ -19524,9 +19884,9 @@ function prRecordDrill() { if (!SES.targeted || !SES.total)
 // prSetMode and prSetKey, and reads it through prChoice. Intervals by ear also take a Direction (prSetDir, #pr-dir),
 // and Intervals show the Song hints panel (#pr-songs, renderSongs). Progressions add a fourth mode, Play along: no drill,
 // the accompaniment loop (#pr-along), started and stopped by the Start button.
-type PracticeMode = 'play' | 'ear' | 'keys' | 'along';
-// The six topics, in the order of the #pr-cat options. The first four are the spaced-repetition categories (CATS).
-const PR_TOPICS: readonly string[] = ['interval', 'chord', 'scale', 'prog', 'melody', TECHNIQUE_TOPIC];
+type PracticeMode = 'play' | 'ear' | 'keys' | 'along' | 'tech';
+// The five unified Practice topic cards (Scales combines theory drills + Technique fingerings).
+const PR_TOPICS: readonly string[] = ['interval', 'chord', 'scale', 'prog', 'melody'];
 const PR_KEYS: readonly string[] = ['all', ...Array.from({ length: 12 }, (_, i) => String(i))];
 // A small glyph per topic card (24 × 24, drawn in currentColor).
 const PR_GLYPH: Record<string, string> = {
@@ -19535,24 +19895,53 @@ const PR_GLYPH: Record<string, string> = {
     scale: '<circle cx="4.5" cy="19" r="2.4" fill="currentColor"/><circle cx="9.5" cy="14.5" r="2.4" fill="currentColor"/><circle cx="14.5" cy="10" r="2.4" fill="currentColor"/><circle cx="19.5" cy="5.5" r="2.4" fill="currentColor"/>',
     prog: '<rect x="2.5" y="9" width="5" height="11" rx="1.4" fill="currentColor"/><rect x="9.5" y="4" width="5" height="16" rx="1.4" fill="currentColor" opacity=".7"/><rect x="16.5" y="11" width="5" height="9" rx="1.4" fill="currentColor"/>',
     melody: '<path d="M8.5 17.5V6.2l11-2.4v11.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="6" cy="17.6" rx="3" ry="2.3" fill="currentColor"/><ellipse cx="17" cy="15.4" rx="3" ry="2.3" fill="currentColor"/>',
-    [TECHNIQUE_TOPIC]: '<path d="M2.5 19 7 12l5-7 5 7 4.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="17" cy="12" r="2" fill="currentColor"/>',
 };
 let practiceModePref: PracticeMode = 'play';
 let prIvDir: IntervalDirection = 'asc';
+let prIvStyle: IntervalStyle = 'both';
+let prChordTier: ChordTier = 'triads';
+let prScaleTier: ScaleTier = 'core';
+let prMelDiff: MelodyDifficulty = 'easy';
+let prMelLen: number | 'auto' = 'auto';
+let prMelScale: string = 'auto';
+let prProgLastDrill: 'play' | 'ear' = 'play';
+let melDemoTimer: number | undefined;
+let melDemoPlaying = false;
 
-function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys' || v === 'along'; }
-function prTopicLabel(cat: string) { return cat === 'melody' ? t('cat_melody') : cat === TECHNIQUE_TOPIC ? t('cat_technique') : catLabel(cat); }
-function prModeLabel(mode: PracticeMode) { return t(mode === 'keys' ? 'pr_onkeys' : mode === 'ear' ? 'pr_byear' : mode === 'along' ? 'pr_along' : 'pr_playit'); }
+function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys' || v === 'along' || v === 'tech'; }
+function prTopicLabel(cat: string) { return cat === 'melody' ? t('cat_melody') : (cat === 'scale' || cat === TECHNIQUE_TOPIC) ? t('cat_technique') : catLabel(cat); }
+function prModeLabel(mode: PracticeMode, cat = prChoice().cat) {
+    if (mode === 'tech') return t('pr_m_sc_tech');
+    if (mode === 'along') return t('pr_along');
+    if (mode === 'keys') return t('pr_onkeys');
+    if (cat === 'interval') return t(mode === 'ear' ? 'pr_m_iv_ear' : 'pr_m_iv_play');
+    if (cat === 'chord') return t(mode === 'ear' ? 'pr_m_ch_ear' : 'pr_m_ch_play');
+    if (cat === 'scale') return t(mode === 'ear' ? 'pr_m_sc_ear' : 'pr_m_sc_play');
+    if (cat === 'prog') return t(mode === 'ear' ? 'pr_m_pr_ear' : 'pr_m_pr_play');
+    return t(mode === 'ear' ? 'pr_byear' : 'pr_playit');
+}
 function prKeyLabel(key: string | null | undefined) { return key == null || key === '' || key === 'all' ? t('all_keys') : rootName(+key || 0); }
 
-/** The chosen topic, mode and key. Melodies are always on the keys; scales and arpeggios are always Play it. */
+function normalizePracticeTopic(raw: string): string { return raw === TECHNIQUE_TOPIC ? 'scale' : raw; }
+/** The chosen topic, mode and key. Melodies are always on the keys; scales support technique, ear, or play. */
 function prChoice(): { cat: string; mode: PracticeMode; key: string } {
-    const cat = selectById('pr-cat').value;
+    const rawCat = selectById('pr-cat').value;
+    const cat = normalizePracticeTopic(rawCat);
     const v = queryHtml(byId('pr-mode'), 'button[aria-pressed="true"]')?.dataset.v;
-    const mode: PracticeMode = cat === 'melody' ? 'keys' : cat === TECHNIQUE_TOPIC ? 'play' : isPracticeMode(v) && (v !== 'along' || cat === 'prog') ? v : 'play';
+    let mode: PracticeMode = 'play';
+    if (cat === 'melody') mode = 'keys';
+    else if (cat === 'scale') mode = (v === 'tech' || v === 'ear' || v === 'play') ? v : 'tech';
+    else if (cat === 'prog') mode = (v === 'along' || v === 'ear' || v === 'play') ? v : prProgLastDrill;
+    else mode = isPracticeMode(v) && v !== 'tech' && v !== 'along' ? v : 'play';
     return { cat, mode, key: selectById('pr-key').value || 'all' };
 }
 function prSetTopic(cat: string) {
+    if (cat === TECHNIQUE_TOPIC) {
+        selectById('pr-cat').value = 'scale';
+        syncPracticeCatAndMode();
+        prSetMode('tech');
+        return;
+    }
     if (!PR_TOPICS.includes(cat))
         return;
     selectById('pr-cat').value = cat;
@@ -19566,10 +19955,13 @@ function prSetMode(v: PracticeMode) {
     queryAllHtml(pm, 'button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
     if (v !== 'along') // Play along is not kept: back on Practice, or from a topic link, the setup offers the last drill mode
         practiceModePref = v;
+    if (prChoice().cat === 'prog' && (v === 'play' || v === 'ear'))
+        prProgLastDrill = v;
     if (v === 'ear' || v === 'keys') {
         data.settings.earKeys = v === 'keys';
         saveAll();
     }
+    syncPracticeProgSplit();
     updatePracticeModeHint();
 }
 // Play along chosen on the Practice screen, with no drill running: the keys light up there.
@@ -19585,6 +19977,121 @@ function prSetDir(v: string) {
     queryAllHtml(byId('pr-dir'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
     updatePracticeModeHint();
 }
+function prSetIvStyle(v: string) {
+    if (v !== 'both' && v !== 'melodic' && v !== 'harmonic') return;
+    prIvStyle = v;
+    queryAllHtml(byId('pr-iv-style'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+    const dirWrap = maybeById('pr-dir-wrap');
+    if (dirWrap) dirWrap.hidden = v === 'harmonic';
+}
+function prSetChordTier(v: string) {
+    if (v !== 'triads' && v !== 'sevenths' && v !== 'all') return;
+    prChordTier = v;
+    queryAllHtml(byId('pr-chord-tier'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+}
+function prSetScaleTier(v: string) {
+    if (v !== 'core' && v !== 'modes' && v !== 'all') return;
+    prScaleTier = v;
+    queryAllHtml(byId('pr-scale-tier'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+}
+function prSetMelDiff(v: string) {
+    if (v !== 'easy' && v !== 'medium' && v !== 'advanced') return;
+    prMelDiff = v;
+    queryAllHtml(byId('pr-mel-diff'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+}
+function clearMelodyDemoPreview() {
+    if (melDemoTimer) { clearTimeout(melDemoTimer); melDemoTimer = undefined; }
+    melDemoPlaying = false;
+    const btn = maybeById('pr-mel-demo');
+    if (btn) {
+        btn.setAttribute('aria-pressed', 'false');
+        btn.textContent = t('pr_mel_demo');
+    }
+}
+function toggleMelodyDemo() {
+    if (melDemoPlaying) { stopPreviews(); return; }
+    stopPreviews();
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const cfg = melodyConfigForSession(prMelDiff, prMelLen, prMelScale);
+    const scaleName = cfg.scaleNames[0] ?? 'Major (Ionian)';
+    const offs = SCALES[scaleName] ?? SCALES['Major (Ionian)'];
+    const keyVal = prChoice().key;
+    const key = keyVal === 'all' ? 0 : (+keyVal || 0);
+    const ton = theory.practiceTonicMidi(key, 'near-middle-c');
+    const N = offs.length;
+    const at = (d: number) => ton + offs[((d % N) + N) % N] + 12 * Math.floor(d / N);
+    const stable = (d: number) => [0, 3, 4, 7].includes(pc(at(d) - ton));
+    let d = 0;
+    const ds = [0];
+    for (let i = 1; i < cfg.len; i++) {
+        const last = i === cfg.len - 1, opts: number[] = [];
+        cfg.steps.forEach((s) => {
+            const nd = d + s;
+            if (nd < -2 || nd > N + 2 || (last && !stable(nd))) return;
+            const w = Math.abs(s) === 1 ? cfg.stepWeight : Math.abs(s) === 2 ? 2 : 1;
+            for (let k = 0; k < w; k++) opts.push(nd);
+        });
+        if (!opts.length) opts.push(Math.abs(d) <= Math.abs(N - d) ? 0 : N);
+        d = randItem(opts);
+        ds.push(d);
+    }
+    const notes = ds.map(at);
+    const playSeq = () => {
+        if (!melDemoPlaying || audioEngine.context !== ctx) return;
+        const t0 = ctx.currentTime + 0.12;
+        previewNote(notes[0], t0, 0.45);
+        notes.forEach((m, i) => previewNote(m, t0 + 0.7 + i * 0.45, 0.4));
+        const endMs = Math.round((0.7 + notes.length * 0.45 + 0.25) * 1000);
+        melDemoTimer = window.setTimeout(() => clearMelodyDemoPreview(), endMs);
+    };
+    melDemoPlaying = true;
+    const btn = maybeById('pr-mel-demo');
+    if (btn) {
+        btn.setAttribute('aria-pressed', 'true');
+        btn.textContent = t('pr_mel_stop');
+    }
+    if (ctx.state === 'running') { playSeq(); return; }
+    void timedAudioReady(ctx).then((ready) => {
+        if (!ready || !melDemoPlaying) { clearMelodyDemoPreview(); return; }
+        playSeq();
+    });
+}
+function renderPracticeMelodyScales() {
+    const sel = maybeById('pr-mel-scale');
+    if (!(sel instanceof HTMLSelectElement)) return;
+    const prev = sel.value || 'auto';
+    const autoOpt = sel.querySelector('option[value="auto"]');
+    if (autoOpt) autoOpt.textContent = t('pr_mel_scale_auto');
+    while (sel.options.length > 1) sel.remove(1);
+    for (const nm of EK_MEL_SCALES) {
+        const o = document.createElement('option');
+        o.value = nm;
+        o.textContent = scaleDisp(nm);
+        sel.appendChild(o);
+    }
+    sel.value = [...sel.options].some((o) => o.value === prev) ? prev : 'auto';
+}
+function syncPracticeProgSplit() {
+    const split = maybeById('pr-prog-split');
+    const modeH = maybeById('pr-mode-h');
+    const pm = maybeById('pr-mode');
+    if (!split || !modeH || !pm) return;
+    const { cat, mode } = prChoice();
+    const isProg = cat === 'prog';
+    const isAlong = isProg && mode === 'along';
+    split.hidden = !isProg;
+    if (isProg) {
+        queryAllHtml(split, '[role="tab"]').forEach((tab) => {
+            const on = tab.dataset.v === (isAlong ? 'along' : 'drill');
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+            tab.tabIndex = on ? 0 : -1;
+        });
+    }
+    const hideModeBar = cat === 'melody' || isAlong;
+    modeH.hidden = hideModeBar;
+    pm.hidden = hideModeBar;
+}
 function prSetKey(key: string) {
     const sel = selectById('pr-key');
     if (!PR_KEYS.includes(key) || ![...sel.options].some((o) => o.value === key))
@@ -19596,6 +20103,7 @@ function prSetKey(key: string) {
         accompRestartIfPlaying(); // updatePracticeModeHint has redrawn the chord chain
 }
 function prStart() {
+    clearMelodyDemoPreview();
     const { cat, mode, key } = prChoice();
     if (mode === 'along') { // not a drill: the loop starts or stops, and no last-drill record is written
         if (accomp.on)
@@ -19607,13 +20115,27 @@ function prStart() {
         }
         return;
     }
+    if (cat === 'scale' && mode === 'tech') {
+        practiceModePref = 'tech';
+        show('practice');
+        startSession({ cat: TECHNIQUE_TOPIC, mode: 'play', key });
+        return;
+    }
     practiceModePref = mode;
     if (mode !== 'play' && cat !== 'melody') {
         data.settings.earKeys = mode === 'keys';
         saveAll();
     }
     show('practice');
-    startSession({ cat, mode: mode === 'play' ? 'play' : 'ear', key, ...(prDirShown() ? { dir: prIvDir } : {}) });
+    startSession({
+        cat,
+        mode: mode === 'play' ? 'play' : 'ear',
+        key,
+        ...(prDirShown() ? { dir: prIvDir, ...(prIvStyle !== 'both' ? { ivStyle: prIvStyle } : {}) } : {}),
+        ...(cat === 'chord' ? { chordTier: prChordTier } : {}),
+        ...(cat === 'scale' ? { scaleTier: prScaleTier } : {}),
+        ...(cat === 'melody' ? { melDiff: prMelDiff, melLen: prMelLen, melScale: prMelScale } : {}),
+    });
 }
 // Today's Ear check: an Intervals · By ear drill in one tap, on the keys when that is the saved choice (settings.earKeys).
 function prEarCheck() {
@@ -19693,7 +20215,14 @@ function renderPracticeTopics() {
         card.setAttribute('aria-checked', on ? 'true' : 'false');
         card.tabIndex = on ? 0 : -1;
         byId('pr-t-' + c + '-n').textContent = prTopicLabel(c);
-        byId('pr-t-' + c + '-d').textContent = t('pr_d_' + c);
+        if (c === 'chord') {
+            const exMin = notation === 'solfege' ? `${rootName(0)} ${chordDisp('m').toLowerCase()}` : formatChord(rootName(0), 'm');
+            const exDom7 = formatChord(rootName(7), '7');
+            byId('pr-t-' + c + '-d').textContent = t('pr_d_chord', exMin, exDom7);
+        }
+        else {
+            byId('pr-t-' + c + '-d').textContent = t('pr_d_' + c);
+        }
         if (isCatKey(c)) {
             const items = ITEMS.filter((it) => it.cat === c), mastered = items.filter((it) => boxOf(it.id) >= 4).length;
             mast.innerHTML = '<span class="bar"><i style="width:' + (items.length ? Math.round(100 * mastered / items.length) : 0) + '%"></i></span><span class="pr-mast-t">' + rdEsc(t('pr_mastered', mastered, items.length)) + '</span>';
@@ -19724,27 +20253,43 @@ function renderPracticeKeys() {
         box.scrollLeft = chip.offsetLeft - (box.clientWidth - chip.offsetWidth) / 2;
 }
 
-// One line on what the chosen mode asks of you, one on why the topic turns a mode off, and the Start label.
+// One line on what the chosen mode asks of you, contextual options, and the Start label.
 function updatePracticeModeHint() {
     const hint = maybeById('pr-mode-hint'), note = maybeById('pr-mode-note'), start = maybeById('pr-start');
     if (!hint || !note || !start || !maybeById('pr-cat') || !maybeById('pr-mode'))
         return;
-    const { cat, mode, key } = prChoice(), tech = cat === TECHNIQUE_TOPIC;
+    const { cat, mode, key } = prChoice(), tech = cat === 'scale' && mode === 'tech';
     hint.textContent = tech ? t('tq_pr_hint') : t(mode === 'keys' ? 'pr_hint_keys' : mode === 'ear' ? 'pr_hint_ear' : 'pr_hint_play');
-    const why = cat === 'melody' ? t('pr_why_melody', prModeLabel('keys')) : cat === 'prog' ? t('pr_why_prog', prModeLabel('keys')) : tech ? t('pr_why_tech', prModeLabel('play')) + ' ' + t('tq_pr_note') : '';
+    const why = tech ? t('tq_pr_note') : '';
     note.textContent = why;
     note.hidden = !why;
     const dirShown = prDirShown(), along = mode === 'along';
     byId('pr-dir-row').hidden = !dirShown;
+    const dirWrap = maybeById('pr-dir-wrap');
+    if (dirWrap) dirWrap.hidden = prIvStyle === 'harmonic';
+    const chordCfg = maybeById('pr-chord-cfg');
+    if (chordCfg) chordCfg.hidden = cat !== 'chord';
+    const scaleCfg = maybeById('pr-scale-cfg');
+    if (scaleCfg) scaleCfg.hidden = cat !== 'scale' || tech;
+    const melCfg = maybeById('pr-mel-cfg');
+    if (melCfg) melCfg.hidden = cat !== 'melody';
+    if (cat !== 'melody' && melDemoPlaying) clearMelodyDemoPreview();
     if (cat !== 'interval' && intervalSongPreview) stopPreviews();
     byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
     if (along) {
         hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
         renderAccompany();
+        paintAccompImproScale();
     }
-    else if (accomp.on)
-        accompStop(); // another topic or mode: the loop stops
-    start.textContent = along ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
+    else {
+        clearAccompImproScale();
+        if (accomp.on) accompStop(); // another topic or mode: the loop stops
+    }
+    start.textContent = along
+        ? t(accomp.on ? 'ac_stop' : 'ac_play')
+        : cat === 'melody'
+            ? t('pr_start_sel', [prTopicLabel(cat), t('pr_mel_' + prMelDiff), prKeyLabel(key)].join(' · '))
+            : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode, cat), ...(dirShown && prIvStyle !== 'harmonic' ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
     syncPracticeHintsPanel();
     dockSync(); // Play along brings the keys
     syncMobileStartBars();
@@ -19754,27 +20299,49 @@ function syncPracticeCatAndMode() {
     const catEl = byId('pr-cat');
     const pm = byId('pr-mode');
     if (!catEl || !pm) return;
+    if ((catEl as HTMLSelectElement).value === TECHNIQUE_TOPIC) (catEl as HTMLSelectElement).value = 'scale';
     const cat = (catEl as HTMLSelectElement).value;
     const mel = cat === 'melody';
     const prog = cat === 'prog';
-    const tech = cat === TECHNIQUE_TOPIC;
+    const scale = cat === 'scale';
+
+    const labelKey = (v: string): string => {
+        if (v === 'tech') return 'pr_m_sc_tech';
+        if (v === 'keys') return 'pr_onkeys';
+        if (v === 'along') return 'pr_along';
+        if (cat === 'interval') return v === 'ear' ? 'pr_m_iv_ear' : 'pr_m_iv_play';
+        if (cat === 'chord') return v === 'ear' ? 'pr_m_ch_ear' : 'pr_m_ch_play';
+        if (cat === 'scale') return v === 'ear' ? 'pr_m_sc_ear' : 'pr_m_sc_play';
+        if (cat === 'prog') return v === 'ear' ? 'pr_m_pr_ear' : 'pr_m_pr_play';
+        return v === 'ear' ? 'pr_byear' : 'pr_playit';
+    };
 
     queryAllHtml(pm, ':scope > *').forEach((x) => {
         if (x instanceof HTMLButtonElement) {
-            const v = x.dataset.v;
-            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played;
-            // Play along is for Progressions only, and hidden elsewhere
-            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play') || (!prog && v === 'along');
+            const v = x.dataset.v ?? '';
+            x.textContent = t(labelKey(v));
+            const hidden = mel
+                ? v !== 'keys'
+                : scale
+                    ? (v === 'keys' || v === 'along')
+                    : prog
+                        ? (v === 'tech' || v === 'keys' || v === 'along')
+                        : (v === 'tech' || v === 'along');
+            const dis = (mel && v !== 'keys')
+                || (scale && (v === 'keys' || v === 'along'))
+                || (prog && (v === 'tech' || v === 'keys'))
+                || (!prog && !scale && (v === 'tech' || v === 'along'));
             x.disabled = dis;
-            x.hidden = !prog && v === 'along';
+            x.hidden = hidden;
         }
     });
 
-    // If user's preference was 'keys', but topic is prog, fall back to 'ear'
-    let targetV = mel ? 'keys' : tech ? 'play' : (practiceModePref || (data.settings.earKeys ? 'keys' : 'play'));
-    if (prog && targetV === 'keys') {
-        targetV = 'ear';
-    }
+    const curPressed = queryHtml(pm, 'button[aria-pressed="true"]')?.dataset.v;
+    let targetV: PracticeMode;
+    if (mel) targetV = 'keys';
+    else if (scale) targetV = (practiceModePref === 'tech' || practiceModePref === 'ear' || practiceModePref === 'play') ? practiceModePref : 'tech';
+    else if (prog) targetV = curPressed === 'along' ? 'along' : (practiceModePref === 'ear' || practiceModePref === 'keys') ? 'ear' : prProgLastDrill;
+    else targetV = (practiceModePref === 'play' || practiceModePref === 'ear' || practiceModePref === 'keys') ? practiceModePref : (data.settings.earKeys ? 'keys' : 'play');
 
     let selected = false;
     queryAllHtml(pm, 'button').forEach((b) => {
@@ -19791,14 +20358,29 @@ function syncPracticeCatAndMode() {
         }
     }
 
+    const chordInvEl = maybeById('pr-chord-inv');
+    if (chordInvEl instanceof HTMLInputElement) chordInvEl.checked = !!data.settings.allowInv;
+    renderPracticeMelodyScales();
     renderPracticeTopics();
     renderPracticeKeys();
+    syncPracticeProgSplit();
     updatePracticeModeHint();
 }
 // The whole setup screen in the current language and note names (applyI18n, applyNotation).
+function applyPracticeModeLabels() {
+    const pm = maybeById('pr-mode'), catEl = maybeById('pr-cat');
+    if (!pm || !(catEl instanceof HTMLSelectElement)) return;
+    const cat = normalizePracticeTopic(catEl.value);
+    queryAllHtml(pm, 'button').forEach((btn) => {
+        const v = btn.dataset.v;
+        if (isPracticeMode(v)) btn.textContent = prModeLabel(v, cat);
+    });
+}
 function renderPracticeSetup() {
+    applyPracticeModeLabels();
     renderPracticeTopics();
     renderPracticeKeys();
+    syncPracticeProgSplit();
     updatePracticeModeHint();
     renderPracticeLast();
 }
@@ -19828,7 +20410,7 @@ function renderPracticeLast() {
     }
     const pct = Math.round(100 * d.c / d.n), mode = prDrillMode(d);
     el.hidden = false;
-    txt.innerHTML = rdEsc(t('pr_last', [prTopicLabel(d.cat), prModeLabel(mode), prKeyLabel(prDrillKey(d))].join(' · '))) + ' — <b class="' + (pct >= 80 ? 'good' : 'neutral') + '">' + rdEsc(t('pr_last_res', d.c, d.n) + ' (' + pct + '%)') + '</b>';
+    txt.innerHTML = rdEsc(t('pr_last', [prTopicLabel(d.cat), prModeLabel(mode, d.cat), prKeyLabel(prDrillKey(d))].join(' · '))) + ' — <b class="' + (pct >= 80 ? 'good' : 'neutral') + '">' + rdEsc(t('pr_last_res', d.c, d.n) + ' (' + pct + '%)') + '</b>';
 }
 /* ---------- SUMMARY ---------- */
 function showSummary(..._args: unknown[]) {
@@ -19885,7 +20467,7 @@ interface SyncNoBase { readonly syncNoBase?: undefined }
 const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE: SyncNoBase = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
 // reading.book.pieces.<id>: tries add up, the best score and the stars keep the higher side; the rest of reading.book is last-writer.
 const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|reading\.book\.pieces\..+\.tries|learnRev\..+\.n)$/;
-const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv|best)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn)|reading\.book\.pieces\..+\.(best|stars))$/;
+const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|practiceLog\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv|best)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn)|reading\.book\.pieces\..+\.(best|stars))$/;
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
@@ -20264,9 +20846,9 @@ function storeFailed() { if (STORE.failed)
 function storeBlock() { if (STORE.blocked === 'too-new')
     return; STORE.blocked = 'too-new'; storeNote(); }
 function storeHasProgress() {
-    const reading = data.reading;
+    const reading = data.reading, log = data.practiceLog;
     const outcomes = [data.srs, data.learnDone, data.singCleared, data.sheet, reading?.lv, reading?.nt, reading?.book?.pieces];
-    if (data.totalReviews > 0 || data.placed || (data.lastDrill?.n ?? 0) > 0 || reading?.prefs?.warmDone ||
+    if (data.totalReviews > 0 || data.placed || (data.lastDrill?.n ?? 0) > 0 || (log?.techRuns ?? 0) > 0 || (log?.melRuns ?? 0) > 0 || reading?.prefs?.warmDone ||
         outcomes.some(map => isRecord(map) && Object.keys(map).length > 0))
         return true;
     try {
@@ -20719,8 +21301,10 @@ async function loadAll() {
                 data.srs[id] = { box, ease: 2.3, reps: seen, lapses: misses, due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
             } }); });
         }
-        if (navigator.language && /^ro/i.test(navigator.language))
-            lang = 'ro'; // first-time Romanian browser → Romanian UI
+        if (navigator.language && /^ro/i.test(navigator.language)) {
+            lang = 'ro'; // first-time Romanian browser → Romanian UI + Do-Re-Mi default
+            notation = 'solfege';
+        }
         syncInitial();
     }
     catch (e) {
@@ -20758,9 +21342,13 @@ function reflectSettingsUI() {
     byId('bpmLbl').textContent = String(metro.bpm);
     inputById('reverb').value = String(Math.round(audioEngine.reverbWet / 0.5 * 100));
     queryAllHtml(document, '#set-labels button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === labelMode ? 'true' : 'false'));
+    const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
+    if (labelCBtn) labelCBtn.textContent = notation === 'solfege' ? 'Do' : 'C';
     inputById('set-synth').checked = audioEngine.localSynth;
     inputById('set-drone').checked = !!data.settings.drone;
     inputById('set-inv').checked = !!data.settings.allowInv;
+    const prChordInv = maybeById('pr-chord-inv');
+    if (prChordInv instanceof HTMLInputElement) prChordInv.checked = !!data.settings.allowInv;
     inputById('set-metronome').checked = !!data.settings.metronome;
     inputById('set-weak-inject').checked = !!data.settings.weakSpotInjection;
     inputById('set-any-octave').checked = !!data.settings.anyOctave;
@@ -20959,31 +21547,98 @@ function applyNotation() {
         anDraw();
     refreshSessionCopy();
     renderTranscribe();
+    if (trx.notes.length) trxRender();
+    const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
+    if (labelCBtn) labelCBtn.textContent = notation === 'solfege' ? 'Do' : 'C';
     rdOnLocale();
     coachRefresh();
 }
 /* ---------- ACCOMPANIMENT UI: Progressions · Play along in the Practice setup ---------- */
 /** A `<select>` whose options are built once; `_filled` marks it as built. */
 type AccompFilledSelect = HTMLSelectElement & { _filled?: boolean };
-function renderAccompany() {
+const ACCOMP_GROUPS: readonly { readonly key: string; readonly names: readonly string[] }[] = [
+    { key: 'ac_grp_pop', names: ['I–V–vi–IV (pop)', 'vi–IV–I–V', 'I–vi–IV–V (50s)', 'I–♭VII–IV (rock)', 'i–♭VI–♭VII (epic)', 'I–V–vi–iii–IV–I (Pachelbel pop)', 'Ballad I–iii–IV–V'] },
+    { key: 'ac_grp_classic', names: ['I–IV–V', 'Pachelbel’s Canon', 'Andalusian i–♭VII–♭VI–V'] },
+    { key: 'ac_grp_jazz', names: ['ii–V–I (jazz)', 'minor ii–V–i', 'Jazz turnaround I–vi–ii–V', 'Circle of 5ths vi–ii–V–I'] },
+    { key: 'ac_grp_blues', names: ['12-bar blues'] },
+];
+const ACCOMP_IMPRO_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Major pentatonic', 'Minor pentatonic', 'Blues'] as const;
+const ACCOMP_DEFAULT_PROG = Math.max(0, ACCOMP_PROGS.findIndex((p) => p.name === 'I–V–vi–IV (pop)'));
+function renderAccompany(refreshLabels = false) {
     const ps: AccompFilledSelect = selectById('ac-prog');
-    if (ps && !ps._filled) {
-        ACCOMP_PROGS.forEach((p, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = progDisp(p.name); ps.appendChild(o); });
+    if (ps && (!ps._filled || refreshLabels)) {
+        const prev = ps._filled ? ps.value : String(ACCOMP_DEFAULT_PROG);
+        ps.innerHTML = '';
+        const used = new Set<number>();
+        for (const grp of ACCOMP_GROUPS) {
+            const og = document.createElement('optgroup');
+            og.label = t(grp.key);
+            for (const nm of grp.names) {
+                const idx = ACCOMP_PROGS.findIndex((p) => p.name === nm);
+                if (idx >= 0) {
+                    used.add(idx);
+                    const o = document.createElement('option');
+                    o.value = String(idx);
+                    o.textContent = progDisp(ACCOMP_PROGS[idx].name);
+                    og.appendChild(o);
+                }
+            }
+            if (og.children.length) ps.appendChild(og);
+        }
+        ACCOMP_PROGS.forEach((p, i) => {
+            if (used.has(i)) return;
+            const o = document.createElement('option');
+            o.value = String(i);
+            o.textContent = progDisp(p.name);
+            ps.appendChild(o);
+        });
+        ps.value = [...ps.options].some((o) => o.value === prev) ? prev : String(ACCOMP_DEFAULT_PROG);
         ps._filled = true;
     }
     const pt: AccompFilledSelect = selectById('ac-pat');
-    if (pt && !pt._filled) {
+    if (pt && (!pt._filled || refreshLabels)) {
+        const prevPat = pt._filled ? pt.value : 'block';
+        pt.innerHTML = '';
         Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; pt.appendChild(o); });
+        pt.value = [...pt.options].some((o) => o.value === prevPat) ? prevPat : 'block';
         pt._filled = true;
+    }
+    const pi = maybeById('ac-impro-scale');
+    if (pi instanceof HTMLSelectElement) {
+        const prevImpro = pi.value || 'off';
+        while (pi.options.length > 2) pi.remove(2);
+        for (const sc of ACCOMP_IMPRO_SCALES) {
+            const o = document.createElement('option');
+            o.value = sc;
+            o.textContent = scaleDisp(sc);
+            pi.appendChild(o);
+        }
+        pi.value = [...pi.options].some((o) => o.value === prevImpro) ? prevImpro : 'off';
     }
     updateAccompChain();
 }
 // The loop's key: the Practice key chip, or C when All keys is chosen.
 function accompKey() { const k = prChoice().key; return k === 'all' ? 0 : (+k || 0); }
-function updateAccompChain() { const el = byId('ac-chain'); if (!el)
-    return; const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)]; if (!prog)
-    return; const key = accompKey(); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
-function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = accompKey(); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both'; accomp.click = inputById('ac-click').checked; }
+function updateAccompChain() {
+    const el = byId('ac-chain');
+    if (!el) return;
+    const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)];
+    if (!prog) return;
+    const key = accompKey();
+    el.innerHTML = prog.chords.map((ch) => '<span class="ch"><small class="ch-rn">' + rdEsc(ch[2]) + '</small> <span class="ch-nm">' + rdEsc(formatChord(rootName(((key + ch[0]) % 12 + 12) % 12), dispSym(ch[1]))) + '</span></span>').join('<span class="sep" aria-hidden="true">·</span>');
+}
+function accompSync() {
+    accomp.progIdx = +(selectById('ac-prog').value || 0);
+    accomp.key = accompKey();
+    accomp.pattern = selectById('ac-pat').value || 'block';
+    accomp.bpm = +(inputById('ac-bpm').value || 90);
+    const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]');
+    accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both';
+    accomp.click = inputById('ac-click').checked;
+    const pi = maybeById('ac-impro-scale');
+    accomp.improScale = pi instanceof HTMLSelectElement ? (pi.value || 'off') : 'off';
+    paintAccompImproScale();
+}
 function accompRestartIfPlaying() { if (accomp.on) {
     accompSync();
     accompStart();
@@ -21021,6 +21676,7 @@ function initControls() {
     document.querySelector('.brand')?.addEventListener('click', (e) => { e.preventDefault(); show('today'); });
     // midi chip + settings
     byId('midiChip').addEventListener('click', connectMidi);
+    maybeById('bleChip')?.addEventListener('click', bleClick);
     byId('audioLockBtn').addEventListener('click', audioUnlock);
     byId('syncNoteBtn').addEventListener('click', () => syncNote(false));
     byId('set-connect').addEventListener('click', connectMidi);
@@ -21071,6 +21727,11 @@ function initControls() {
     if (hdrBar)
         headerFit.observe(hdrBar);
     headerFit.observe(byId('midiChip'));
+    const bleChipEl = maybeById('bleChip');
+    if (bleChipEl) headerFit.observe(bleChipEl);
+    const bnavEl = maybeById('bottomNav');
+    if (bnavEl && typeof ResizeObserver === 'function')
+        new ResizeObserver(anLayoutVars).observe(bnavEl);
     document.fonts.addEventListener('loadingdone', fitHeader);
     // backup export / import
     byId('exportBtn').addEventListener('click', () => {
@@ -21175,6 +21836,11 @@ function initControls() {
         const v = b.dataset.v;
         if (isPracticeMode(v)) prSetMode(v);
     });
+    maybeById('pr-prog-split')?.addEventListener('click', (e) => {
+        const b = eventClosest(e, '[role="tab"]');
+        if (!b) return;
+        prSetMode(b.dataset.v === 'along' ? 'along' : prProgLastDrill);
+    });
     byId('pr-cat').addEventListener('change', syncPracticeCatAndMode);
     byId('pr-key').addEventListener('change', () => { renderPracticeKeys(); updatePracticeModeHint(); });
     byId('pr-topics').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetTopic(r.dataset.v); });
@@ -21185,10 +21851,28 @@ function initControls() {
     maybeById('pr-mobile-start')?.addEventListener('click', () => { byId('pr-start').click(); });
     byId('pr-redo').addEventListener('click', prContinue);
     byId('pr-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetDir(b.dataset.v ?? ''); });
+    maybeById('pr-iv-style')?.addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetIvStyle(b.dataset.v ?? ''); });
+    maybeById('pr-chord-tier')?.addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetChordTier(b.dataset.v ?? ''); });
+    maybeById('pr-chord-inv')?.addEventListener('change', (e) => {
+        const checked = wiringInput(e).checked;
+        data.settings.allowInv = checked;
+        inputById('set-inv').checked = checked;
+        saveAll();
+    });
+    maybeById('pr-scale-tier')?.addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetScaleTier(b.dataset.v ?? ''); });
+    maybeById('pr-mel-diff')?.addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetMelDiff(b.dataset.v ?? ''); updatePracticeModeHint(); });
+    maybeById('pr-mel-len')?.addEventListener('change', (e) => { const v = wiringField(e).value; prMelLen = v === 'auto' ? 'auto' : (+v || 'auto'); });
+    maybeById('pr-mel-scale')?.addEventListener('change', (e) => { prMelScale = wiringField(e).value || 'auto'; });
+    maybeById('pr-mel-demo')?.addEventListener('click', toggleMelodyDemo);
     // accompaniment
     byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
-    ['ac-prog', 'ac-pat'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
+    ['ac-prog', 'ac-pat'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); paintAccompImproScale(); accompRestartIfPlaying(); }));
+    maybeById('ac-impro-scale')?.addEventListener('change', () => {
+        const pi = maybeById('ac-impro-scale');
+        accomp.improScale = pi instanceof HTMLSelectElement ? (pi.value || 'off') : 'off';
+        paintAccompImproScale();
+    });
     byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = wiringField(e).value; });
     byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
     byId('ac-click').addEventListener('change', accompRestartIfPlaying);
@@ -21345,13 +22029,35 @@ function initControls() {
     byId('si-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; singStopAll(); wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v ?? sing.mode; ssModeUI(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; ssPaint(); });
     byId('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +wiringField(e).value; ssNewExercise(); });
-    byId('si-clef').addEventListener('change', (e) => { singStopAll(); sing.clef = wiringField(e).value; ssNewExercise(); });
+    maybeById('si-range')?.addEventListener('change', (e) => {
+        singStopAll();
+        const r = wiringField(e).value;
+        sing.range = (r === 'tenor' || r === 'bass') ? r : 'soprano';
+        sing.clef = sing.range === 'bass' ? 'bass' : 'treble';
+        const clefEl = maybeById('si-clef');
+        if (clefEl instanceof HTMLSelectElement) clefEl.value = sing.clef;
+        ssNewExercise();
+    });
+    byId('si-clef').addEventListener('change', (e) => {
+        singStopAll();
+        sing.clef = wiringField(e).value;
+        if (sing.clef === 'bass') sing.range = 'bass';
+        else if (sing.range === 'bass') sing.range = 'soprano';
+        const rangeEl = maybeById('si-range');
+        if (rangeEl instanceof HTMLSelectElement) rangeEl.value = sing.range;
+        ssNewExercise();
+    });
+    maybeById('si-lbl-mode')?.addEventListener('change', (e) => {
+        const v = wiringField(e).value;
+        sing.labelMode = (v === 'degree' || v === 'note') ? v : 'solfege';
+        ssDraw();
+    });
     byId('si-solf').addEventListener('change', () => { byId('si-staff').classList.toggle('nosolf', !inputById('si-solf').checked); });
     // The sight-reading, rhythm and sight-singing staves are laid out for the size of their paper (see SrLayout).
     if (typeof ResizeObserver === 'function') {
         let fitRaf = 0;
         const fit = new ResizeObserver(() => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(() => { srFit(); rdRhFit(); ssFit(); }); });
-        ['rd-staff', 'rdx-body', 'si-staff'].forEach((id) => fit.observe(byId(id)));
+        ['rd-staff', 'rdx-body', 'si-staff', 'dock'].forEach((id) => { const el = maybeById(id); if (el) fit.observe(el); });
     }
     byId('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; });
     byId('si-go').addEventListener('click', singGo);
@@ -21469,7 +22175,13 @@ function initControls() {
     window.addEventListener('pagehide', flushSaveSoon);
     byId('set-drone').addEventListener('change', (e) => { data.settings.drone = wiringInput(e).checked; saveAll(); });
     byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = wiringInput(e).checked; saveAll(); });
-    byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = wiringInput(e).checked; saveAll(); });
+    byId('set-inv').addEventListener('change', (e) => {
+        const checked = wiringInput(e).checked;
+        data.settings.allowInv = checked;
+        const prChordInv = maybeById('pr-chord-inv');
+        if (prChordInv instanceof HTMLInputElement) prChordInv.checked = checked;
+        saveAll();
+    });
     byId('set-any-octave').addEventListener('change', (e) => {
         const checked = wiringInput(e).checked;
         data.settings.anyOctave = checked;
@@ -21610,6 +22322,7 @@ if (isRecord(bootHistoryState) && bootHistoryState.modal)
 saveAll(); // Persist the one-time migration from legacy synthetic timbres.
 autoReconnectMidi();
 bleAutoReconnect();
+midiChipSync();
 pwaInit();
 storeInit();
 wakeInit();

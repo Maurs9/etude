@@ -1,18 +1,17 @@
 import { test, expect, todayN } from '../helpers/fixtures.mjs';
 
 // The Practice setup screen ("Drill one thing"): Continue strip, topic cards, How to answer, key chips, Start.
-const TOPICS = ['interval', 'chord', 'scale', 'prog', 'melody', 'technique'];
-// Which modes each topic turns off, and the mode it must then show pressed (null: the saved preference, Play it here).
+const TOPICS = ['interval', 'chord', 'scale', 'prog', 'melody'];
+// Which modes each topic keeps visible, and which is initially pressed.
 const RULES = {
-  interval: { off: [], pressed: 'play' },
-  chord: { off: [], pressed: 'play' },
-  scale: { off: [], pressed: 'play' },
-  prog: { off: ['keys'], pressed: 'play' },
-  melody: { off: ['play', 'ear'], pressed: 'keys' },
-  technique: { off: ['ear', 'keys'], pressed: 'play' },
+  interval: { visible: ['play', 'ear', 'keys'], pressed: 'play' },
+  chord: { visible: ['play', 'ear', 'keys'], pressed: 'play' },
+  scale: { visible: ['tech', 'play', 'ear'], pressed: 'play' },
+  prog: { visible: ['play', 'ear'], pressed: 'play' },
+  melody: { visible: [], pressed: null },
 };
 // Play along shows for Progressions only (practice-moved.spec.mjs); the hidden button is left out here.
-const modeState = page => page.evaluate(() => [...document.querySelectorAll('#pr-mode button:not([hidden])')].map(b => ({ v: b.dataset.v, off: b.disabled, on: b.getAttribute('aria-pressed') === 'true' })));
+const modeState = page => page.evaluate(() => [...document.querySelectorAll('#pr-mode:not([hidden]) button:not([hidden])')].map(b => ({ v: b.dataset.v, off: b.disabled, on: b.getAttribute('aria-pressed') === 'true' })));
 const checkedTopic = page => page.evaluate(() => [...document.querySelectorAll('#pr-topics [role=radio][aria-checked=true]')].map(b => b.dataset.v));
 const noPageScroll = page => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const lastDrill = { cat: 'chord', mode: 'ear', keys: false, key: '2', c: 4, n: 5, day: todayN() };
@@ -20,20 +19,26 @@ const lastDrill = { cat: 'chord', mode: 'ear', keys: false, key: '2', c: 4, n: 5
 test.describe('Practice setup', () => {
   test('each topic card selects its topic and applies its mode rules', async ({ app }) => {
     const page = await app.open({ hash: 'practice' });
-    await expect(page.locator('#pr-topics [role=radio]')).toHaveCount(6);
+    await expect(page.locator('#pr-topics [role=radio]')).toHaveCount(5);
     for (const cat of TOPICS) {
       await page.locator(`#pr-t-${cat}`).click();
       expect(await checkedTopic(page)).toEqual([cat]);
       await expect(page.locator(`#pr-t-${cat}`)).toHaveAttribute('tabindex', '0');
       const modes = await modeState(page);
-      expect(modes.filter(m => m.off).map(m => m.v), cat).toEqual(RULES[cat].off);
-      expect(modes.filter(m => m.on).map(m => m.v), cat).toEqual([RULES[cat].pressed]);
+      expect(modes.map(m => m.v), cat).toEqual(RULES[cat].visible);
+      expect(modes.filter(m => m.off), cat).toEqual([]);
+      expect(modes.find(m => m.on)?.v ?? null, cat).toEqual(RULES[cat].pressed);
       expect(await page.evaluate(() => window.__etude.prChoice().cat)).toBe(cat);
-      await expect(page.locator('#pr-mode-note')).toBeVisible({ visible: RULES[cat].off.length > 0 });
+      await expect(page.locator('#pr-prog-split')).toBeVisible({ visible: cat === 'prog' });
+      await expect(page.locator('#pr-mel-cfg')).toBeVisible({ visible: cat === 'melody' });
     }
-    // The four review topics show their mastered counts; the other two show none.
+    // Note: in scale Tech mode, SRS note appears; in regular mode note is hidden.
+    await page.locator('#pr-t-scale').click();
+    await page.locator('#pr-mode button[data-v="tech"]').click();
+    await expect(page.locator('#pr-mode-note')).toBeVisible();
+    // The four review topics show their mastered counts; melodies show none.
     for (const cat of TOPICS.slice(0, 4)) await expect(page.locator(`#pr-t-${cat}-m`)).toContainText(/^\d+ mastered of \d+$/);
-    for (const cat of TOPICS.slice(4)) await expect(page.locator(`#pr-t-${cat}-m`)).toBeHidden();
+    await expect(page.locator('#pr-t-melody-m')).toBeHidden();
   });
 
   test('an ear mode is saved as the on-keys choice, and Start runs the chosen drill', async ({ app }) => {
@@ -44,10 +49,10 @@ test.describe('Practice setup', () => {
     await page.locator('#pr-mode button[data-v="ear"]').click();
     expect(await page.evaluate(() => window.__etude.data.settings.earKeys)).toBe(false);
     await expect(page.locator('#pr-mode-hint')).toHaveText('Listen to the sound and identify it from multiple choices.');
-    await expect(page.locator('#pr-start')).toHaveText('Start: Chords · By ear · All keys');
+    await expect(page.locator('#pr-start')).toHaveText('Start: Chords · Recognise chord · All keys');
     await page.locator('#pr-start').click();
     await expect(page.locator('#session')).toBeVisible();
-    expect(await page.evaluate(() => window.__etude.SES.targeted)).toEqual({ cat: 'chord', mode: 'ear', key: 'all' });
+    expect(await page.evaluate(() => window.__etude.SES.targeted)).toEqual({ cat: 'chord', mode: 'ear', key: 'all', chordTier: 'triads' });
   });
 
   test('the key chips set the key, one chip at a time', async ({ app }) => {
@@ -60,7 +65,7 @@ test.describe('Practice setup', () => {
     await expect(page.locator('#pr-keys [aria-checked=true]')).toHaveCount(1);
     await expect(page.locator('#pr-keys [data-v="7"]')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('#pr-key')).toHaveValue('7');
-    await expect(page.locator('#pr-start')).toHaveText('Start: Intervals · Play it · G');
+    await expect(page.locator('#pr-start')).toHaveText('Start: Intervals · Play interval · G');
     // Arrow keys move through the chips and select.
     await page.locator('#pr-keys [data-v="7"]').focus();
     await page.keyboard.press('ArrowRight');
@@ -74,10 +79,10 @@ test.describe('Practice setup', () => {
     const page = await app.open({ saved: { v: 3, lang: 'en', data: { lastDrill } }, hash: 'practice' });
     const strip = page.locator('#pr-last');
     await expect(strip).toBeVisible();
-    await expect(strip).toContainText('Last drill · Chords · By ear · D — 4 / 5 correct (80%)');
+    await expect(strip).toContainText('Last drill · Chords · Recognise chord · D — 4 / 5 correct (80%)');
     await page.locator('#pr-redo').click();
     await expect(page.locator('#session')).toBeVisible();
-    expect(await page.evaluate(() => window.__etude.SES.targeted)).toEqual({ cat: 'chord', mode: 'ear', key: '2' });
+    expect(await page.evaluate(() => window.__etude.SES.targeted)).toEqual({ cat: 'chord', mode: 'ear', key: '2', chordTier: 'triads' });
     expect(await page.evaluate(() => window.__etude.data.settings.earKeys)).toBe(false);
     // The setup now holds that drill too, so Start after End runs it again.
     await page.locator('#ses-end').click();
@@ -87,7 +92,7 @@ test.describe('Practice setup', () => {
   test('Continue runs a by-ear Progressions drill by ear, even when the saved record says on keys', async ({ app }) => {
     const saved = { v: 3, lang: 'en', data: { lastDrill: { cat: 'prog', mode: 'ear', keys: true, key: '9', c: 1, n: 2, day: todayN() } } };
     const page = await app.open({ saved, hash: 'practice' });
-    await expect(page.locator('#pr-last')).toContainText('Last drill · Progressions · By ear · A — 1 / 2 correct (50%)');
+    await expect(page.locator('#pr-last')).toContainText('Last drill · Progressions · Recognise progression · A — 1 / 2 correct (50%)');
     await page.locator('#pr-t-interval').click();
     await page.locator('#pr-mode button[data-v="play"]').click();
     await page.locator('#pr-redo').click();
@@ -155,9 +160,9 @@ test.describe('Practice setup', () => {
     await step('ArrowRight', 'chord');
     await step('ArrowDown', 'scale');
     await step('ArrowLeft', 'chord');
-    await step('End', 'technique');
+    await step('End', 'melody');
     await step('ArrowRight', 'interval'); // wraps around
-    await step('ArrowUp', 'technique');
+    await step('ArrowUp', 'melody');
     await step('Home', 'interval');
     await expect(page.locator('#pr-topics [tabindex="0"]')).toHaveCount(1);
     // Tab leaves the group in one step, and Shift+Tab comes back to the checked card.
@@ -188,10 +193,10 @@ test.describe('Practice setup', () => {
     });
   }
 
-  test('three cards across on a wide screen, in the light and the dark theme', async ({ app, page }) => {
+  test('five cards across on a wide screen, in the light and the dark theme', async ({ app, page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await app.open({ hash: 'practice' });
-    expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(3);
+    expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(5);
     const look = () => page.locator('#pr-t-interval').evaluate(el => ({ bg: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el.querySelector('.k')).color }));
     const light = await look();
     await page.evaluate(() => { window.__etude.theme = 'dark'; window.__etude.applyTheme(); });
@@ -200,18 +205,18 @@ test.describe('Practice setup', () => {
     await expect.poll(async () => { const dark = await look(); return dark.bg !== light.bg && dark.ink !== light.ink; }).toBe(true);
   });
 
-  test('wide screens: the key chips sit beside How to answer, Start closes the form at the right, Play along fits', async ({ app, page }) => {
-    for (const [width, height, cols] of [[1280, 800, 3], [1440, 900, 3], [1920, 1080, 6]]) {
+  test('wide screens: the key chips sit beside the mode area, Start closes the form at the right, Play along fits', async ({ app, page }) => {
+    for (const [width, height, cols] of [[1280, 800, 5], [1440, 900, 5], [1920, 1080, 5]]) {
       await page.setViewportSize({ width, height });
       await app.open({ hash: 'practice' });
       await page.locator('#pr-t-prog').click();
-      await page.locator('#pr-mode [data-v="along"]').click();
+      await page.locator('#pr-prog-split [data-v="along"]').click();
       const r = await page.evaluate(() => {
         const b = s => document.querySelector(s).getBoundingClientRect();
-        return { mode: b('#pr-mode-h'), key: b('#pr-key-h'), keys: b('#pr-keys'), start: b('#pr-start'), along: b('#pr-along'), panel: b('.pr-setup'), scroll: document.documentElement.scrollWidth };
+        return { split: b('#pr-prog-split'), key: b('#pr-key-h'), keys: b('#pr-keys'), start: b('#pr-start'), along: b('#pr-along'), panel: b('.pr-setup'), scroll: document.documentElement.scrollWidth };
       });
       const where = `${width}px`;
-      expect(Math.abs(r.mode.top - r.key.top), where).toBeLessThan(2);
+      expect(Math.abs(r.split.top - r.key.top), where).toBeLessThan(20);
       expect(r.key.left, where).toBeGreaterThan(r.panel.left + r.panel.width / 2 - 1);
       expect(r.along.top, where).toBeGreaterThan(r.keys.bottom);
       expect(r.start.right, where).toBeGreaterThan(r.panel.right - 40);
@@ -230,6 +235,6 @@ test.describe('Practice setup', () => {
     await expect(page.locator('#pr-t-melody-d')).toHaveText('Hör eine kurze Melodie und spiele sie nach.');
     await expect(page.locator('#pr-keys [data-v="all"]')).toHaveText('Alle Tonarten');
     await expect(page.locator('#pr-keys [data-v="10"]')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('#pr-start')).toHaveText(/^Starten: Intervalle · Spielen · /);
+    await expect(page.locator('#pr-start')).toHaveText(/^Starten: Intervalle · Intervall spielen · /);
   });
 });

@@ -1,29 +1,30 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
-test('scale hints use family tabs with transposable RH/LH fingerings and play without opening the dock', async ({ app }) => {
+test('scale hints use family tabs with dual-hand fingerings and play without opening the dock', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#pr-t-scale').click();
   await page.locator('#pr-mode button[data-v="ear"]').click();
   await page.locator('#pr-songs summary').click();
   const list = page.locator('#practiceHintsList');
-  await expect(list.locator('.pr-family-tab')).toHaveCount(4);
+  await expect(list.locator('.pr-family-tab')).toHaveCount(5);
   await expect(list.locator('[data-hint]')).toHaveCount(4);
   await expect(list.locator('.pr-hint-cue')).toHaveCount(0);
   await expect(list.locator('.pr-hint-reference')).toHaveCount(0);
 
   const major = list.locator('[data-hint="Major (Ionian)"]');
-  await expect(major.locator('.pr-hint-key-finger')).toHaveText(['1', '2', '3', '1', '2', '3', '4', '5']);
-  await major.getByRole('button', { name: /^Left hand/ }).click();
-  await expect(major.locator('.pr-hint-key-finger')).toHaveText(['5', '4', '3', '2', '1', '3', '2', '1']);
+  await expect(major.locator('.pr-hint-key-finger-rh')).toHaveText(['1', '2', '3', '1', '2', '3', '4', '5']);
+  await expect(major.locator('.pr-hint-key-finger-lh')).toHaveText(['5', '4', '3', '2', '1', '3', '2', '1']);
+  await expect(major.getByRole('button', { name: /^Left hand/ })).toHaveCount(0);
 
-  await list.locator('[data-hint-family="minor"]').click();
-  await expect(list.locator('[data-hint]')).toHaveCount(8);
+  await list.locator('[data-hint-family="modes"]').click();
+  await expect(list.locator('[data-hint]')).toHaveCount(5);
   const card = list.locator('[data-hint="Dorian"]');
   await expect(card.getByRole('button', { name: /Show keys/ })).toHaveCount(0);
   await expect(card.getByRole('img')).toHaveAttribute('aria-label', /Dorian.*with C · D · E♭ · F · G · A · B♭ · C/);
   await expect(card.locator('.pr-chord-root')).toHaveCount(2);
-  await expect(card.locator('.pr-hint-key-finger')).toHaveCount(8);
+  await expect(card.locator('.pr-hint-key-finger-rh')).toHaveCount(8);
+  await expect(card.locator('.pr-hint-key-finger-lh')).toHaveCount(8);
 
   await page.locator('#pr-keys [data-v="2"]').click();
   await expect(card.getByRole('img')).toHaveAttribute('aria-label', /Dorian.*with D · E · F · G · A · B · C · D/);
@@ -45,7 +46,7 @@ test('scale hints use family tabs with transposable RH/LH fingerings and play wi
 
   await list.locator('[data-hint-family="all"]').click();
   await expect(list.getByRole('heading', { level: 2 })).toHaveText([
-    'Major and bright', 'Minor and dark', 'Exotic and symmetrical',
+    'Major & Minor', 'Modes', 'Pentatonic & Blues', 'Exotic and symmetrical',
   ]);
   await expect(list.locator('[data-hint]')).toHaveCount(19);
 });

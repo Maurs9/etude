@@ -152,3 +152,12 @@ test('audio settings update the active graph, the next note, and the saved prefe
   await expect(page.locator('#set-synth')).toBeChecked();
   expect(await playNote()).toBe(true);
 });
+
+test('first-visit navigation to Pieces tears down active Practice accompaniment loop cleanly', async ({ app, page }) => {
+  await app.open({ hash: 'accompany', dock: true });
+  await page.locator('#pr-start').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.accomp.on)).toBe(true);
+  await page.locator('#nav button[data-view="analysis"]').click();
+  await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+  expect(await page.evaluate(() => window.__etude.accomp.on)).toBe(false);
+});

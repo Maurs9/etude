@@ -134,6 +134,7 @@ export function isImportableBackup(value: unknown): value is PttV3Payload {
     (builtin === undefined || (isRecord(builtin) && typeof builtin.id === 'string' && numbers(builtin.at) &&
       optionalFields(builtin, ['measure'], entry => typeof entry === 'string') &&
       optionalFields(builtin, ['speed', 'elapsed'], numbers))) &&
+    (data.practiceLog === undefined || numericRecord(data.practiceLog, ['techRuns', 'techClean', 'techBestBpm', 'melRuns', 'melCorrect', 'melTotal'])) &&
     mapOf(data.srs, isRecord) &&
     mapOf(data.history, numbers) &&
     mapOf(data.singCleared, entry => typeof entry === 'boolean') &&

@@ -39,6 +39,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <button data-view="progress" data-i18n="nav_progress">Progress</button>
     </nav>
     <button class="midi-chip" id="midiChip"><span class="dot" id="midiDot"></span><svg class="midi-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><circle cx="5" cy="8.5" r=".7" fill="currentColor" stroke="none"/><circle cx="6.2" cy="5.8" r=".7" fill="currentColor" stroke="none"/><circle cx="8" cy="4.8" r=".7" fill="currentColor" stroke="none"/><circle cx="9.8" cy="5.8" r=".7" fill="currentColor" stroke="none"/><circle cx="11" cy="8.5" r=".7" fill="currentColor" stroke="none"/></svg><span id="midiText">Connect MIDI</span></button>
+    <button type="button" class="midi-chip ble-chip" id="bleChip" hidden data-i18n-aria="set_ble" aria-label="Bluetooth MIDI (direct)"><svg class="midi-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l6 6-3 2.5V2.5L11 5l-6 6"/></svg><span id="bleChipText" data-i18n="ble_short">BLE</span></button>
     <button class="iconbtn menu-btn" id="menuBtn" data-i18n-aria="menu" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.2h11M2.5 8h11M2.5 11.8h11"/></svg></button>
     <div class="mobilemenu" id="mobileMenu" hidden></div>
     <button class="iconbtn" id="helpBtn" data-i18n-aria="help" aria-label="Help"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.7 5.8a2.4 2.4 0 0 1 4.6.8c0 1.5-2.3 1.9-2.3 3.4"/><circle cx="8" cy="12.6" r=".8" fill="currentColor" stroke="none"/></svg></button>
@@ -170,9 +171,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <p class="lede" id="rd-lede" data-i18n="rd_lede" hidden>Learn to read music fluently: short daily drills for notes, intervals, chords, key signatures and rhythm, then sight-read real pieces. Use MIDI, the on-screen keys, or A–K.</p>
       <p class="lede" id="rdn-lede" data-i18n="rdn_lede">Read a new piece every day: at first sight, in time, without stopping.</p></div>
       <div class="streak" id="rdn-streak" hidden></div></div>
-      <div class="rdn-backrow" id="rdn-backrow" hidden><button class="btn ghost" type="button" id="rdn-home-back" data-i18n="rdn_back_read">← Back to Read</button></div>
-      <div class="rdn-home" id="rdn-home" hidden></div>
-      <h2 class="rdn-more-h" id="rdn-more-h" hidden data-i18n="rdn_more">More</h2>
+      <div class="rdx-tabs" id="rd-tabs" role="tablist" aria-label="Reading" data-i18n-aria="rdx_tabs_aria">
+        <button type="button" role="tab" id="rdt-book" data-tab="book" aria-selected="true" aria-controls="rdn-home" tabindex="0"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5c2 0 4 .5 5.5 1.5 1.5-1 3.5-1.5 5.5-1.5v9c-2 0-4 .5-5.5 1.5-1.5-1-3.5-1.5-5.5-1.5z"/><path d="M8 5v9"/></svg> <span data-i18n="rdx_tab_book">Reading book</span></button>
+        <button type="button" role="tab" id="rdt-drills" data-tab="drills" aria-selected="false" aria-controls="rdp-drills" tabindex="-1"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/></svg> <span data-i18n="rdx_tab_drills">Reading drills</span></button>
+        <button type="button" role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 11.6V3.4l7-1.4v8.2"/><circle cx="4.8" cy="11.8" r="1.8"/><circle cx="11.8" cy="10.4" r="1.8"/></svg> <span data-i18n="rdx_tab_pieces">Sight-reading</span></button>
+      </div>
+      <div class="rdn-home" id="rdn-home" role="tabpanel" aria-labelledby="rdt-book" hidden></div>
       <div class="rdn-warmup" id="rdn-warm" hidden>
         <div class="rdn-phead rdn-w-head" id="rdn-w-head">
           <button class="btn ghost" type="button" id="rdn-w-back" data-i18n="rdn_back">← Back</button>
@@ -182,13 +186,22 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         </div>
         <section class="rdn-card rdn-flash" id="rdn-w-flash" tabindex="-1" aria-labelledby="rdn-w-title" hidden></section>
       </div>
-      <div class="rdx-tabs" id="rd-tabs" role="tablist" aria-label="Reading" data-i18n-aria="rdx_tabs_aria">
-        <button role="tab" id="rdt-drills" data-tab="drills" aria-selected="true" aria-controls="rdp-drills" tabindex="0"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/></svg> <span data-i18n="rdx_tab_drills">Reading drills</span></button>
-        <button role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 11.6V3.4l7-1.4v8.2"/><circle cx="4.8" cy="11.8" r="1.8"/><circle cx="11.8" cy="10.4" r="1.8"/></svg> <span data-i18n="rdx_tab_pieces">Sight-reading</span></button>
-      </div>
       <div id="rdp-drills" role="tabpanel" aria-labelledby="rdt-drills">
         <div id="rdx-home">
           <div class="panel rdx-hero" id="rdx-hero"></div>
+          <div class="rdx-bar" id="rdx-bar">
+            <div class="rdx-filters" id="rdx-filters" role="group" aria-label="Filter reading drills" data-i18n-aria="rdx_filter_aria">
+              <button type="button" class="chip" data-cat="all" aria-pressed="true" data-i18n="rdx_f_all">All</button>
+              <button type="button" class="chip" data-cat="notes" aria-pressed="false" data-i18n="rdx_f_notes">Notes</button>
+              <button type="button" class="chip" data-cat="keys" aria-pressed="false" data-i18n="rdx_f_keys">Accidentals &amp; Keys</button>
+              <button type="button" class="chip" data-cat="harmony" aria-pressed="false" data-i18n="rdx_f_harmony">Intervals &amp; Chords</button>
+              <button type="button" class="chip" data-cat="rhythm" aria-pressed="false" data-i18n="rdx_f_rhythm">Rhythm &amp; Reading</button>
+            </div>
+            <div class="rdx-bar-end">
+              <button type="button" class="btn ghost sm" id="rdx-land-btn" data-lv="tr1" data-i18n="rdx_land_quick">Level 0: Landmark notes</button>
+              <label class="switch-inline rdx-orch-wrap"><input type="checkbox" id="rdx-show-orch"> <span data-i18n="rdx_show_orch">Orchestral clefs (Alto / Tenor)</span></label>
+            </div>
+          </div>
           <div id="rdx-ladder" class="rdx-ladder"></div>
           <details id="rdx-custom" class="panel rdx-custom">
             <summary><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h3M8.5 11.5h5"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="7" cy="11.5" r="1.5"/></svg> <span data-i18n="rdx_custom">Custom drill</span> <small data-i18n="rdx_custom_d">Pick your own clef, range, accidentals and key signatures</small></summary>
@@ -533,26 +546,71 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <h2 class="pr-sec" id="pr-topic-h" data-i18n="pr_topic">Topic</h2>
         <div class="pr-topics" id="pr-topics" role="radiogroup" aria-labelledby="pr-topic-h"></div>
         <select id="pr-cat" hidden tabindex="-1" aria-hidden="true"><option value="interval" data-i18n="cat_interval">Intervals</option><option value="chord" data-i18n="cat_chord">Chords</option><option value="scale" data-i18n="cat_scale">Scales</option><option value="prog" data-i18n="cat_prog">Progressions</option><option value="melody" data-i18n="cat_melody">Melodies (on keys)</option><option value="technique" data-i18n="cat_technique">Scales &amp; arpeggios</option></select>
+        <div class="pr-prog-split" id="pr-prog-split" role="tablist" aria-label="Progressions mode" data-i18n-aria="pr_prog_split_aria" hidden>
+          <button type="button" role="tab" data-v="drill" aria-selected="true" data-i18n="pr_prog_tab_drill">Exercise</button>
+          <button type="button" role="tab" data-v="along" aria-selected="false" data-i18n="pr_prog_tab_along">Play along</button>
+        </div>
         <h2 class="pr-sec" id="pr-mode-h" data-i18n="pr_answer">How to answer</h2>
-        <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button><button type="button" data-v="along" data-i18n="pr_along" aria-pressed="false" hidden>Play along</button></div>
+        <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="tech" data-i18n="pr_m_sc_tech" aria-pressed="false" hidden>Play with fingering</button><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button><button type="button" data-v="along" data-i18n="pr_along" aria-pressed="false" hidden>Play along</button></div>
         <p class="pr-mode-hint" id="pr-mode-hint" role="status" aria-live="polite"></p>
         <p class="pr-mode-note" id="pr-mode-note" role="status" aria-live="polite" hidden></p>
-        <!-- Intervals by ear: the direction the interval is played in (prSetDir). -->
-        <div id="pr-dir-row" hidden>
-          <h2 class="pr-sec" id="pr-dir-h" data-i18n="aria_dir">Direction</h2>
-          <div class="seg" id="pr-dir" role="group" aria-labelledby="pr-dir-h"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button><button type="button" data-v="both" data-i18n="dir_both" aria-pressed="false">Both</button></div>
+        <!-- Intervals by ear: presentation style (melodic/harmonic) + direction (prSetIvStyle, prSetDir). -->
+        <div id="pr-dir-row" class="pr-subcfg" hidden>
+          <div class="pr-subrow">
+            <h2 class="pr-sec" id="pr-iv-style-h" data-i18n="pr_iv_style">Presentation</h2>
+            <div class="seg" id="pr-iv-style" role="group" aria-labelledby="pr-iv-style-h"><button type="button" data-v="both" data-i18n="pr_iv_both" aria-pressed="true">Both</button><button type="button" data-v="melodic" data-i18n="pr_iv_melodic" aria-pressed="false">Melodic</button><button type="button" data-v="harmonic" data-i18n="pr_iv_harmonic" aria-pressed="false">Harmonic</button></div>
+          </div>
+          <div id="pr-dir-wrap" class="pr-subrow">
+            <h2 class="pr-sec" id="pr-dir-h" data-i18n="aria_dir">Direction</h2>
+            <div class="seg" id="pr-dir" role="group" aria-labelledby="pr-dir-h"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button><button type="button" data-v="both" data-i18n="dir_both" aria-pressed="false">Both</button></div>
+          </div>
         </div>
-        <!-- Progressions · Play along: the accompaniment loop (accompSync); its key comes from the key chips. Nothing is judged. -->
+        <!-- Chords configuration: complexity tier (triads default) + inversions disclosure. -->
+        <div id="pr-chord-cfg" class="pr-subcfg" hidden>
+          <h2 class="pr-sec" id="pr-chord-tier-h" data-i18n="pr_chord_tier">Chord types</h2>
+          <div class="seg" id="pr-chord-tier" role="group" aria-labelledby="pr-chord-tier-h"><button type="button" data-v="triads" data-i18n="pr_ch_triads" aria-pressed="true">Triads</button><button type="button" data-v="sevenths" data-i18n="pr_ch_sevenths" aria-pressed="false">+ 7ths</button><button type="button" data-v="all" data-i18n="pr_ch_all" aria-pressed="false">+ Jazz (all)</button></div>
+          <details class="pr-extra" id="pr-chord-more">
+            <summary data-i18n="pr_chord_more">Chord options</summary>
+            <div class="pr-extra-body">
+              <label class="switch-inline"><input type="checkbox" id="pr-chord-inv"> <span data-i18n="pr_chord_inv">Include inversions</span></label>
+            </div>
+          </details>
+        </div>
+        <!-- Scales configuration: core major/minor vs modes & exotic (hidden when in Technique fingering mode). -->
+        <div id="pr-scale-cfg" class="pr-subcfg" hidden>
+          <h2 class="pr-sec" id="pr-scale-tier-h" data-i18n="pr_scale_tier">Scales included</h2>
+          <div class="seg" id="pr-scale-tier" role="group" aria-labelledby="pr-scale-tier-h"><button type="button" data-v="core" data-i18n="pr_sc_core" aria-pressed="true">Major &amp; Minor</button><button type="button" data-v="modes" data-i18n="pr_sc_modes" aria-pressed="false">+ Modes &amp; Pentatonic</button><button type="button" data-v="all" data-i18n="pr_sc_all" aria-pressed="false">All (+ Exotic)</button></div>
+        </div>
+        <!-- Melodies by ear configuration: difficulty + example listen + length/scale in More options. -->
+        <div id="pr-mel-cfg" class="pr-subcfg" hidden>
+          <h2 class="pr-sec" id="pr-mel-diff-h" data-i18n="pr_mel_diff">Difficulty</h2>
+          <div class="row pr-mel-row">
+            <div class="seg" id="pr-mel-diff" role="group" aria-labelledby="pr-mel-diff-h"><button type="button" data-v="easy" data-i18n="pr_mel_easy" aria-pressed="true">Easy</button><button type="button" data-v="medium" data-i18n="pr_mel_medium" aria-pressed="false">Medium</button><button type="button" data-v="advanced" data-i18n="pr_mel_advanced" aria-pressed="false">Advanced</button></div>
+            <button type="button" class="btn ghost sm" id="pr-mel-demo" data-i18n="pr_mel_demo">▶ Listen example</button>
+          </div>
+          <details class="pr-extra" id="pr-mel-more">
+            <summary data-i18n="pr_extra_opts">More options</summary>
+            <div class="pr-extra-body">
+              <label class="field"><span data-i18n="pr_mel_len">Length</span> <select id="pr-mel-len"><option value="auto" data-i18n="pr_mel_len_auto">Auto</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+              <label class="field"><span data-i18n="pr_mel_scale">Scale</span> <select id="pr-mel-scale"><option value="auto" data-i18n="pr_mel_scale_auto">Auto</option></select></label>
+            </div>
+          </details>
+        </div>
+        <!-- Progressions · Play along: starter surface (Progression + Tempo) + optional Accompaniment options. -->
         <div class="pr-along" id="pr-along" hidden>
           <div class="row pr-along-row">
             <label class="field"><span data-i18n="ac_prog">Progression</span> <select id="ac-prog"></select></label>
-            <label class="field"><span data-i18n="ac_pattern">Pattern</span> <select id="ac-pat"></select></label>
-          </div>
-          <div class="row pr-along-row">
-            <div class="seg" id="ac-hands" role="group" aria-label="Hands" data-i18n-aria="aria_hands"><button type="button" data-v="both" data-i18n="ac_both" aria-pressed="true">Both hands</button><button type="button" data-v="left" data-i18n="ac_lh" aria-pressed="false">Left only</button><button type="button" data-v="right" data-i18n="ac_rh" aria-pressed="false">Right only</button></div>
             <label class="field pr-tempo"><span data-i18n="ac_tempo">Tempo</span> <small><span id="ac-bpmLbl">90</span> BPM</small><input id="ac-bpm" type="range" min="40" max="180" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
-            <label class="switch-inline"><input type="checkbox" id="ac-click"> <span data-i18n="ac_click">Metronome</span></label>
           </div>
+          <details class="pr-extra" id="ac-more">
+            <summary data-i18n="ac_more">Accompaniment options</summary>
+            <div class="pr-extra-body pr-along-row">
+              <label class="field"><span data-i18n="ac_pattern">Pattern</span> <select id="ac-pat"></select></label>
+              <div class="seg" id="ac-hands" role="group" aria-label="Hands" data-i18n-aria="aria_hands"><button type="button" data-v="both" data-i18n="ac_both" aria-pressed="true">Both hands</button><button type="button" data-v="left" data-i18n="ac_lh" aria-pressed="false">Left only</button><button type="button" data-v="right" data-i18n="ac_rh" aria-pressed="false">Right only</button></div>
+              <label class="switch-inline"><input type="checkbox" id="ac-click"> <span data-i18n="ac_click">Metronome</span></label>
+              <label class="field"><span data-i18n="ac_impro">Improvisation scale</span> <select id="ac-impro-scale"><option value="off" data-i18n="ac_impro_off">Off</option><option value="auto" data-i18n="ac_impro_auto">Auto (match key)</option></select></label>
+            </div>
+          </details>
         </div>
         <h2 class="pr-sec" id="pr-key-h" data-i18n="pr_key">Key</h2>
         <div class="pr-keys" id="pr-keys" role="radiogroup" aria-labelledby="pr-key-h"></div>
@@ -561,6 +619,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div id="pr-along-out" hidden>
           <div id="ac-chain" class="verdict neutral pr-chain"></div>
           <p class="pr-along-hint" data-i18n="ac_hint">Use the keyboard below to play along. Shift its octave with the ◀ Oct / Oct ▶ buttons if the lit keys are off-screen.</p>
+          <p class="pr-along-hint pr-impro-legend" id="ac-impro-legend" data-i18n="ac_impro_legend" hidden>Chord tones = filled keys · Improvisation scale = teal marker at key bottom.</p>
         </div>
       </div>
       <!-- Topic hints. Intervals keep the song book in songsList. -->
@@ -585,19 +644,23 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== VOICE (sight-singing + hum to notes) ===================== -->
   <section class="view" id="view-sing">
     <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="vo_eyebrow">Voice &amp; ear</div><h1 data-i18n="nav_sing">Voice</h1></div></div>
-      <div class="vo-switch" id="vo-switch" role="tablist" aria-label="Activity" data-i18n-aria="vo_switch_aria">
-        <button type="button" role="tab" id="vo-tab-sing" data-act="sing" aria-selected="true" aria-controls="vo-sing" tabindex="0" data-i18n="vo_sing">Sing from the staff</button>
-        <button type="button" role="tab" id="vo-tab-hum" data-act="hum" aria-selected="false" aria-controls="vo-hum" tabindex="-1" data-i18n="vo_hum">Hum to notes</button>
+      <div class="section-head">
+        <div><div class="eyebrow" data-i18n="vo_eyebrow">Voice &amp; ear</div><h1 data-i18n="nav_sing">Voice</h1></div>
+        <div class="vo-switch" id="vo-switch" role="tablist" aria-label="Activity" data-i18n-aria="vo_switch_aria">
+          <button type="button" role="tab" id="vo-tab-sing" data-act="sing" aria-selected="true" aria-controls="vo-sing" tabindex="0" data-i18n="vo_sing">Sing from the staff</button>
+          <button type="button" role="tab" id="vo-tab-hum" data-act="hum" aria-selected="false" aria-controls="vo-hum" tabindex="-1" data-i18n="vo_hum">Hum to notes</button>
+        </div>
       </div>
       <!-- Sing from the staff (sight-singing) -->
       <div class="vo-panel" id="vo-sing" role="tabpanel" aria-labelledby="vo-tab-sing">
         <p class="lede" data-i18n="si_lede">Sing the melody on the staff into your mic — or play it on your keyboard / MIDI if you can’t sing out loud. Start with two notes and grow from there.</p>
-        <div class="panel" style="margin-top:18px">
+        <div class="panel vo-sing-panel">
           <div class="row" style="align-items:center">
             <div class="seg" id="si-mode" role="group" aria-label="Mode" data-i18n-aria="aria_mode"><button data-v="note" data-i18n="si_m_note" aria-pressed="true">Note-by-note</button><button data-v="phrase" data-i18n="si_m_phrase" aria-pressed="false">Phrase</button><button data-v="free" data-i18n="si_m_free" aria-pressed="false">Free</button></div>
             <label class="field"><span data-i18n="si_level">Level</span> <select id="si-level"></select></label>
+            <label class="field"><span data-i18n="si_range">Voice</span> <select id="si-range"><option value="soprano" data-i18n="si_r_soprano">Soprano / Alto</option><option value="tenor" data-i18n="si_r_tenor">Tenor</option><option value="bass" data-i18n="si_r_bass">Baritone / Bass</option></select></label>
             <label class="field"><span data-i18n="si_clef">Clef</span> <select id="si-clef"><option value="treble" data-i18n="si_treble">Treble</option><option value="bass" data-i18n="si_bass">Bass</option></select></label>
+            <label class="field"><span data-i18n="si_lbl_mode">Labels</span> <select id="si-lbl-mode"><option value="solfege" data-i18n="si_lbl_solf">Solfège</option><option value="degree" data-i18n="si_lbl_deg">Degrees (1–7)</option><option value="note" data-i18n="si_lbl_note">Note names</option></select></label>
             <label class="switch-inline"><input type="checkbox" id="si-solf" checked> <span data-i18n="si_solfege">Solfège</span></label>
           </div>
           <div class="ss-wrap" id="si-staff" role="img" aria-label="Music staff" data-i18n-aria="aria_staff"></div>
@@ -632,10 +695,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </div>
           <div class="row" style="margin-top:12px; align-items:center">
             <label class="switch-inline"><input type="checkbox" id="tr-quant" checked> <span data-i18n="tr_quant">Snap to beat</span></label>
+            <label class="switch-inline"><input type="checkbox" id="tr-countin"> <span data-i18n="tr_countin">Count-in</span></label>
             <label class="field" style="min-width:180px"><span data-i18n="tr_tempo">Tempo</span> <small><span id="tr-bpmLbl">90</span> BPM</small><input id="tr-bpm" type="range" min="40" max="200" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
             <label class="field"><span data-i18n="tr_grid">Grid</span> <select id="tr-gridSel"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option></select></label>
           </div>
           <div id="tr-msg" class="lede" role="status" style="font-size:13px; margin:10px 0 0"></div>
+          <div class="ss-wrap tr-staff" id="tr-staff" hidden role="img" aria-label="Sheet music" data-i18n-aria="aria_staff"></div>
           <div id="tr-out" class="tr-out" style="margin-top:14px"></div>
           <div class="tr-empty" id="tr-empty"><strong data-i18n="tr_empty_t">Your notes appear here</strong><ol><li data-i18n="tr_empty_1">Press Record and allow the microphone.</li><li data-i18n="tr_empty_2">Hum one note at a time, then press Stop.</li><li data-i18n="tr_empty_3">Play the notes back, or save them as MIDI or text.</li></ol></div>
           <div class="row" id="tr-actions" style="margin-top:12px; display:none">
@@ -667,6 +732,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </div>
           <div class="ss-wrap" id="ex-staff" role="img" aria-label="Treble and bass clef notation" data-i18n-aria="aria_exstaff"></div>
           <p class="lede ex-staff-hint" data-i18n="ex_staff_hint">The same notes in both clefs — bass on the left, treble on the right, as on the keyboard. Notes too high or too low for a staff are named beside an arrow.</p>
+          <button type="button" class="btn ghost sm ex-open-kb" id="ex-open-kb" data-i18n="ex_open_kb" hidden>Show on-screen keyboard</button>
         </section>
         <section class="panel ex-circle" id="exp-circle" aria-labelledby="ex-circle-h">
           <h2 class="visually-hidden" id="ex-circle-h" data-i18n="ex_tab_circle">Circle of fifths</h2>
@@ -698,6 +764,11 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
               <h3 class="cof-chords-h" id="cof-chords-h" data-i18n="cof_chords">Chords in this key</h3>
               <div class="cof-chips" id="cof-chords" role="group" aria-labelledby="cof-chords-h"></div>
               <p class="cof-chords-hint" data-i18n="cof_chords_hint">Pick a chord to hear it and see it on the keys.</p>
+            </div>
+            <div class="cof-bridges" id="cof-bridges">
+              <button type="button" class="btn ghost sm" id="ex-go-scale" data-i18n="ex_go_scale">Practice scale →</button>
+              <button type="button" class="btn ghost sm" id="ex-go-prog" data-i18n="ex_go_prog">Progressions in key →</button>
+              <button type="button" class="btn ghost sm" id="ex-go-read" data-i18n="ex_go_read">Read in this key →</button>
             </div>
           </div>
           <figure class="cof-fing">
@@ -764,6 +835,9 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:4px"><span data-i18n="items_head">Every concept</span> <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0">· <span data-i18n="items_sub">warmer = stronger memory</span></span></div>
       <div id="itemGrid"></div>
+      <hr class="rule" />
+      <section aria-labelledby="prog-studio-h" id="prog-studio-sec"><div class="eyebrow" style="margin-bottom:10px" id="prog-studio-h" data-i18n="prog_studio">Technique, Melodies &amp; Voice</div>
+      <div class="prog-studio-grid" id="progStudio"></div></section>
       <hr class="rule" />
       <section aria-labelledby="prog-reading-h"><div class="eyebrow" style="margin-bottom:10px" id="prog-reading-h" data-i18n="prog_reading">Reading</div>
       <div id="rdx-stats"></div></section>

@@ -14,8 +14,40 @@
 .pr-continue-txt b.neutral{color:var(--ink)}
 .pr-redo{flex:none; min-height:44px; justify-content:center}
 
-/* Topic cards: a radio group, one card checked */
+/* Topic cards: a radio group, one card checked (5 unified cards) */
 .pr-topics{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:0}
+@media (min-width:1280px){ .pr-topics{grid-template-columns:repeat(5,minmax(0,1fr))} }
+
+/* Progressions top-level split (Exercise vs Play along) */
+.pr-prog-split{display:inline-grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; max-width:100%; margin:14px 0 2px; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--paper2)}
+.pr-prog-split[hidden]{display:none}
+.pr-prog-split [role=tab]{appearance:none; min-width:0; min-height:44px; padding:8px 16px; border:0; border-radius:9px; background:none; color:var(--muted); font:inherit; font-size:14px; font-weight:650; line-height:1.2; cursor:pointer}
+.pr-prog-split [role=tab]:hover{color:var(--ink)}
+.pr-prog-split [role=tab][aria-selected=true]{background:var(--accent); color:var(--accent-ink)}
+.pr-prog-split [role=tab]:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
+
+/* Sub-configuration blocks (Intervals style/dir, Chords tier, Scales tier, Melodies diff/demo) */
+.pr-subcfg{display:grid; gap:10px; margin-top:10px}
+.pr-subcfg[hidden]{display:none}
+.pr-subrow{display:grid; gap:4px}
+.pr-subrow[hidden]{display:none}
+.pr-subcfg .pr-sec{margin:4px 0 2px}
+.pr-mel-row{align-items:center; flex-wrap:wrap; gap:10px 12px}
+#pr-mel-demo{min-height:44px}
+#pr-mel-demo[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+
+/* Secondary disclosures ("More options", "Chord options", "Accompaniment options") */
+.pr-extra{margin-top:6px; border:1px solid var(--line); border-radius:10px; background:var(--paper2); padding:2px 12px}
+.pr-extra summary{list-style:none; min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; font:600 13.5px/1.3 var(--sans); color:var(--ink2)}
+.pr-extra summary::before{content:"▸"; color:var(--accent); transition:transform .12s}
+.pr-extra[open] > summary::before{transform:rotate(90deg)}
+.pr-extra summary::-webkit-details-marker{display:none}
+.pr-extra-body{display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; padding:4px 0 12px}
+
+/* Chain chord Roman numeral + name */
+#ac-chain .ch{display:inline-flex; align-items:baseline; gap:5px}
+#ac-chain .ch-rn{font-size:11.5px; font-weight:700; color:var(--muted)}
+#ac-chain .ch-nm{font-weight:700}
 .pr-topic{position:relative; min-width:0; padding:14px 14px 12px; overflow-wrap:break-word}
 .pr-topic-top{display:flex; align-items:center; gap:10px; min-width:0; padding-right:20px}
 .pr-glyph{flex:none; width:24px; height:24px; color:var(--accent)}
@@ -128,8 +160,10 @@
 .pr-chord-staff-block{text-align:center; min-width:0}
 .pr-chord-clef-label{font:600 10.5px/1.2 var(--sans); color:var(--muted); margin-bottom:1px}
 .pr-chord-keyboard{display:block; width:100%; max-width:280px; max-height:58px; height:auto}
+.pr-chord-keyboard.pr-chord-keyboard-dual{max-height:76px}
 .pr-chord-staff{display:block; width:100%; max-width:280px; max-height:64px; height:auto}
 .pr-chord-caption{font-variant-numeric:tabular-nums}
+.pr-hint-hand-legend{margin:2px 0 0; font-size:11.5px; font-weight:600; color:var(--muted)}
 .pr-chord-keyboard{
   --pr-chord-ink:#1a1416;
   --pr-chord-black-tint:color-mix(in srgb, var(--pr-chord-tint) 92%, var(--pr-chord-ink));
@@ -154,6 +188,8 @@
 .pr-chord-black[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-black-tint)}
 .pr-chord-key-dot{fill:var(--pr-chord-ink)}
 .pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 7.5px var(--sans); text-anchor:middle; dominant-baseline:central}
+.pr-hint-key-finger-rh{fill:var(--pr-chord-ink)}
+.pr-hint-key-finger-lh{fill:color-mix(in srgb, var(--pr-chord-ink) 74%, var(--paper)); font-weight:800}
 .pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.35}
 .pr-chord-key.pr-chord-changed .pr-chord-key-shape{stroke-width:2; stroke-dasharray:3 2}
 .pr-chord-key.pr-chord-sounding .pr-chord-key-shape{fill:var(--pr-chord-playing-tint)}
@@ -173,11 +209,11 @@
 .pr-study-detail{width:100%; padding-top:8px}
 .pr-study-detail:not([hidden]),.pr-study-layout,.pr-study-keyboard-wrap,.pr-study-staves{display:grid; gap:10px; min-width:0}
 .pr-study-chords{display:flex; flex-wrap:wrap; gap:6px}
-.pr-study-card .btn[aria-pressed=true]{border-color:var(--accent); color:var(--ink); box-shadow:inset 0 -2px var(--accent)}
+.pr-study-card .btn[aria-pressed=true]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); box-shadow:none}
 .pr-study-visuals{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:16px; align-items:start; max-width:840px}
 .pr-study-staff,.pr-study-keyboard{display:block; width:100%; height:auto}
 .pr-study-staff{max-width:370px}
-.pr-study-keyboard{max-width:330px}
+.pr-study-keyboard{max-width:330px; max-height:none}
 .pr-study-keyboard-title,.pr-study-direction{font-weight:600}
 .pr-study-column-mark{fill:transparent}
 .pr-study-selected .pr-study-column-mark{fill:var(--accent); opacity:.12}
@@ -188,8 +224,9 @@
 .pr-study-passage .pr-study-finger{text-decoration:underline}
 .pr-study-resolution.pr-study-playing{color:var(--ink); font-weight:700}
 .pr-study-key-finger{display:none; fill:#fff; font:bold 9px var(--sans); text-anchor:middle; dominant-baseline:central}
-.pr-technique-keyboard .pr-chord-sounding .pr-chord-key-dot{visibility:hidden}
-.pr-chord-sounding .pr-study-key-finger{display:block}
+.pr-technique-keyboard .pr-study-key-finger{display:block; fill:var(--pr-chord-ink)}
+.pr-technique-keyboard [data-chord-midi] .pr-chord-key-dot{visibility:hidden}
+.pr-chord-sounding .pr-study-key-finger{display:block; fill:#fff}
 @media (max-width:680px){.pr-study-visuals{grid-template-columns:minmax(0,1fr)}}
 .key[data-pr-hint-key]{outline:2px solid #004e97; outline-offset:-3px}
 .key[data-pr-hint-key]::after{content:attr(data-pr-hint-key); position:absolute; inset:auto 50% 23% auto; transform:translateX(50%); min-width:17px; border-radius:9px; padding:1px 3px; background:#004e97; color:#fff; text-align:center; font:700 11px/15px var(--sans); pointer-events:none; z-index:4}
@@ -200,14 +237,14 @@
 @media (min-width:1000px){
   #pr-home .pr-setup{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:40px; align-items:start}
   .pr-setup > *{grid-column:1 / -1}
-  .pr-setup > #pr-mode-h,.pr-setup > #pr-mode,.pr-setup > #pr-mode-hint,.pr-setup > #pr-mode-note,.pr-setup > #pr-dir-row{grid-column:1}
+  .pr-setup > #pr-mode-h,.pr-setup > #pr-mode,.pr-setup > #pr-mode-hint,.pr-setup > #pr-mode-note,.pr-setup > #pr-dir-row,.pr-setup > #pr-prog-split,.pr-setup > #pr-chord-cfg,.pr-setup > #pr-scale-cfg,.pr-setup > #pr-mel-cfg{grid-column:1}
   .pr-setup > #pr-mode{justify-self:start}
   .pr-setup > #pr-key-h{grid-column:2; grid-row:3}
   .pr-setup > #pr-keys{grid-column:2; grid-row:4 / span 4; align-self:start; flex-wrap:wrap; gap:6px}
   .pr-setup > #pr-keys .pr-chip{min-width:34px; min-height:36px; padding:0 8px; font-size:13px; white-space:nowrap}
-  /* Play along: every control on one line while it fits. */
-  .pr-along{display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line)}
-  .pr-along-row{display:contents}
+  /* Play along: clean starter row (Progression + Tempo) + optional disclosure. */
+  .pr-along{display:grid; gap:10px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line)}
+  .pr-along-row{display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px}
   .pr-tempo{flex:1 1 220px; max-width:360px}
   /* Start closes the form at the right, under the key chips; a line marks the end of the choices. */
   .pr-setup > #pr-start{justify-self:end; min-width:min(100%,320px); margin-top:20px}
@@ -216,11 +253,15 @@
 }
 @media (pointer:coarse){
   .pr-setup > #pr-keys .pr-chip{min-width:44px; min-height:44px}
+  .pr-hint-seg-btn,.pr-family-tab{min-height:44px}
 }
-/* Very wide: the six topic cards in one row instead of two half-empty ones. */
-@media (min-width:1600px){ .pr-topics{grid-template-columns:repeat(6,minmax(0,1fr))} }
-
 @media (max-width:680px){
+  .pr-prog-split{display:grid; width:100%}
+  .pr-subcfg .seg{display:flex; width:100%; flex-wrap:wrap}
+  .pr-subcfg .seg button{flex:1 1 0; min-width:0; min-height:44px; padding:8px 6px; white-space:normal; line-height:1.25}
+  .pr-mel-row #pr-mel-demo{width:100%}
+  .pr-extra-body .field{width:100%; justify-content:space-between}
+  .pr-extra-body .field select{flex:1 1 auto}
   #pr-home .pr-setup{padding:16px 14px}
   .pr-topics{grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
   .pr-topic{padding:12px 11px 10px}
@@ -240,6 +281,9 @@
   .pr-songs .songs,.pr-hint-grid,.pr-hint-grid.pr-family-grid{grid-template-columns:minmax(0,1fr)}
   .pr-hint-seg-btn,.pr-family-tab{min-height:44px; font-size:13px}
   #pr-home.has-mobile-bar{padding-bottom:76px}
+}
+@media (max-width:420px){
+  #pr-mode button{font-size:13px; padding:8px 6px; line-height:1.2}
 }
 @media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before, .pr-hint-card, .pr-hint-card .pr-hint-play, .pr-hint-seg-btn, .pr-family-tab, .pr-interval-card .songlist button{transition:none} }
 .pr-sum-sustain{margin:0 0 12px; padding:8px; border-block:1px solid var(--line); font-size:13px}

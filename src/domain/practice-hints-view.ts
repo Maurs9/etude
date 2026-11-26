@@ -23,6 +23,7 @@ export function isPracticeHintsTopic(topic: string): topic is PracticeHintsTopic
 interface HintViewOptions extends StudyHintOptions {
   readonly tonic: number | null;
   readonly chordName: (symbol: string) => string;
+  readonly formatChord?: (root: string, symbol: string) => string;
   readonly scaleName: (name: string) => string;
   readonly study: StudyHintState;
 }
@@ -105,13 +106,14 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     studyToggles.set(hint, setOpen);
     setOpen(options.study.open[kind] === hint);
   }
+  const formatChord = options.formatChord ?? ((root: string, symbol: string) => symbol === 'maj' ? root : root + symbol);
   const buildChordCard = (symbol: string) => {
     const id = `chord:${symbol}`;
     const invCount = chordHintInversionCount(symbol);
     let currentInv = Math.max(0, Math.min(options.study.inversions.get(symbol) ?? 0, invCount - 1));
     const rootTones = chordHintTones(symbol, tonic, 0);
     const tonicName = spell(rootTones[0].li, rootTones[0].acc);
-    const symbolName = tonicName + (symbol === 'maj' ? '' : symbol);
+    const symbolName = formatChord(tonicName, symbol);
     const title = `${symbolName} · ${chordName(symbol)}`;
     const voicings = Array.from({ length: invCount }, (_, inv) => ({
       symbol: `${symbol}:${inv}`,
@@ -158,19 +160,23 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     const hint = SCALE_HINTS.find(item => item.name === name) ?? SCALE_HINTS[0];
     const title = `${rootName(tonic)} · ${scaleName(hint.name)}`;
     const id = `scale:${hint.name}`;
-    let currentHand: TechniqueHand = options.study.scaleHands.get(hint.name) ?? 'rh';
-    const baseTones = scaleHintTones(hint.name, tonic);
-    const names = baseTones.map(tone => spell(tone.li, tone.acc)).join(' · ');
-    const keyboard = createHintKeyboard(baseTones[0].midi, baseTones.map(tone => tone.midi));
+    const rhTones = scaleHintTones(hint.name, tonic, 'rh');
+    const lhTones = scaleHintTones(hint.name, tonic, 'lh');
+    const names = rhTones.map(tone => spell(tone.li, tone.acc)).join(' · ');
+    const keyboard = createHintKeyboard(rhTones[0].midi, rhTones.map(tone => tone.midi));
     const visuals = element('div', 'pr-hint-stage pr-hint-visuals');
     visuals.append(keyboard.svg);
     const caption = element('p', 'pr-hint-detail pr-chord-caption', names);
-    const drawScale = (hand: TechniqueHand) => {
-      const fingered = scaleHintTones(hint.name, tonic, hand);
-      const label = text('pr_hints_chord_keyboard', `${scaleName(hint.name)} · ${text(`tq_h_${hand}`)}`, names);
-      keyboard.draw(fingered, label);
-    };
-    drawScale(currentHand);
+    const rhFingers = rhTones.map(t => t.finger ?? '-').join(' ');
+    const lhFingers = lhTones.map(t => t.finger ?? '-').join(' ');
+    const label = text('pr_hints_chord_keyboard', `${scaleName(hint.name)} · ${text('tq_h_rh')} (${rhFingers}) · ${text('tq_h_lh')} (${lhFingers})`, names);
+    const dualTones = rhTones.map((tone, i) => ({
+      midi: tone.midi,
+      tonic: tone.tonic,
+      fingerRh: tone.finger,
+      fingerLh: lhTones[i]?.finger,
+    }));
+    keyboard.draw(dualTones, label);
     const diagram: PracticeHintDiagram = {
       followWithoutDock: true,
       paint(_rawKey, sounding = []) {
@@ -178,29 +184,10 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       },
     };
     const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
-      () => play(id, scaleSingleSteps(hint.name, tonic), false, diagram, `${id}:hear`));
+      () => play(id, scaleSingleSteps(hint.name, tonic, 'rh'), false, diagram, `${id}:hear`));
     const el = buildCard(hint.name, title, scaleHintFormula(hint), playBtn, visuals);
     el.classList.add('pr-scale-card');
-    el.append(caption);
-    const foot = element('div', 'pr-hint-foot');
-    foot.append(segmentedControl(
-      `${text('pr_hints_hand_group')} — ${title}`,
-      (['rh', 'lh'] as const).map(hand => ({
-        value: hand,
-        id: `${id}:hand:${hand}`,
-        label: text(`pr_hints_hand_${hand}_short`),
-        ariaLabel: `${text(`tq_h_${hand}`)} — ${title}`,
-      })),
-      currentHand,
-      hand => {
-        if (currentHand === hand) return;
-        options.stop();
-        currentHand = hand;
-        options.study.scaleHands.set(hint.name, hand);
-        drawScale(hand);
-      },
-    ));
-    el.append(foot);
+    el.append(caption, element('p', 'pr-hint-hand-legend', text('pr_hints_dual_legend')));
     return el;
   };
 
@@ -277,7 +264,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const stage = element('div', 'pr-hint-stage');
       const sequence = element('ol', `pr-progression-sequence${chords.length === 12 ? ' pr-progression-grid-12' : ''}`);
       sequence.setAttribute('role', 'list');
-      const names = chords.map(({ root, symbol }) => rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol));
+      const names = chords.map(({ root, symbol }) => formatChord(rootName(root, tonic, hint.minor), symbol));
       const columns = chords.map(({ roman }, i) => {
         const item = element('li', 'pr-progression-chord');
         item.append(element('span', 'pr-progression-degree', roman), element('strong', 'pr-progression-name', names[i]));
@@ -299,7 +286,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const id = `prog:${hint.name}`;
       const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
         () => play(id, progressionHintSteps(hint, tonic), !audioOnly, diagram, `${id}:hear`));
-      const keyLabel = rootName(tonic, tonic, hint.minor) + (hint.minor ? 'm' : '');
+      const keyLabel = formatChord(rootName(tonic, tonic, hint.minor), hint.minor ? 'm' : '');
       const el = buildCard(hint.name, title, keyLabel, playBtn, stage, text(`pr_hints_p_${hint.cue}`));
       if (audioOnly) {
         const foot = element('div', 'pr-hint-foot');

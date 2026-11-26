@@ -421,7 +421,7 @@ test.describe('Read player', () => {
     await expect(page.locator('#rd-verdict')).not.toBeEmpty();
     await expect(page.locator('#rdn-result')).toBeHidden();
     await expect(page.locator('#rd-lede')).toHaveText(en.rd_lede);
-    await page.locator('#rdn-home-back').click();
+    await page.locator('#rdt-book').click();
     await expect(page.locator('#rdn-home')).toBeVisible();
   });
 
@@ -604,7 +604,7 @@ test.describe('Read player', () => {
     await openHome(app);
     await page.locator('#rdt-pieces').click();
     await page.locator('#rd-mode button[data-v="learn"]').click();
-    await page.locator('#rdn-home-back').click();
+    await page.locator('#rdt-book').click();
     await page.locator('#rdn-book-go').click();
     expect(await page.evaluate(() => window.__etude.SR.modeSel)).toBe('assess');
     await page.locator('#rdn-back').click();
@@ -667,10 +667,12 @@ test.describe('Read player', () => {
     await expect(page.locator('#rdn-p-live')).toHaveText(fill(en.rdn_title_no, 2, 96));
     await page.locator('#rdn-back').click();
     await expect.poll(() => focusedId(page)).toBe('rdn-book-go');
-    // The old screens: Back to Read returns to the button that opened them.
+    // Top tabs switch cleanly back to Reading book from Reading drills.
     await page.locator('#rdt-drills').click();
-    await page.locator('#rdn-home-back').click();
-    await expect.poll(() => focusedId(page)).toBe('rdt-drills');
+    await expect(page.locator('#rdp-drills')).toBeVisible();
+    await page.locator('#rdt-book').click();
+    await expect(page.locator('#rdn-home')).toBeVisible();
+    await expect.poll(() => focusedId(page)).toBe('rdt-book');
     // The result card takes the focus only when it was lost: an attempt started with Start leaves it on that button.
     await page.locator('.rdn-num[data-rdn-n="1"]').click();
     await playAttempt(page);

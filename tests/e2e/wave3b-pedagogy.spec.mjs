@@ -90,7 +90,8 @@ test.describe('Wave 3B: quiz why pedagogy, Read key warm-up, Studio & ABRSM mile
     await page.locator('#rd-warm-scale').click();
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
     await expect(page.locator('#tq-drill')).toBeVisible();
-    await expect(page.locator('#pr-cat')).toHaveValue('technique');
+    await expect(page.locator('#pr-cat')).toHaveValue('scale');
+    await expect(page.locator('#pr-mode button[data-v="tech"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#tq-drill [data-tq="octaves"] button[data-v="1"]')).toHaveAttribute('aria-pressed', 'true');
 
     // Return to Read, open the reader stage, and load an A-minor fixture (keyN: 0, minor: true); Scale in key -> opens A natural minor.

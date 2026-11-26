@@ -88,6 +88,7 @@ describe('Practice hint catalog', () => {
     expect(scaleHintFormula(lydian)).toBe('1 2 3 ♯4 5 6 7');
     const singleDorian = scaleSingleSteps('Dorian', 2);
     expect(notes(singleDorian).flat()).toEqual([62, 64, 65, 67, 69, 71, 72, 74]);
+    expect(notes(scaleSingleSteps('Dorian', 2, 'lh')).flat()).toEqual([50, 52, 53, 55, 57, 59, 60, 62]);
     expect(singleDorian.every(step => step.diagramKey === 'Dorian')).toBe(true);
 
     for (const hint of SCALE_HINTS) {
