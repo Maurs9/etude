@@ -1,10 +1,18 @@
-/* Read home: Today, the book, Warm-up and Progress, and the player header and result card of level pieces.
-   Layout: the same as the Today page (its classes, from etude.css): the session card beside the day's plan from 960px,
-   one column below; then the book and the other ways to practice, full width. Every control is at least 44px high. Colours come from the app's theme variables. */
+/* Read home: Unified Today hero + companion routine, the book, Warm-up and Progress, and the player header and result card of level pieces.
+   Every control is at least 44px high. Colours come from the app's theme variables. */
 .rdn-home{margin-top:6px}
-/* The home is laid out like Today: the session card and the day's plan side by side, then the book, then the tools. */
+/* Unified Today hero: Today's set and the daily companion steps live inside one balanced card. */
 #view-read:not([data-rdn=home]) #rdn-streak{display:none}
-.rdn-overview .plan-list{grid-template-columns:minmax(0,1fr)}
+.rdn-today-grid{display:grid; grid-template-columns:minmax(0,1.35fr) minmax(270px,1fr); gap:16px 24px; align-items:start}
+.rdn-today-main{min-width:0}
+.rdn-today-side{min-width:0; border-left:1px solid var(--line); padding-left:22px}
+.rdn-today-side .plan-head{margin-bottom:10px}
+.rdn-today-side .plan-head h3{font-family:var(--serif); font-size:18px; font-weight:600; margin:0}
+.rdn-side-list{grid-template-columns:minmax(0,1fr)}
+@media (max-width:959.98px){
+  .rdn-today-grid{grid-template-columns:minmax(0,1fr); gap:14px}
+  .rdn-today-side{border-left:0; border-top:1px solid var(--line); padding-left:0; padding-top:14px}
+}
 .rdn-hero .rdn-stats{margin-bottom:6px}
 .rdn-hero .nextup{margin:0 0 4px}
 .rdn-hero .rdn-slots{margin:10px 0 12px}
@@ -55,8 +63,8 @@
 .rdn-lvdesc{margin:10px 0 0; color:var(--ink2); font-size:14px; overflow-wrap:anywhere}
 .rdn-lvdesc b{font-family:var(--serif); font-size:16px}
 .rdn-pat{color:var(--gold-ink); font-size:13px}
-.rdn-keys{display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px}
-.rdn-key{min-height:48px; padding:3px 2px; display:grid; place-items:center; line-height:1.15; position:relative}
+.rdn-keys{display:flex; flex-wrap:wrap; gap:6px}
+.rdn-key{min-height:48px; min-width:82px; padding:4px 10px; display:grid; place-items:center; line-height:1.15; position:relative}
 /* The status in a sign as well as a colour: a check for secure, a dot for started (the chip's label says it in words). */
 .rdn-mk{font-size:11px; line-height:1; font-weight:700}
 .rdn-key .rdn-mk{position:absolute; top:4px; right:5px}
@@ -67,7 +75,7 @@
 .rdn-key b{font-weight:700}
 .rdn-key small{font-size:11px; color:var(--muted); font-weight:400}
 .rdn-key[aria-pressed=true] small{color:inherit; opacity:.8}
-.rdn-key.rdn-mix{grid-column:span 2}
+.rdn-key.rdn-mix{min-width:148px}
 .rdn-key[data-m="1"]{box-shadow:inset 0 -4px 0 var(--gold)}
 .rdn-key[data-m="2"]{box-shadow:inset 0 -4px 0 var(--good)}
 .rdn-more{margin-top:6px}
@@ -96,34 +104,31 @@
 /* Progress */
 .rdn-suggest{margin-top:12px; padding:12px; border-radius:10px; background:var(--good-bg); color:var(--good); display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 
-/* The old tabs: at the top of the drills and melody screens, a quiet row under "More" on the home */
-.rdn-more-h{font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink2); margin:26px 0 0}
-#view-read[data-rdn=home] .rdx-tabs{border-bottom:0; gap:8px; margin:8px 0 0; flex-wrap:wrap; overflow:visible}
-/* On the home the two buttons have no tab role (see rdnTabRoles), so they are styled here by data-tab. */
-#view-read[data-rdn=home] .rdx-tabs [data-tab]{appearance:none; font:inherit; font-weight:650; cursor:pointer; min-height:44px; border:1px solid var(--line2); border-radius:10px; margin:0; padding:8px 14px;
-  background:var(--paper2); color:var(--ink2); font-size:14px; white-space:normal}
-#view-read[data-rdn=home] .rdx-tabs [data-tab]:hover{color:var(--accent); border-color:var(--accent)}
-#view-read[data-rdn=home] .rdx-tabs [data-tab]:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
-.rdn-backrow{margin:10px 0 0}
+/* Top Read tabs sit cleanly above every screen except active player / warm-up (handled by hidden attribute). */
+#view-read[data-rdn=melody] .rd-gen-title{margin-top:6px}
+#view-read[data-rdn=melody] #rd-meta{margin-top:4px !important}
+#view-read[data-rdn=melody] #rd-staff{margin-top:6px !important}
+#view-read[data-rdn=melody] #rd-coach{margin-top:6px; padding:7px 12px}
+#view-read[data-rdn=melody] #rd-play-controls{margin-top:6px !important}
 
 /* The player */
-.rdn-phead{display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; margin-bottom:12px}
-.rdn-phead-t{min-width:0}
-.rdn-phead h2{font-family:var(--serif); font-size:22px; font-weight:600; margin:0}
-.rdn-phead .rdn-sub{display:block; margin:2px 0 0}
+.rdn-phead{display:flex; align-items:center; gap:6px 10px; flex-wrap:wrap; margin-bottom:8px}
+.rdn-phead-t{min-width:0; display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px}
+.rdn-phead h2{font-family:var(--serif); font-size:21px; font-weight:600; margin:0}
+.rdn-phead .rdn-sub{display:inline-block; margin:0}
 #view-read[data-rdn=player] #rd-gen-title,#view-read[data-rdn=player] #rd-meta{display:none}
 /* In the player the page's own heading gives its room to the score (it stays for screen readers). */
 #view-read[data-rdn=player] .rdn-head{position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap}
 body[data-stage=immersive] #rdn-player-head{display:none !important}
-.rdn-check{display:flex; flex-wrap:wrap; gap:2px 26px; margin:8px 0 2px; padding-left:20px; color:var(--ink2); font-size:14px}
+.rdn-check{display:flex; flex-wrap:wrap; gap:2px 24px; margin:4px 0 2px; padding-left:20px; color:var(--ink2); font-size:13.5px}
 .rdn-check li{margin:0}
 .rdn-result{margin-top:10px; padding:14px 16px; border:1px solid var(--line2); border-radius:var(--rad); background:var(--card); box-shadow:var(--shadow)}
 .rdn-r-top{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
 .rdn-r-top h3{font-family:var(--serif); font-size:30px; margin:0}
 .rdn-r-top .rdx-stars{font-size:40px; line-height:1; color:var(--gold-ink); letter-spacing:4px}
 .rdn-r-msg{margin:6px 0 0; color:var(--ink2)}
-/* The paper of a level piece: a page, centred, no wider than four bars read well. */
-#view-read[data-rdn=player] #rd-staff{max-width:1120px; margin-inline:auto}
+/* The paper of a level piece stretches across the full work area while remaining readable and centred. */
+#view-read[data-rdn=player] #rd-staff{max-width:100%; margin-inline:auto}
 body[data-stage=immersive] #view-read[data-rdn=player] #rd-staff{max-width:none}
 .rdn-res{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:12px 0 0}
 .rdn-res div{text-align:center; border:1px solid var(--line); border-radius:10px; padding:8px 4px; min-width:0}
@@ -132,7 +137,7 @@ body[data-stage=immersive] #view-read[data-rdn=player] #rd-staff{max-width:none}
 @media (max-width:479.98px){ .rdn-res{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .rdn-check-pref{display:inline-flex; gap:8px; align-items:center; min-height:44px; cursor:pointer}
 .rdn-auto{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; color:var(--accent); font-weight:700}
-body[data-stage=immersive] #rdn-backrow,body[data-stage=immersive] #rdn-home,body[data-stage=immersive] #rdn-more-h{display:none !important}
+body[data-stage=immersive] #rdn-home{display:none !important}
 
 /* Warm-up: the card on the home, then its own screen (a header, the flash cards, the drills it borrows) */
 .rdn-w-head{margin-top:10px}

@@ -4,6 +4,8 @@ interface KeyboardTone {
   readonly midi: number;
   readonly tonic: boolean;
   readonly finger?: number;
+  readonly fingerRh?: number;
+  readonly fingerLh?: number;
 }
 
 const whitePitches = new Set([0, 2, 4, 5, 7, 9, 11]);
@@ -26,23 +28,26 @@ export function createHintKeyboard(root: number, range: readonly number[]) {
     while (!isWhiteKey(high)) high++;
     const list = Array.from({ length: high - low + 1 }, (_, index) => low + index);
     const width = list.filter(isWhiteKey).length * whiteWidth + 4;
-    return { list, viewBox: `0 0 ${width} 62` };
+    return { list, width };
   };
   let layout = computeKeys(range);
-  const svg = hintSvg('pr-chord-keyboard', layout.viewBox);
+  const svg = hintSvg('pr-chord-keyboard', `0 0 ${layout.width} 62`);
   svg.dataset.chordRoot = String(pitchClass(root));
   let markedKeys: Element[] = [];
 
   const draw = (tones: readonly KeyboardTone[], label: string, changed?: ReadonlySet<number>, fitRange = false) => {
     if (fitRange && tones.length) {
       layout = computeKeys(tones.map(tone => tone.midi));
-      svg.setAttribute('viewBox', layout.viewBox);
     }
+    const hasDual = tones.some(tone => tone.fingerRh !== undefined || tone.fingerLh !== undefined);
+    svg.setAttribute('viewBox', `0 0 ${layout.width} ${hasDual ? 76 : 62}`);
+    svg.classList.toggle('pr-chord-keyboard-dual', hasDual);
     const marked = new Map(tones.map(tone => [tone.midi, tone]));
     const white: string[] = [], black: string[] = [];
     for (const midi of layout.list) {
       const isWhite = isWhiteKey(midi);
-      const keyWidth = isWhite ? whiteWidth : blackWidth, height = isWhite ? 58 : 35;
+      const keyWidth = isWhite ? whiteWidth : blackWidth;
+      const height = hasDual ? (isWhite ? 72 : 44) : (isWhite ? 58 : 35);
       const x = 2 + white.length * whiteWidth - (isWhite ? 0 : blackWidth / 2);
       const tone = marked.get(midi);
       const classes = `pr-chord-key pr-chord-${isWhite ? 'white' : 'black'}`
@@ -50,12 +55,25 @@ export function createHintKeyboard(root: number, range: readonly number[]) {
       const cx = x + keyWidth / 2, cy = height - 6;
       let mark = '';
       if (tone) {
-        if (tone.finger === undefined || tone.tonic) {
-          const radius = tone.finger === undefined ? (tone.tonic ? 3.4 : 2.6) : 5;
-          mark += `<circle class="pr-chord-key-dot" cx="${cx}" cy="${cy}" r="${radius}"/>`;
-        }
-        if (tone.finger !== undefined) {
-          mark += `<text class="pr-hint-key-finger" x="${cx}" y="${cy}">${tone.finger}</text>`;
+        if (hasDual) {
+          const cyRh = height - 18, cyLh = height - 6;
+          if (tone.tonic) {
+            mark += `<circle class="pr-chord-key-dot" cx="${cx}" cy="${cyRh}" r="4.6"/>`;
+          }
+          if (tone.fingerRh !== undefined) {
+            mark += `<text class="pr-hint-key-finger pr-hint-key-finger-rh" x="${cx}" y="${cyRh}">${tone.fingerRh}</text>`;
+          }
+          if (tone.fingerLh !== undefined) {
+            mark += `<text class="pr-hint-key-finger pr-hint-key-finger-lh" x="${cx}" y="${cyLh}">${tone.fingerLh}</text>`;
+          }
+        } else {
+          if (tone.finger === undefined || tone.tonic) {
+            const radius = tone.finger === undefined ? (tone.tonic ? 3.4 : 2.6) : 5;
+            mark += `<circle class="pr-chord-key-dot" cx="${cx}" cy="${cy}" r="${radius}"/>`;
+          }
+          if (tone.finger !== undefined) {
+            mark += `<text class="pr-hint-key-finger" x="${cx}" y="${cy}">${tone.finger}</text>`;
+          }
         }
       }
       (isWhite ? white : black).push(`<g class="${classes}"${tone ? ` data-chord-midi="${midi}"` : ''}>`

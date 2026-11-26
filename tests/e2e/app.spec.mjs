@@ -45,7 +45,7 @@ test.describe('i18n', () => {
 
   // `pr_start` used to be defined twice (Practice button and score prompt): the later one won, so the
   // Practice page's "Start drilling" button read "Press Space or ▶ to start". It now names the choice (`pr_start_sel`).
-  for (const [lang, label] of [['en', 'Start: Intervals · Play it · All keys'], ['ro', 'Începe: Intervale · Cântă · Toate tonalitățile']]) {
+  for (const [lang, label] of [['en', 'Start: Intervals · Play interval · All keys'], ['ro', 'Începe: Intervale · Cântă intervalul · Toate tonalitățile']]) {
     test(`Practice start button keeps its own label (${lang})`, async ({ app }) => {
       const page = await app.open({ lang, hash: 'practice' });
       await expect(page.locator('#pr-start')).toHaveText(label);
@@ -1916,6 +1916,7 @@ test.describe('reading drills: every level is open', () => {
   test('on a fresh save no level is locked, and any level opens in any order', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     await page.locator('#rdt-drills').click();
+    await page.locator('#rdx-show-orch').check();
     const levels = page.locator('#rdx-ladder .rdx-lv');
     expect(await levels.count()).toBe(await page.evaluate(() => Object.keys(window.__etude.RD_LV).length));
     await expect(page.locator('#rdx-ladder [aria-disabled]')).toHaveCount(0);
@@ -1974,7 +1975,7 @@ test.describe('reading statistics in Progress', () => {
     await app.open({ hash: 'read', saved: { v: 3, lang: 'en', data: { reading: { ...reading, prefs: { tab: 'stats', last: 'tr1' } } } } });
     await page.locator('#rdt-drills').click();
     await expect(page.locator('#rdp-drills')).toBeVisible();
-    await expect(page.locator('#rd-tabs [role=tab]')).toHaveCount(2);
+    await expect(page.locator('#rd-tabs [role=tab]')).toHaveCount(3);
     await expect(page.locator('#rdt-drills')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#rdt-pieces')).toHaveText(new RegExp(STRINGS.en.rdx_tab_pieces));
     expect(STRINGS.en.rdx_tab_pieces).toBe('Sight-reading');

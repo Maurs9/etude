@@ -97,7 +97,8 @@ test.describe('Wave 3A: studio report, Analysis links, minor technique & differe
   test('Technique supports melodic minor with natural descent and flags thumb-crossing timing bottlenecks', async ({ app, page }) => {
     await app.open({ hash: 'practice', dock: true });
     await page.clock.install();
-    await page.locator('#pr-t-technique').click();
+    await page.locator('#pr-t-scale').click();
+    await page.locator('#pr-mode button[data-v="tech"]').click();
     await page.locator('#pr-keys [data-v="9"]').click();
     await page.locator('#pr-start').click();
     await expect(page.locator('#tq-drill')).toBeVisible();
@@ -114,7 +115,7 @@ test.describe('Wave 3A: studio report, Analysis links, minor technique & differe
     await expect(page.locator('#tq-drill .tq-cell').nth(5)).toContainText('F');
     await playSequence(page, [79, 77, 76, 74, 72, 71, 69], 280);
 
-    await expect(page.locator('#q-elab')).toContainText('Thumb crossing slowed down');
+    await expect(page.locator('#q-elab')).toContainText('recommended thumb crossing');
     await expect(page.locator('#q-elab')).toContainText('finger 1');
   });
 

@@ -18,10 +18,13 @@ export interface TechniqueHost {
   spell(letter: number, acc: number): string;
   /** Marks one key on the dock (null clears it). */
   mark(midi: number, state: 'target' | 'good' | 'bad' | null): void;
+  /** Ensures the target key(s) of the current step are visible on the dock. */
+  ensureVisible?(midis: readonly number[]): void;
   clearMarks(): void;
   byId(id: string): HTMLElement;
   /** The setting Accept any octave: a key of the right note name counts in any octave. */
   anyOctave(): boolean;
+  onComplete?(summary: { clean: boolean; bpm: number | null; kind: TechniqueKind; tonicPc: number }): void;
 }
 
 interface DrillState {
@@ -162,7 +165,11 @@ function paintProgress(host: TechniqueHost): void {
     }
   });
   host.clearMarks();
-  if (!s.done && fingeringShown(s)) s.steps[s.run.index]?.notes.forEach((note) => host.mark(note.midi, 'target'));
+  if (!s.done && fingeringShown(s)) {
+    const stepNotes = s.steps[s.run.index]?.notes ?? [];
+    host.ensureVisible?.(stepNotes.map((note) => note.midi));
+    stepNotes.forEach((note) => host.mark(note.midi, 'target'));
+  }
 }
 
 function restart(host: TechniqueHost, spec: TechniqueSpec): void {
@@ -268,6 +275,8 @@ function finish(host: TechniqueHost): void {
   }
   paintProgress(host);
   renderResult(host, s, grade);
+  const bpm = grade.meanIoiMs > 0 ? Math.round(60000 / grade.meanIoiMs) : null;
+  host.onComplete?.({ clean: grade.clean, bpm, kind: s.spec.kind, tonicPc: s.spec.tonicPc });
   const next = host.byId('q-next');
   next.hidden = false;
   next.focus();

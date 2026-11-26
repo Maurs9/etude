@@ -9,6 +9,16 @@ interface ProgressItem {
     short: string;
 }
 
+export interface StudioSummary {
+    techRuns: number;
+    techClean: number;
+    techBestBpm: number;
+    melRuns: number;
+    melAcc: number | null;
+    singCleared: number;
+    singTotal: number;
+}
+
 interface ProgressOptions<Item extends ProgressItem> {
     data: {
         totalReviews: number;
@@ -29,13 +39,15 @@ interface ProgressOptions<Item extends ProgressItem> {
     itemLabel: (item: Item) => string;
     statHTML: (value: number | string, label: string) => string;
     openDrill: (category: Item['cat']) => void;
+    openStudio?: (kind: 'tech' | 'melody' | 'sing') => void;
+    studioSummary?: StudioSummary;
     rdRenderStats: () => void;
     printSummaryHtml?: string;
     milestones?: StudioMilestoneSummary;
 }
 
 export function renderProgress<Item extends ProgressItem>(options: ProgressOptions<Item>) {
-    const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, rdRenderStats, printSummaryHtml, milestones } = options;
+    const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, openStudio, studioSummary, rdRenderStats, printSummaryHtml, milestones } = options;
     const tn = options.today;
     const acc = data.totalReviews ? Math.round(100 * data.totalCorrect / data.totalReviews) : 0;
     const printHead = document.getElementById('prog-print-head');
@@ -171,6 +183,55 @@ export function renderProgress<Item extends ProgressItem>(options: ProgressOptio
         sec.appendChild(grid);
         g.appendChild(sec);
     });
+    // Technique, Melodies & Voice (separate from SRS mastery)
+    const studioHost = document.getElementById('progStudio');
+    if (studioHost && studioSummary) {
+        studioHost.innerHTML = '';
+        const fill = (s: string, ...vals: Array<string | number>) => vals.reduce<string>((out, v, idx) => {
+            const m = ['%a', '%b', '%c'][idx];
+            return out.replace(m && out.includes(m) ? m : '%s', String(v));
+        }, s);
+        const cards: Array<{ kind: 'tech' | 'melody' | 'sing'; title: string; detail: string }> = [
+            {
+                kind: 'tech',
+                title: t('prog_st_tech'),
+                detail: studioSummary.techRuns > 0
+                    ? fill(t('prog_st_tech_sub'), studioSummary.techRuns, studioSummary.techClean, studioSummary.techBestBpm > 0 ? studioSummary.techBestBpm : '—')
+                    : t('prog_st_tech_none'),
+            },
+            {
+                kind: 'melody',
+                title: t('prog_st_mel'),
+                detail: studioSummary.melRuns > 0
+                    ? fill(t('prog_st_mel_sub'), studioSummary.melRuns, studioSummary.melAcc ?? 0)
+                    : t('prog_st_mel_none'),
+            },
+            {
+                kind: 'sing',
+                title: t('prog_st_voice'),
+                detail: fill(t('prog_st_voice_sub'), studioSummary.singCleared, studioSummary.singTotal),
+            },
+        ];
+        cards.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'prog-studio-card';
+            card.dataset.studio = item.kind;
+            const h = document.createElement('h3');
+            h.textContent = item.title;
+            const p = document.createElement('p');
+            p.textContent = item.detail;
+            card.append(h, p);
+            if (openStudio) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn sm ghost';
+                btn.textContent = t('prog_st_open');
+                btn.addEventListener('click', () => openStudio(item.kind));
+                card.appendChild(btn);
+            }
+            studioHost.appendChild(card);
+        });
+    }
     // Reading: the reading drills' statistics, with their own Reset button.
     rdRenderStats();
 }

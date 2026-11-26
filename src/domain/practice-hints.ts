@@ -56,7 +56,7 @@ export interface TechniqueHint {
 }
 
 export type ChordHintFamily = 'major' | 'minor' | 'dominant' | 'suspended';
-export type ScaleHintFamily = 'major' | 'minor' | 'exotic';
+export type ScaleHintFamily = 'core' | 'modes' | 'pentatonic' | 'exotic';
 
 export const CHORD_HINT_FAMILIES: readonly { readonly id: ChordHintFamily; readonly symbols: readonly string[] }[] = [
   { id: 'major', symbols: ['maj', '6', 'maj7', 'add9', 'maj9', 'maj7♯11'] },
@@ -66,8 +66,9 @@ export const CHORD_HINT_FAMILIES: readonly { readonly id: ChordHintFamily; reado
 ];
 
 export const SCALE_HINT_FAMILIES: readonly { readonly id: ScaleHintFamily; readonly names: readonly string[] }[] = [
-  { id: 'major', names: ['Lydian', 'Major (Ionian)', 'Mixolydian', 'Major pentatonic'] },
-  { id: 'minor', names: ['Dorian', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor', 'Phrygian', 'Locrian', 'Minor pentatonic', 'Blues'] },
+  { id: 'core', names: ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor'] },
+  { id: 'modes', names: ['Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Locrian'] },
+  { id: 'pentatonic', names: ['Major pentatonic', 'Minor pentatonic', 'Blues'] },
   { id: 'exotic', names: ['Harmonic major', 'Phrygian dominant', 'Hungarian minor', 'Whole tone', 'Diminished (W-H)', 'Diminished (H-W)', 'Chromatic'] },
 ];
 
@@ -463,8 +464,9 @@ function playScaleTones(tones: readonly PracticeHintNote[], seconds: number, dia
   return tones.map((tone, i) => ({ ...block([tone.midi], seconds, i + 1 === tones.length ? 0.22 : 0.035), diagramKey }));
 }
 
-export function scaleSingleSteps(name: string, tonic: number): PracticeHintStep[] {
-  return playScaleTones(scaleHintTones(name, tonic), 0.2, name);
+export function scaleSingleSteps(name: string, tonic: number, hand: TechniqueHand = 'rh'): PracticeHintStep[] {
+  const shift = hand === 'lh' ? -12 : 0;
+  return playScaleTones(scaleHintTones(name, tonic).map(tone => ({ ...tone, midi: tone.midi + shift })), 0.2, name);
 }
 
 export function progressionHintChords(hint: ProgressionHint, tonic: number) {

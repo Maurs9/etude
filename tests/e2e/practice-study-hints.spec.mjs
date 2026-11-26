@@ -4,8 +4,13 @@ const hint = (page, id) => page.locator('#practiceHintsList').locator(`[data-hin
 const toggle = card => card.getByRole('heading').getByRole('button');
 
 async function openHints(page, topic, ear = false) {
-  await page.locator(`#pr-t-${topic}`).click();
-  if (ear) await page.locator('#pr-mode button[data-v="ear"]').click();
+  if (topic === 'technique') {
+    await page.locator('#pr-t-scale').click();
+    await page.locator('#pr-mode button[data-v="tech"]').click();
+  } else {
+    await page.locator(`#pr-t-${topic}`).click();
+    if (ear) await page.locator('#pr-mode button[data-v="ear"]').click();
+  }
   await page.locator('#pr-songs summary').click();
 }
 
@@ -93,6 +98,9 @@ test('technique highlights the thumb crossing, then tracks the descending occurr
   await toggle(scale).click();
   await expect(scale.locator('.pr-technique-staff .ss-head')).toHaveCount(15);
   await expect(scale.locator('.pr-study-passage .pr-study-finger')).toHaveText(['3', '1']);
+  await expect(scale.locator('.pr-technique-keyboard')).toHaveClass(/pr-chord-keyboard/);
+  await expect(scale.locator('.pr-technique-keyboard')).toHaveAttribute('data-chord-root', '0');
+  await expect(scale.locator('.pr-study-key-finger').first()).toBeVisible();
   const audio = await mockPreview(page);
   await scale.getByRole('button', { name: /^Hear the passage/ }).click();
   await expect.poll(audio.notes).toEqual([64, 65, 64, 65]);

@@ -11,6 +11,10 @@ import {
 } from './score-types.js';
 
 export const SS_SYL_MAJ = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'], SS_SYL_MIN = ['la', 'ti', 'do', 're', 'mi', 'fa', 'sol'];
+export function ssSyllables(minor: boolean, locale = 'en'): string[] {
+  const ti = ['ro', 'fr', 'es', 'it', 'pt-BR'].includes(locale) ? 'si' : 'ti';
+  return minor ? ['la', ti, 'do', 're', 'mi', 'fa', 'sol'] : ['do', 're', 'mi', 'fa', 'sol', 'la', ti];
+}
 export const SS_MAJ: Record<number, { r: number; n: number }> = { 0: { r: 0, n: 0 }, 7: { r: 4, n: 1 }, 2: { r: 1, n: 2 }, 9: { r: 5, n: 3 }, 4: { r: 2, n: 4 }, 11: { r: 6, n: 5 }, 5: { r: 3, n: -1 }, 10: { r: 6, n: -2 }, 3: { r: 2, n: -3 }, 8: { r: 5, n: -4 }, 1: { r: 1, n: -5 } };
 export const SS_MIN: Record<number, number> = { 9: 5, 4: 2, 2: 1, 11: 6, 7: 4, 0: 0, 5: 3 }; // minor tonic pc -> tonic letter index
 
@@ -44,25 +48,30 @@ export function ssMakeNote(p: number, tonicLi: number, baseOct: number, acc: num
         a = a + 1; // harmonic-minor raised 7th
     return { li, oct, acc: a, dur, p, midi: ssMidiOf(li, oct, a) };
 }
-export function ssGen(level: number, clef: string, rangeShift: number): SightSingExercise {
+export function ssGen(level: number, clef: string, rangeShift: number, locale = 'en'): SightSingExercise {
     const L = SS_LEVELS[Math.max(0, Math.min(SS_LEVELS.length - 1, level))], minor = !!L.minor;
     const keyPc = ssPick(L.keys), tonicLi = minor ? SS_MIN[keyPc] : SS_MAJ[keyPc].r, n = minor ? SS_MAJ[(keyPc + 3) % 12].n : SS_MAJ[keyPc].n, acc = ssKeyAcc(n);
     const ts = ssPick(L.ts), cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0];
     const allowed = L.degs.slice();
     if (L.octaveUp)
         allowed.push(7);
+    const hasTonic = allowed.includes(0);
+    const startP = hasTonic ? 0 : (allowed[1] ?? allowed[0]);
+    const endP = hasTonic ? 0 : allowed[0];
+    const compoundHalf = ts[0] === 6 && ts[1] === 8;
     let baseOct = (clef === 'bass' ? 3 : 4) + (rangeShift || 0);
     const measures: SightSingNote[][] = [];
-    let prev = 0, beat = 0;
+    let prev = startP, beat = 0;
     for (let m = 0; m < L.bars; m++) {
         const notes: SightSingNote[] = [];
         let rem = cap;
         while (rem > 1e-6) {
-            const choices = L.durs.filter((d) => d <= rem + 1e-6);
-            const dur = ssPick(choices.length ? choices : [rem]);
-            const p = (m === 0 && !notes.length) ? 0 : ssNextDeg(prev, allowed, L.step);
+            const maxDur = compoundHalf && rem > 1.5 + 1e-6 ? rem - 1.5 : rem;
+            const choices = L.durs.filter((d) => d <= maxDur + 1e-6);
+            const dur = ssPick(choices.length ? choices : [maxDur]);
+            const p = (m === 0 && !notes.length) ? startP : ssNextDeg(prev, allowed, L.step);
             prev = p;
-            const note = Object.assign(ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, L.raise7), { tBeat: beat });
+            const note = Object.assign(ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, 0), { tBeat: beat });
             beat += dur;
             notes.push(note);
             rem -= dur;
@@ -70,9 +79,18 @@ export function ssGen(level: number, clef: string, rangeShift: number): SightSin
         measures.push(notes);
     }
     const lm = measures[measures.length - 1], lastN = lm[lm.length - 1];
-    const repl = Object.assign(ssMakeNote(0, tonicLi, baseOct, acc, minor, lastN.dur, 0), { tBeat: lastN.tBeat });
+    const repl = Object.assign(ssMakeNote(endP, tonicLi, baseOct, acc, minor, lastN.dur, 0), { tBeat: lastN.tBeat });
     lm[lm.length - 1] = repl;
-    return { clef, keyPc, minor, keyN: n, ts, cap, measures, bpm: L.bpm, level, totalBeats: beat, syl: minor ? SS_SYL_MIN : SS_SYL_MAJ, tonicMidi: ssMidiOf(tonicLi, baseOct, acc[tonicLi]) };
+    if (minor && L.raise7) {
+        const flat = measures.flat();
+        for (let i = 0; i < flat.length - 1; i++) {
+            if (flat[i].p === 6 && (flat[i + 1].p === 0 || flat[i + 1].p === 7) && Math.random() < L.raise7) {
+                flat[i].acc += 1;
+                flat[i].midi = ssMidiOf(flat[i].li, flat[i].oct, flat[i].acc);
+            }
+        }
+    }
+    return { clef, keyPc, minor, keyN: n, ts, cap, measures, bpm: L.bpm, level, totalBeats: beat, syl: ssSyllables(minor, locale), tonicMidi: ssMidiOf(tonicLi, baseOct, acc[tonicLi]) };
 }
 /* ---- SVG glyphs ---- */
 // Clefs are drawn as outlines anchored to their staff line (G or F), so they look the same on every device instead of depending on a system font's music glyphs.
@@ -114,7 +132,13 @@ export interface SightSingNotePosition { x: number; y: number; note: SightSingNo
 export interface SightSingRender { svg: string; W: number; noteX: SightSingNotePosition[]; scale: number }
 /** The most a sight-reading or sight-singing staff is enlarged to fill its paper, against its natural size. */
 /** `width` is the paper's inner width in CSS pixels: a short melody is enlarged to fill it (up to SR_SCALE_CAP); 0 keeps the natural size. */
-export function ssRender(ex: SightSingExercise, width = 0): SightSingRender {
+export type SightSingLabelMode = 'solfege' | 'degree' | 'note';
+export function ssRender(
+  ex: SightSingExercise,
+  width = 0,
+  labelMode: SightSingLabelMode = 'solfege',
+  noteLabel?: (note: SightSingNote) => string,
+): SightSingRender {
     const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
     let x = 10, body = '', noteX: SightSingNotePosition[] = [], idx = 0;
     body += ex.clef === 'bass' ? ssBassClef(x) : ssTrebleClef(x);
@@ -134,10 +158,15 @@ export function ssRender(ex: SightSingExercise, width = 0): SightSingRender {
             if (note.acc !== previous) g += ssAccGlyph(note.acc, previous, nx - 13, y);
             accidentals.set(pitch, note.acc);
             g += ssLedger(nx, y) + ssNotehead(nx, y, note.dur) + ssStem(nx, y, note.dur);
-            const syl = ex.syl[((note.p % 7) + 7) % 7];
+            const deg = ((note.p % 7) + 7) % 7;
+            const syl = labelMode === 'degree'
+              ? String(deg + 1)
+              : labelMode === 'note' && noteLabel
+                ? noteLabel(note)
+                : ex.syl[deg];
             body += `<g class="ss-n" data-i="${idx}"><rect class="ss-box" x="${nx - 12}" y="40" width="24" height="58" rx="4"/>${g}<text class="ss-syl" x="${nx}" y="126">${syl}</text></g>`;
             noteX.push({ x: nx, y, note, idx });
-            x += 26 + note.dur * 15;
+            x += 42 + note.dur * 22;
             idx++;
         });
         x += 6;
@@ -148,5 +177,5 @@ export function ssRender(ex: SightSingExercise, width = 0): SightSingRender {
     let staff = '';
     [46, 58, 70, 82, 94].forEach((ly) => staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${W - 6}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`);
     staff += `<line class="ss-line" x1="8" y1="46" x2="8" y2="94" stroke="#1a1714" stroke-width="1.3"/>`;
-    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} 150" width="${Math.floor(W * k)}" height="${Math.round(150 * k)}" xmlns="http://www.w3.org/2000/svg">${staff}${body}</svg>`, W, noteX, scale: k };
+    return { svg: `<svg class="ss-svg" viewBox="0 4 ${W} 142" width="${Math.floor(W * k)}" height="${Math.round(142 * k)}" xmlns="http://www.w3.org/2000/svg">${staff}${body}</svg>`, W, noteX, scale: k };
 }

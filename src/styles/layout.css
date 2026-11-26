@@ -71,13 +71,15 @@
   .hk span{text-align:left}
 }
 
-/* Sticky bottom mobile start bar (Practice & Read): sits cleanly above bottom navigation on narrow screens. */
+/* Sticky bottom mobile start bar (Practice & Read): sits cleanly above bottom navigation without a triple bottom stack. */
 .mobile-start-bar{display:none}
 @media (max-width:680px){
-  .mobile-start-bar:not([hidden]){position:fixed; left:0; right:0; bottom:var(--dock-h, var(--bnav-h, 0px)); z-index:calc(var(--z-nav) - 1);
+  .mobile-start-bar:not([hidden]){position:fixed; left:0; right:0; bottom:var(--bnav-h, 62px); z-index:calc(var(--z-nav) - 1);
     display:flex; align-items:center; gap:12px; min-height:58px;
     padding:8px calc(14px + env(safe-area-inset-right,0px)) max(8px, env(safe-area-inset-bottom,0px)) calc(14px + env(safe-area-inset-left,0px));
     background:var(--paper2); border-top:1px solid var(--line); box-shadow:0 -6px 20px -12px rgba(0,0,0,.22)}
+  #rd-mobile-bar:not([hidden]){bottom:calc(var(--bnav-h, 62px) + var(--dock-h, 0px))}
+  body.has-mobile-start-bar #dock.is-rail{display:none}
   .mobile-start-summary{flex:1 1 auto; min-width:0; font-size:13px; font-weight:600; line-height:1.3; color:var(--ink2);
     overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
   .mobile-start-btn{flex:none; min-width:96px; min-height:44px; padding-inline:18px; justify-content:center}

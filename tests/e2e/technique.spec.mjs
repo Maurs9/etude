@@ -19,8 +19,9 @@ async function playRun(page, gap, { wrongAt = -1, lateAt = -1 } = {}) {
 async function openDrill(app, key = '0') {
   const page = await app.open({ hash: 'practice', dock: true });
   await page.clock.install();
-  await page.locator('#pr-t-technique').click();
-  await expect(page.locator('#pr-mode button[data-v="ear"]')).toBeDisabled();
+  await page.locator('#pr-t-scale').click();
+  await page.locator('#pr-mode button[data-v="tech"]').click();
+  await expect(page.locator('#pr-mode button[data-v="keys"]')).toBeHidden();
   await expect(page.locator('#pr-mode-note')).toBeVisible();
   await page.locator(`#pr-keys [data-v="${key}"]`).click();
   await page.locator('#pr-start').click();
@@ -100,6 +101,20 @@ test.describe('Practice: scales and arpeggios', () => {
     await page.evaluate(() => { window.__etude.data.settings.anyOctave = true; });
     for (const midi of [...up, ...up.slice(0, -1).reverse()]) await play(midi);
     await expect(page.locator('#q-elab')).toContainText('Notes: 15 played · wrong keys: 1');
+  });
+
+  test('pans the dock for left-hand scales with exact octave checking and accepts clicking the lit key', async ({ app }) => {
+    const page = await openDrill(app, '11'); // B major: LH starts on B3 (MIDI 59)
+    await page.setViewportSize({ width: 390, height: 844 }); // 2-octave dock (C3–C5); shift up to C4–C6 so B3 is off-screen
+    await expect(page.locator('#octInd')).toHaveText('C3–C5');
+    await page.locator('#oct-up').click();
+    await expect(page.locator('#octInd')).toHaveText('C4–C6');
+    await page.locator('#tq-drill [data-tq="hands"] button[data-v="lh"]').click();
+    await expect(page.locator('#tq-drill [data-tq="hands"] button[data-v="lh"]')).toHaveAttribute('aria-pressed', 'true');
+    const targetKey = page.locator('#keys .key[data-midi="59"][data-s="target"]');
+    await expect(targetKey).toBeVisible();
+    await targetKey.click();
+    await expect(page.locator('#tq-drill .tq-cell').first()).toHaveClass(/done/);
   });
 
   test('judges a MIDI key by its own event time, not by when the page handled it', async ({ app }) => {

@@ -499,6 +499,8 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
             const full = lay.justify ? zs[s] - a >= zs[0] - starts[0] : nat >= 0.6 * T;
             if (starts.length > 1 && nat < T && sum > 0 && (!last || full))
                 stretch[s] = Math.min(lay.justify ? 3 : 1.8, 1 + (T - nat) / sum);
+            else if (starts.length === 1 && lay.justify && nat < T && sum > 0)
+                stretch[s] = Math.min(2.2, 1 + (T - nat) / sum);
             else if (proportional && starts.length > 1 && last && !full && s > 0 && sum > 0)
                 stretch[s] = Math.min(stretch[s - 1], 1 + Math.max(0, T - nat) / sum);
             else

@@ -3,13 +3,19 @@
    Hum to notes (#vo-hum), and one panel shows at a time. Wide: the switch sits under the heading at its own width.
    Phone (680px and below): the switch spans the width in two equal halves, and the controls are at least 44px tall. */
 /* Two equal halves, each as wide as the longer label. */
-.vo-switch{display:inline-grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; max-width:100%; margin:6px 0 16px; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
+#view-sing .section-head{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 18px}
+#view-sing .lede{margin-top:2px; font-size:15px}
+.vo-sing-panel{margin-top:10px}
+#view-sing .ss-wrap{margin-top:8px; padding:8px 12px}
+.vo-switch{display:inline-grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; max-width:100%; margin:0; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
 .vo-switch [role=tab]{appearance:none; min-width:0; min-height:44px; padding:8px 18px; border:0; border-radius:9px; background:none; color:var(--muted); font:inherit; font-size:14.5px; font-weight:650; line-height:1.2; cursor:pointer; overflow-wrap:anywhere}
 .vo-switch [role=tab]:hover{color:var(--ink)}
 .vo-switch [role=tab][aria-selected=true]{background:var(--accent); color:var(--accent-ink)}
 .vo-switch [role=tab]:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
 .vo-panel[hidden]{display:none}
 /* Hum to notes before a recording: where the notes will appear, and the three steps to get them. It goes once notes are shown. */
+.tr-staff{margin-top:10px; padding:8px 12px; max-height:180px; overflow-x:auto}
+.tr-staff[hidden]{display:none}
 .tr-out:empty{display:none}
 .tr-out:not(:empty) + .tr-empty{display:none}
 .tr-empty{display:flex; flex-direction:column; justify-content:center; gap:12px; min-height:140px; margin-top:14px; padding:18px 20px; border:1.5px dashed var(--line2); border-radius:12px; color:var(--muted)}
@@ -19,9 +25,21 @@
 .tr-empty li::before{content:counter(tr-step); flex:none; display:grid; place-items:center; width:26px; height:26px; border-radius:50%; border:1px solid var(--line2); font-weight:700; font-size:13px; color:var(--ink2)}
 
 @media (max-width:680px){
-  .vo-switch{display:grid; width:100%}
+  #view-sing .section-head{gap:6px 12px}
+  .vo-switch{display:grid; width:100%; padding:3px}
   .vo-switch [role=tab]{padding:8px 10px; font-size:14px}
-  #view-sing .panel{padding:14px 12px}
+  #view-sing .lede{margin-top:1px; font-size:12.5px; line-height:1.25}
+  .vo-sing-panel{margin-top:4px}
+  #view-sing .panel{padding:8px 10px}
+  .vo-sing-panel > .row:first-child{gap:4px 8px !important}
+  .vo-sing-panel > .row:first-child .field{font-size:12.5px}
+  .vo-sing-panel > .row:first-child select{padding:4px 6px; font-size:13px}
+  #view-sing .ss-wrap{margin-top:4px; padding:4px 8px}
+  #vo-sing > .lede{display:none}
+  #si-verdict,#si-live-row{margin-top:3px !important}
+  #si-controls{margin-top:6px !important; gap:6px !important}
+  #si-controls > span{display:none}
+  #si-staff .ss-svg{width:100%; height:auto}
   /* Thumb-sized controls */
   #view-sing .btn,#view-sing select,#view-sing .switch-inline,#view-sing input[type=range]{min-height:44px}
   #view-sing .seg{display:flex; width:100%}

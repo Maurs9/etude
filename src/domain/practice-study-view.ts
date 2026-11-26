@@ -39,7 +39,7 @@ export function renderProgressionStudy(
   const staffGroup = element('div', 'pr-study-staves');
   staffGroup.append(...rows);
   const chords = element('div', 'pr-study-chords');
-  const keyboard = hintSvg('pr-study-keyboard', '0 0 1 1');
+  const keyboard = hintSvg('pr-chord-keyboard pr-study-keyboard', '0 0 1 1');
   const keyboardTitle = element('p', 'pr-hint-detail pr-study-keyboard-title');
   const columns = [...staffGroup.querySelectorAll('[data-study-chord]')];
 
@@ -76,6 +76,7 @@ export function renderProgressionStudy(
           : resolution[Number(key.split(':')[1])].map(note => ({ ...note, tonic: false }));
         const description = chord ? label(chordIndex) : resolutionText.textContent;
         keyboardTitle.textContent = description;
+        keyboard.dataset.chordRoot = String((((chord ? chord.bass.midi : tonic) % 12) + 12) % 12);
         showStudyKeyboard(keyboard, notes, text('pr_hints_chord_keyboard', description, notes.map(note => spell(note.li, note.acc) + note.oct).join(' · ')));
         for (const [i, button] of selection.entries()) button.setAttribute('aria-pressed', String(i === chordIndex));
         resolutionText.classList.toggle('pr-study-playing', !chord);
@@ -135,7 +136,8 @@ export function renderTechniqueStudy(
     }
     const visual = element('div', 'pr-study-visuals');
     const staves = element('div', 'pr-study-staves');
-    const keyboard = hintSvg('pr-study-keyboard pr-technique-keyboard', '0 0 1 1');
+    const keyboard = hintSvg('pr-chord-keyboard pr-study-keyboard pr-technique-keyboard', '0 0 1 1');
+    keyboard.dataset.chordRoot = String(((tonic % 12) + 12) % 12);
     const makeStaff = (notes: readonly TechniqueNote[], start: number, direction: 'up' | 'down') => {
       const heading = text(`pr_hints_technique_${direction}`);
       staves.append(element('p', 'pr-hint-detail pr-study-direction', heading),

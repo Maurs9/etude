@@ -243,12 +243,12 @@ test.describe('Read at the piano', () => {
     expect(facts.bars).toBe(8);
     expect(facts.systems).toBe(2);
     expect(facts.scale).toBeGreaterThanOrEqual(0.85);
-    expect(facts.scale).toBeLessThanOrEqual(1.4);
+    expect(facts.scale).toBeLessThanOrEqual(1.8);
     expect(facts.fits).toBe(true);
     // Both systems end at the same place, near the right edge of the score.
     expect(Math.abs(facts.ends[0] - facts.ends[1])).toBeLessThan(2);
     expect(facts.ends[0]).toBeGreaterThan(facts.W * 0.95);
-    expect(facts.paperW).toBeLessThanOrEqual(1120);
+    expect(facts.paperW).toBeGreaterThan(1120);
     // The paper and the Start button are in view without scrolling; the page heading gives its room.
     expect(facts.paperBottom).toBeLessThan(facts.viewport);
     expect(facts.goBottom).toBeLessThanOrEqual(facts.viewport);

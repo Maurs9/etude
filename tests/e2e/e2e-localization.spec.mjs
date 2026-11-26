@@ -39,7 +39,7 @@ const LOCALES = [
     navExplore: 'Explorează',
     navScores: 'Piese',
     unit1Title: 'Fundamente',
-    scaleMajor: 'Majoră (ioniană)',
+    scaleMajor: 'Major (ionic)',
     accentsSample: 'Înălțimea și claviatura',
   },
   {

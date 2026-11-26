@@ -517,12 +517,14 @@ test.describe('mobile sticky start bars (Practice and Read)', () => {
 
     await expect(page.locator('#pr-mobile-summary')).toContainText('Intervals');
     await page.locator('#pr-topics [data-v="chord"]').click();
-    await page.locator('#pr-mode [data-v="ear"]').click();
+    const earModeBtn = page.locator('#pr-mode [data-v="ear"]');
+    const earModeLabel = (await earModeBtn.textContent())?.trim() ?? '';
+    await earModeBtn.click();
     const keyChip = page.locator('#pr-keys [role=radio]').nth(2);
     const keyLabel = (await keyChip.textContent())?.trim() ?? '';
     await keyChip.click();
     await expect(page.locator('#pr-mobile-summary')).toContainText('Chords');
-    await expect(page.locator('#pr-mobile-summary')).toContainText('By ear');
+    await expect(page.locator('#pr-mobile-summary')).toContainText(earModeLabel);
     await expect(page.locator('#pr-mobile-summary')).toContainText(keyLabel);
 
     await btn.click();

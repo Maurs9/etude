@@ -212,6 +212,24 @@ describe('Wave 3A natural minor, authentic melodic minor, and thumb-crossing gra
     }
   });
 
+  it('places thumb (finger 1) strictly on white keys on melodic minor descending across all tonics', () => {
+    const white = new Set([0, 2, 4, 5, 7, 9, 11]);
+    for (let tonicPc = 0; tonicPc < 12; tonicPc++) {
+      for (const octaves of [1, 2]) {
+        for (const hands of ['rh', 'lh']) {
+          const steps = techniqueSteps({ kind: 'melodicMinor', tonicPc, octaves, hands });
+          for (const step of steps) {
+            for (const note of step.notes) {
+              if (note.descending === true && note.finger === 1) {
+                expect(white.has(note.midi % 12)).toBe(true);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
   it('flags thumb-crossing bottlenecks separately from ordinary non-crossing hesitations', () => {
     const spec = { kind: 'major', tonicPc: 0, octaves: 1, hands: 'rh' };
     const thumbDelay = techniqueGrade(play(techniqueStart(techniqueSteps(spec)), 250, (index) => (index === 3 ? 150 : 0)));

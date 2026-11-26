@@ -76,7 +76,7 @@
   .wrap{width:100%; max-width:var(--page-max); margin:0 auto; padding-left:max(var(--page-gutter), env(safe-area-inset-left, 0px)); padding-right:max(var(--page-gutter), env(safe-area-inset-right, 0px))}
   /* Give interactive workspaces more room without stretching reading-heavy pages. */
   header .bar,header .hdr-note .wrap,main > .wrap,#view-today > .wrap,#view-practice > .wrap,
-  #view-read > .wrap,#view-explore > .wrap,#dock > .wrap{max-width:var(--work-max)}
+  #view-read > .wrap,#view-sing > .wrap,#view-explore > .wrap,#dock > .wrap{max-width:var(--work-max)}
   #view-analysis > .wrap{max-width:1760px}
 
   /* ---------- top bar ---------- */
@@ -447,6 +447,10 @@
     box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(100,50,160,.2), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(110,60,170,.3), 0 2px 4px rgba(0,0,0,.18)}
   .black[data-s=rh]{background:linear-gradient(180deg,#8b62c2 0%,#6f47a5 55%,#59358a 88%,#412369 100%);
     box-shadow:inset 1px 1px 0 rgba(235,215,255,.4), inset -1px 0 0 rgba(0,0,0,.6), 3px 3px 4px rgba(0,0,0,.22), 1px 2px 2px rgba(0,0,0,.32)}
+  /* Optional improvisation scale guide in Progressions · Play along: distinct teal ring/dot independent of LH/RH chord highlights */
+  .white[data-impro="1"]{box-shadow:inset 1px 0 0 rgba(255,255,255,.85), inset -1px 0 0 rgba(0,0,0,.08), inset 0 -4px 0 #1b8a78, 0 2px 2px rgba(0,0,0,.55)}
+  .black[data-impro="1"]{outline:2px solid #2ab39d; outline-offset:-2px}
+  .white[data-impro="1"][data-s]{box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset 0 -5px 0 #1b8a78, 0 2px 4px rgba(0,0,0,.18)}
   .switch-inline{display:inline-flex; align-items:center; gap:7px; font-size:13px; white-space:nowrap}
   .tr-live{font-family:var(--serif); font-weight:900; font-size:30px; min-width:120px; color:var(--gold); letter-spacing:.5px}
   .tr-live small{font-size:13px; font-weight:600; color:var(--muted); margin-left:6px}
@@ -1300,8 +1304,12 @@
     .iconbtn::after,.dock-tools .btn::after,.btn.dock-kb-toggle::after,.an-side-x::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
     .an-tabs [role=tab]{min-height:44px}
   }
+  @media (max-width:600px){
+    .ble-chip #bleChipText{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  }
   @media (max-width:420px){
-    .midi-chip{gap:5px; padding:6px 9px}
+    .bar{gap:6px; padding-inline:12px}
+    .midi-chip,.ble-chip{gap:4px; padding:6px 8px}
     .midi-ic{display:block}
     .midi-chip #midiText{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
   }
@@ -1704,6 +1712,11 @@
   box-shadow: var(--shadow);
 }
 
+  .prog-studio-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px}
+  .prog-studio-card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; align-items:flex-start}
+  .prog-studio-card h3{margin:0; font:600 16px/1.25 var(--serif); color:var(--ink)}
+  .prog-studio-card p{margin:0 0 4px; font-size:13px; color:var(--muted); line-height:1.4}
+  .prog-studio-card .btn{margin-top:auto}
 @media print {
   header, .bottomnav, .dock, footer, .scrim, .drawer, .helpbox, .app-dialog, .app-dialog-scrim,
   .prog-actions, .prog-data-section, .prog-danger, #prog-start, #rdx-reset, #prog-empty, details.osmd-lic, #syncNote {
