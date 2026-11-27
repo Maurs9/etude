@@ -2214,6 +2214,7 @@ test.describe('reading drills: note stream', () => {
   test('turning the stream off on the drills page also turns off the ghost option', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     await page.locator('#rdt-drills').click();
+    await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
     const flow = page.locator('#rdx-flow'), ghost = page.locator('#rdx-ghost');
     await expect(flow).toBeChecked();
     await expect(ghost).toBeEnabled();
@@ -2552,6 +2553,7 @@ test.describe('reading drills: arcade modes', () => {
   test('turning the stage off keeps a running drill inside the page', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     await page.locator('#rdt-drills').click();
+    await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
     await page.locator('#rdx-stage-pref').uncheck();
     expect(await page.evaluate(() => window.__etude.rdData().prefs.stage)).toBe(false);
     await start(page, TREBLE_PLAY, 'survival');
@@ -2704,6 +2706,7 @@ test('Settings row labels use for= associations and toggle switches when clicked
 test('weak-spot injection is opt-in and steers only practice, survival and marathon', async ({ app, page }) => {
   await app.open({ hash: 'read' });
   await page.locator('#rdt-drills').click();
+  await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
   await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();
   await page.locator('#settingsBtn').click();
   await page.locator('label:has(#set-weak-inject)').click();

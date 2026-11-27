@@ -198,8 +198,15 @@ test.describe('Read & play and Voice layout on wide windows', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await app.open({ hash: 'read' });
     await page.locator('#rdt-drills').click();
+    // The six options are folded under "Drill options", closed at first, and stay open when the hero is drawn again.
+    const opts = page.locator('#rdx-hero details#rdx-opts');
+    await expect(opts).not.toHaveAttribute('open', '');
+    await expect(page.locator('#rdx-hero #rdx-snd')).toBeHidden();
+    await opts.locator('summary').click();
     for (const id of ['rdx-cont', 'rdx-snd', 'rdx-hints', 'rdx-flow', 'rdx-ghost', 'rdx-stage-pref', 'rdx-weak-inject'])
       await expect(page.locator('#rdx-hero #' + id)).toBeVisible();
+    await page.locator('#rdx-filters [data-cat="notes"]').click();
+    await expect(opts).toHaveAttribute('open', '');
     await expect(page.locator('#rdx-next-name')).toHaveText('Treble clef · 1');
     await expect(page.locator('#rdx-hero .rdx-next-pic svg')).toHaveCount(1);
     await page.locator('#rdx-cont').click();

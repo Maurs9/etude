@@ -489,6 +489,8 @@
   .ss-wrap svg,
   body[data-stage=immersive] #rd-staff,
   body[data-stage=immersive] #rd-staff svg{color-scheme:only light}
+  /* No melody yet: no empty frame under the hint. The box keeps its width, which the first melody is drawn to. */
+  #rd-staff:empty{padding-top:0; padding-bottom:0; border-color:transparent; background:transparent; box-shadow:none}
   .ss-brace{fill:none; stroke:var(--staffink); stroke-width:2.4; stroke-linecap:round}
   .ss-svg{display:block}
   .ss-line{stroke:var(--staffink); stroke-opacity:.62}
