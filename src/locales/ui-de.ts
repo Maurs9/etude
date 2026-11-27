@@ -1711,6 +1711,7 @@ const payload: UIPayload = {
       "lu_gloss": "Glossar",
       "lu_due": "Fällig zur Wiederholung",
       "lu_sum": "Spickzettel",
+      "lu_outline": "Auf dieser Seite",
       "lu_quiz": "Wissen testen",
       "lu_quiz_d": "%a Fragen — beantworte %b richtig, um das Kapitel abzuschließen.",
       "lu_q_start": "Test starten",

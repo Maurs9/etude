@@ -2160,6 +2160,7 @@ const payload: UIPayload = {
       "lu_gloss": "Glosar",
       "lu_due": "De recapitulat",
       "lu_sum": "Fișă rezumat",
+      "lu_outline": "Pe această pagină",
       "lu_quiz": "Verifică-te",
       "lu_quiz_d": "%a întrebări — răspunde corect la %b ca să termini capitolul.",
       "lu_q_start": "Începe verificarea",

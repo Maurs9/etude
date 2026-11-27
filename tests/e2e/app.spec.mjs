@@ -1375,8 +1375,24 @@ test('wide practice and score surfaces use available space while Learn text rema
     expect(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth),view).toBe(true);
   }
   expect((await page.locator('#dock > .wrap').boundingBox()).width).toBeGreaterThan(1480);
+  // Learn lines up with the header and uses the width for a rail, while its text keeps a readable measure (66ch).
   await page.evaluate(() => window.__etude.show('learn'));
-  expect((await page.locator('#view-learn > .wrap').boundingBox()).width).toBeLessThanOrEqual(1240);
+  await page.evaluate(() => window.__etude.learnReady);
+  const learn = await page.evaluate(() => {
+    const p = [...document.querySelectorAll('#learnBody p')].find((el) => el.textContent.length > 200);
+    // 66ch measured in the paragraph's own font: a run of 66 zeros.
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute; visibility:hidden; white-space:nowrap';
+    probe.textContent = '0'.repeat(66);
+    p.appendChild(probe);
+    const measure = probe.getBoundingClientRect().width;
+    probe.remove();
+    return { brand: document.querySelector('.brand').getBoundingClientRect().left, title: document.querySelector('#view-learn h1').getBoundingClientRect().left,
+      text: p.getBoundingClientRect().width, measure };
+  });
+  expect(Math.abs(learn.title - learn.brand)).toBeLessThanOrEqual(2);
+  expect(learn.text).toBeLessThanOrEqual(learn.measure + 1);
+  await expect(page.locator('#learnRail')).toBeVisible();
 });
 
 for (const lang of ['en', 'ro']) {

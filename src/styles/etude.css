@@ -85,7 +85,9 @@
   .wrap{width:100%; max-width:var(--page-max); margin:0 auto; padding-left:max(var(--page-gutter), env(safe-area-inset-left, 0px)); padding-right:max(var(--page-gutter), env(safe-area-inset-right, 0px))}
   /* Give interactive workspaces more room without stretching reading-heavy pages. */
   header .bar,header .hdr-note .wrap,main > .wrap,#view-today > .wrap,#view-practice > .wrap,
-  #view-read > .wrap,#view-sing > .wrap,#view-explore > .wrap,#dock > .wrap{max-width:var(--work-max)}
+  #view-read > .wrap,#view-sing > .wrap,#view-explore > .wrap,#dock > .wrap,
+  /* Learn and Method line up with the header; their text keeps its 66ch measure, and Learn uses the width for a rail. */
+  #view-learn > .wrap,#view-method > .wrap{max-width:var(--work-max)}
   #view-analysis > .wrap{max-width:1760px}
 
   /* ---------- top bar ---------- */
@@ -626,6 +628,23 @@
   .learn-toc button:hover{color:var(--ink)}
   .learn-toc button[aria-current="true"]{background:var(--card); border-color:var(--line); color:var(--ink); box-shadow:var(--shadow)}
   .learn-toc .ic{color:var(--accent); margin-right:7px}
+  /* Wide screens: the lesson keeps its measure, and the free width holds the section outline and the cheat sheet. */
+  .learn-rail{display:none; min-width:0}
+  @media (min-width:1360px){
+    #view-learn .learn-grid.has-rail{grid-template-columns:minmax(232px,280px) minmax(0,840px) minmax(260px,1fr)}
+    #view-learn .learn-grid.has-rail .learn-rail{display:flex; flex-direction:column; gap:16px; position:sticky; top:calc(var(--hdr-h) + 12px);
+      max-height:calc(100dvh - var(--hdr-h) - var(--dock-h) - 28px); overflow-y:auto; overscroll-behavior:contain}
+    #view-learn .learn-grid.has-rail .learn-body :is(p,ul,ol){font-size:16.5px; line-height:1.7}
+    .learn-rail .lsum{margin:0}
+  }
+  /* A narrow rail (up to 1600px) stacks each cheat-sheet term above its meaning. */
+  @media (min-width:1360px) and (max-width:1599.98px){ .learn-rail .lsum dl>div{grid-template-columns:1fr; gap:0} }
+  .lrail-out h4{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:2px 0 6px; font-weight:700}
+  .lrail-out ul{list-style:none; margin:0; padding:0 0 0 10px; border-left:2px solid var(--line); display:flex; flex-direction:column; gap:2px}
+  .lrail-out button{appearance:none; border:0; background:none; text-align:left; font:inherit; font-size:13.5px; line-height:1.35; color:var(--muted); padding:6px 4px; min-height:32px; cursor:pointer; border-radius:6px}
+  .lrail-out button:hover{color:var(--ink)}
+  .lrail-out button:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
+  .learn-content h4,#lq-h{scroll-margin-top:calc(var(--hdr-h) + 16px)}
   .learn-body{padding:20px 24px}
   .learn-body h3{font-size:23px; margin:0 0 10px}
   .learn-body h4{font-family:var(--sans); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:20px 0 8px; font-weight:700}
