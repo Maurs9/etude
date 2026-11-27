@@ -668,7 +668,7 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
     });
 
     // 2. Verifies Today view displays Portuguese headings and counters
-    await expect(page.locator('#view-today .eyebrow')).toHaveText('Prática de hoje');
+    await expect(page.locator('#view-today #tools-h')).toHaveText('Outras formas de praticar');
     await expect(page.locator('#view-today .streak-l')).toHaveText('dias seguidos');
 
     // 3. User begins a practice session
