@@ -26,6 +26,8 @@ import {
 } from '../core/learn-progress.js';
 import * as safety from './data-safety.js';
 import { createCoaching } from '../app/coaching.js';
+import { createInputBus } from '../app/input-bus.js';
+import { createKeyboardDock } from '../app/keyboard-dock.js';
 import { RD_ALL, RD_ALLIV, RD_LV, RD_UNITS, rdS, rdU, type ReadDrillLevel } from '../core/reading-curriculum.js';
 import { createPwaLifecycle, WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
 import * as theory from './theory.js';
@@ -40,9 +42,9 @@ import '../styles/score-library.css';
 import '../styles/native.css';
 import * as router from './router.js';
 import { byId, downloadBlob, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
-import { createTestSurfaceRegistry, SCORE_SIDE_TABS, type AppHost, type ScorePlayerController, type PracticeController, type PracticeShell, type ProgressController, type ProgressShell, type TodayController, type TodayShell, type ReadController, type ReadShell, type ScorePlayerShell, type EtudeSurface, type FeatureController, type InputBusListener, type PreviewSequenceFrame, type ReadDrillData, type ShowFn, type ShowOptions, type StoredTrainerData, type UiPrefsPatch, type UiPrefsSnapshot, type UiPrefsStore, type ViewApplicationState, type ViewEventHandler, type ViewEventName } from './views.js';
+import { createTestSurfaceRegistry, SCORE_SIDE_TABS, type AppHost, type ScorePlayerController, type PracticeController, type PracticeShell, type ProgressController, type ProgressShell, type TodayController, type TodayShell, type ReadController, type ReadShell, type ScorePlayerShell, type EtudeSurface, type FeatureController, type PreviewSequenceFrame, type ReadDrillData, type ShowFn, type ShowOptions, type StoredTrainerData, type UiPrefsPatch, type UiPrefsSnapshot, type UiPrefsStore, type ViewApplicationState, type ViewEventHandler, type ViewEventName } from './views.js';
 import type { InterfaceLanguage } from '../types/architecture.js';
-import { eventTime, useLatencyOffsets, withInputTime } from './midi-timing.js';
+import { useLatencyOffsets } from './midi-timing.js';
 import { createTimingCalibration } from './midi-calibration.js';
 import { BLE_MIDI_CHR, BLE_MIDI_SVC, createBleMidi, type BleMidiDevice } from './ble-midi.js';
 import { createMidiController } from '../infra/midi-controller.js';
@@ -510,220 +512,6 @@ const view = { low: 48, oct: 4 };
 let labelMode = 'c';
 let typeOctave = 60;
 function clampTypeOctave() { const lo = view.low, maxLo = Math.max(lo, viewHigh() - 12); typeOctave = Math.max(lo, Math.min(maxLo, Math.round(typeOctave / 12) * 12)); }
-const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>(), keyMk = new Map<number, HTMLSpanElement>(), keyDg = new Map<number, HTMLSpanElement>();
-const BLACK_NUDGE: Record<number, number> = { 1: 0, 3: 0, 6: 0, 8: 0, 10: 0 };
-function viewHigh() { return view.low + view.oct * 12; }
-// A phone on its side: the compact landscape layout of etude.css, and landscape.css while the keys are open (body.kb-land).
-const LAND_PHONE = matchMedia('(orientation: landscape) and (max-height: 560px)');
-// Three octaves on a phone on its side (four from 960 px), so the keys are wide enough to play; otherwise by width.
-function chooseView() { const w = window.innerWidth; view.oct = LAND_PHONE.matches ? (w >= 960 ? 4 : 3) : w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
-function buildKeyboard() {
-    read?.dockView();
-    clampTypeOctave();
-    const keys = byId('keys');
-    if (!keys)
-        return;
-    const active = document.activeElement;
-    const focused = active instanceof HTMLElement && keys.contains(active)
-        ? Number(active.dataset.midi ?? 0)
-        : null;
-    keys.innerHTML = '';
-    whiteEl.clear();
-    blackEl.clear();
-    keyEl.clear();
-    keyMk.clear();
-    keyDg.clear();
-    const lo = view.low, hi = viewHigh(), WHITE = new Set([0, 2, 4, 5, 7, 9, 11]);
-    for (let m = lo; m <= hi; m++) {
-        if (!WHITE.has(pc(m)))
-            continue;
-        const b = (document).createElement('button');
-        b.className = 'key white';
-        b.dataset.midi = String(m);
-        b.type = 'button';
-        b.tabIndex = 0;
-        b.setAttribute('aria-label', noteName(m, false));
-        if (m === 60)
-            b.classList.add('midc');
-        if (labelMode !== 'none' && (labelMode === 'all' || pc(m) === 0)) {
-            const l = (document).createElement('span');
-            l.className = 'lbl';
-            l.textContent = pc(m) === 0 ? rootName(0) + (Math.floor(m / 12) - 1) : pcName(pc(m), false);
-            b.appendChild(l);
-        }
-        const mk = (document).createElement('span');
-        mk.className = 'mk';
-        b.appendChild(mk);
-        const dg = (document).createElement('span');
-        dg.className = 'dg';
-        dg.setAttribute('aria-hidden', 'true');
-        b.appendChild(dg);
-        keys.appendChild(b);
-        whiteEl.set(m, b);
-        keyEl.set(m, b);
-        keyMk.set(m, mk);
-        keyDg.set(m, dg);
-        bindKeyA11y(b, m);
-    }
-    for (let m = lo; m <= hi; m++) {
-        if (WHITE.has(pc(m)))
-            continue;
-        const b = (document).createElement('button');
-        b.className = 'key black';
-        b.dataset.midi = String(m);
-        b.type = 'button';
-        b.tabIndex = 0;
-        b.setAttribute('aria-label', noteName(m, false));
-        const mk = (document).createElement('span');
-        mk.className = 'mk';
-        b.appendChild(mk);
-        const dg = (document).createElement('span');
-        dg.className = 'dg';
-        dg.setAttribute('aria-hidden', 'true');
-        b.appendChild(dg);
-        keys.appendChild(b);
-        blackEl.set(m, b);
-        keyEl.set(m, b);
-        keyMk.set(m, mk);
-        keyDg.set(m, dg);
-        bindKeyA11y(b, m);
-    }
-    positionBlacks();
-    if (focused != null) {
-        const key = keyEl.get(Math.max(lo, Math.min(hi, focused)));
-        if (key) {
-            key.focus({ preventScroll: true });
-            const scroll = byId('dock-keys'), r = key.getBoundingClientRect(), s = scroll.getBoundingClientRect();
-            if (r.left < s.left)
-                scroll.scrollLeft += r.left - s.left;
-            else if (r.right > s.right)
-                scroll.scrollLeft += r.right - s.right;
-        }
-    }
-    const oi = byId('octInd');
-    if (oi)
-        oi.textContent = noteName(view.low, false) + '–' + noteName(viewHigh(), false);
-    kbDegrees(kbDegSrc);
-    read?.dockPaint();
-    if (view0() === 'analysis')
-        scorePlayer?.keysPaint(true);
-    notifyDockReflow();
-    practice?.onKeyboardBuilt();
-}
-const dockReflowListeners = new Set<() => void>();
-function notifyDockReflow() {
-    for (const listener of dockReflowListeners) listener();
-}
-// Chord-member numbers (1 3 5 7 …) shown on keys; `src` maps sounding MIDI notes to labels and is folded into view.
-let kbDegSrc: Map<number, string>|null = null;
-function kbDegrees(src: Map<number,string>|null) {
-    kbDegSrc = src && src.size ? src : null;
-    const folded = new Map<number, string>();
-    if (kbDegSrc)
-        kbDegSrc.forEach((label, m) => folded.set(foldToView(m), label));
-    keyEl.forEach((el, m) => {
-        const label = folded.get(m) || '', d = keyDg.get(m);
-        const degDesc = label ? (label === 'R' ? t('kb_deg_r') : t('kb_deg', label)) : '';
-        if (d) {
-            d.textContent = label;
-            if (degDesc)
-                d.title = degDesc;
-            else
-                d.removeAttribute('title');
-        }
-        if (degDesc)
-            el.title = noteName(m, false) + ' — ' + degDesc;
-        else
-            el.removeAttribute('title');
-        el.setAttribute('aria-label', noteName(m, false) + (degDesc ? ', ' + degDesc : ''));
-    });
-}
-function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
-    return; const bw = w.offsetWidth * .6, seam = w.offsetLeft + w.offsetWidth + .5, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
-function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = inputById('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
-// On narrow screens the keys scroll sideways: bring a key into sight, unless focus is on the keys (the focused key stays in sight then).
-function dockKeyInSight(m: number) { const key = keyEl.get(m), scroll = byId('dock-keys'); if (!key || !dockShown() || byId('keys').contains(document.activeElement))
-    return; const r = key.getBoundingClientRect(), s = scroll.getBoundingClientRect(); if (r.left < s.left || r.right > s.right)
-    scroll.scrollLeft += (r.left + r.right - s.left - s.right) / 2; }
-function reflowKeys() { requestAnimationFrame(() => requestAnimationFrame(positionBlacks)); setTimeout(positionBlacks, 90); } // wait for the dock to lay out before measuring
-function foldToView(m: number) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
-    x += 12; while (x > hi)
-    x -= 12; return x; }
-function kbState(midi: number, s: string|null, fold: boolean) { const m = fold ? foldToView(midi) : midi, el = keyEl.get(m); if (!el)
-    return; if (s)
-    el.dataset.s = s;
-else
-    delete el.dataset.s; const mk = keyMk.get(m); if (mk)
-    mk.textContent = s === 'good' ? '✓' : s === 'bad' ? '✗' : ''; }
-function kbClear(s: string) { keyEl.forEach((el, m) => { if (el.dataset.s === s) {
-    delete el.dataset.s; const mk = keyMk.get(m); if (mk)
-    mk.textContent = ''; } }); }
-function kbClearAll() { keyEl.forEach((el, m) => { delete el.dataset.s; const mk = keyMk.get(m); if (mk)
-    mk.textContent = ''; }); }
-function kbPress(midi: number, on: boolean) { const m = foldToView(midi), el = keyEl.get(m); if (!el)
-    return; if (!on && [...held].some((n) => foldToView(n) === m))
-    return; el.classList.toggle('pressed', on); if (on) {
-    if (!el.dataset.s)
-        el.dataset.s = 'active';
-}
-else if (el.dataset.s === 'active')
-    delete el.dataset.s; }
-function repaintHeld() { held.forEach((m) => kbPress(m, true)); }
-const pointerKey = new Map<number, number|null>();
-function keyAt(x: number, y: number) { const el = document.elementFromPoint(x, y); if (el) {
-    const k = el.closest('.key');
-    if (k instanceof HTMLElement)
-        return +(k.dataset.midi ?? 0);
-} return null; }
-// A touch or click on the screen, judged from its own event time less the calibrated touch latency.
-function blurInputField() {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && inField()) active.blur();
-}
-function touchInput(e: Event, fn: () => void) { withInputTime(eventTime(e.timeStamp, performance.now()), 'touch', fn); }
-function initPointer() {
-    const kb = byId('keys');
-    kb.addEventListener('pointerdown', (e) => { const m = keyAt(e.clientX, e.clientY); if (m == null)
-        return; blurInputField(); e.preventDefault(); try {
-        kb.setPointerCapture(e.pointerId);
-    }
-    catch (_) { } ; pointerKey.set(e.pointerId, m); touchInput(e, () => handleNoteOn(m, 100, 'pointer:' + e.pointerId)); });
-    kb.addEventListener('pointermove', (e) => { if (!pointerKey.has(e.pointerId))
-        return; const cur = pointerKey.get(e.pointerId), m = keyAt(e.clientX, e.clientY); if (m !== cur) {
-        touchInput(e, () => {
-            if (cur != null)
-                handleNoteOff(cur, 'pointer:' + e.pointerId);
-            pointerKey.set(e.pointerId, m);
-            if (m != null)
-                handleNoteOn(m, 100, 'pointer:' + e.pointerId);
-        });
-    } });
-    const end = (e: PointerEvent) => { if (pointerKey.has(e.pointerId)) {
-        const m = pointerKey.get(e.pointerId);
-        if (m != null)
-            touchInput(e, () => handleNoteOff(m, 'pointer:' + e.pointerId));
-        pointerKey.delete(e.pointerId);
-    } };
-    kb.addEventListener('pointerup', end);
-    kb.addEventListener('pointercancel', end);
-    kb.addEventListener('lostpointercapture', end);
-}
-function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!b._kd) {
-        b._kd = true;
-        handleNoteOn(m, 100, 'button:' + m);
-    }
-} }); b.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') {
-    e.preventDefault();
-    e.stopPropagation();
-    b._kd = false;
-    handleNoteOff(m, 'button:' + m);
-} }); b.addEventListener('blur', () => { if (b._kd) {
-    b._kd = false;
-    handleNoteOff(m, 'button:' + m);
-} }); }
 /* ---------- KEYBOARD DOCK: the keys, or folded into a slim rail; one choice for every view ----------
    Hiding only hides the on-screen keys: MIDI and the computer keys keep playing, and the rail keeps one Show keyboard button.
    Without a choice the keys are open, except in Score & analysis on small screens, where the score needs the room; that default
@@ -734,259 +522,74 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
-function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || !!practice?.alongWanted(v) || (v === 'practice' && practice?.hintKeys() === true) || v === 'learn' || v === 'read' || v === 'sing' || (!!practice?.sesActive() && v === practice.sesHome()) || (v === 'analysis' && !!scorePlayer?.dockWanted()); }
-function sesNeedsKeys(v = view0()) { return !!practice?.sessionNeedsKeys(v) && !midiLive(); }
-function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
 // rail there; showing or hiding them on the stage (`kb`) lasts until the stage closes and leaves the saved choice alone.
 interface PracticeStageState { on: boolean; kb: boolean | null; rz: number }
 const STAGE: PracticeStageState = { on: false, kb: null, rz: 0 };
 const SCORE_FOCUS: { owner: 'analysis' | 'read' | null; native: boolean; token: number; returnTo: HTMLElement | null; scroll: number; readOverride: boolean | null; zoom: number } = { owner: null, native: false, token: 0, returnTo: null, scroll: 0, readOverride: null, zoom: 1 };
-function midiLive() { return !!midiController.state.activeInputId || bleLive(); }
-function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
-function dockOpen(v = view0()) { const hintKeys = v === 'practice' ? practice?.hintKeys() ?? null : null; if (hintKeys !== null)
-    return hintKeys; if (dockForced(v))
-    return true; if (stageDock(v))
-    return STAGE.kb ?? false; if (sesNeedsKeys(v))
-    return DOCK.pref !== false; if (DOCK.pref != null)
-    return DOCK.pref; return false; }
-// Where the page stops being visible at the bottom: the top of the dock when it shows, else of the phone bottom bar
-// (the dock rides on the bar), else the end of the viewport.
-function fixedBottomTop() {
-    for (const el of [byId('dock'), byId('bottomNav')]) {
-        const r = el.getBoundingClientRect();
-        if (r.height > 0 && getComputedStyle(el).display !== 'none')
-            return r.top;
-    }
-    return innerHeight;
-}
-function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
-// The dock's own button names the action it takes (Hide / Show keyboard).
-function dockLabels() {
-    const open = dockOpen(), act = t(open ? 'kb_hide' : 'kb_show'), dk = byId('dock-kb-toggle');
-    dk.setAttribute('aria-expanded', open ? 'true' : 'false');
-    dk.title = act;
-    const label = dk.querySelector('.dock-kb-label');
-    if (label) label.textContent = act;
-    const name = STAGE.on && midiLive() ? (midiController.state.activeInputId && midiController.state.midiMsg?.text) || bleName() : null;
-    byId('dock-rail-note').textContent = name ? t('stage_rail_midi', name) : t('kb_rail_note');
-    scoreFocusUi();
-}
-function dockSync() {
-    const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
-    // On a phone on its side the open keys take the header's room (landscape.css); Hide keyboard brings the header back.
-    // A drill asking on the keys hides that button, so the header stays (kb-forced): it is the way to the other views.
-    const land = open && LAND_PHONE.matches, wasLand = document.body.classList.contains('kb-land');
-    const forced = land && dockForced(v), wasForced = document.body.classList.contains('kb-forced');
-    dock.classList.toggle('compact', v === 'analysis');
-    byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
-    dockLabels();
-    if (on === was && open === wasOpen && land === wasLand && forced === wasForced)
-        return;
-    document.body.classList.toggle('kb-land', land);
-    document.body.classList.toggle('kb-forced', forced);
-    const menuBtn = byId('menuBtn'), menu = byId('mobileMenu');
-    const menuInDock = land && !forced;
-    if (dock.contains(menuBtn) !== menuInDock) {
-        closeMobileMenu();
-        if (menuInDock) {
-            byId('dock-kb-toggle').before(menuBtn);
-            dock.append(menu);
-        } else {
-            byId('helpBtn').before(menuBtn, menu);
-        }
-    }
-    document.body.classList.toggle('kb', on);
-    dock.classList.toggle('is-rail', on && !open);
-    const exKbBtn = maybeById('ex-open-kb');
-    if (exKbBtn) exKbBtn.hidden = dockShown() || midiLive();
-    if (open) {
-        if (was && !wasOpen)
-            dockReveal();
-        if (v === 'analysis')
-            scorePlayer?.keysCenterIfPending();
-        positionBlacks();
-        reflowKeys();
-        if (v === 'analysis')
-            scorePlayer?.keysPaint(true);
-    }
-    else {
-        dock.classList.remove('is-opening');
-        if (v === 'analysis')
-            scorePlayer?.keysClear();
-    }
-    anLayoutVars(); // size the page and the score from the dock's new height in this same frame: no stale gap, no overlap
-    if (STAGE.on)
-        read?.stageRefit();
-}
-LAND_PHONE.addEventListener('change', () => dockSync());
-// Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
-function dockReveal() { if (reduceMotion())
-    return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = window.setTimeout(() => dock.classList.remove('is-opening'), 300); }
-function dockSet(open: boolean) {
-    if (view0() === 'practice' && practice && practice.hintKeys() !== null) {
-        practice.setHintKeys(open);
-        return;
-    }
-    if (stageDock()) {
-        STAGE.kb = !!open;
-        dockSync();
-        return;
-    }
-    const keep = view0() === 'analysis' && scorePlayer ? scorePlayer.keepPlace() : dockKeepEnd(open);
-    DOCK.pref = !!open;
-    saveAll();
-    if (view0() === 'analysis' && scorePlayer)
-        scorePlayer.updateControls();
-    else
-        dockSync();
-    keep();
-}
-// Other pages scroll under the dock: whoever is reading the end of a long page still sees it when the keys come back.
-function dockKeepEnd(open: boolean) {
-    const root = document.scrollingElement || document.documentElement, end = open && root.scrollHeight > innerHeight + 2 && root.scrollTop > 0 && root.scrollTop + innerHeight >= root.scrollHeight - 2;
-    return () => { if (end)
-        window.scrollTo(0, root.scrollHeight); };
-}
-/* ---------- INPUT ROUTING ---------- */
-const held = new Set<number>(), heldOrder: number[] = [], sustained = new Set<number>(), inputOwners = new Map<number, Set<string>>();
-const midiChannels = new Map<string, Map<number, Set<number>>>();
-const midiSustainOwners = new Map<number, { source: string; channel: number }>();
 let pedalDown = false;
-function handleNoteOn(midi: number, vel: number, source = 'midi') {
-    if (!Number.isInteger(midi) || midi < 0 || midi > 127)
-        return;
-    ensureAudio();
-    const owners = inputOwners.get(midi) || new Set<string>();
-    owners.add(source);
-    inputOwners.set(midi, owners);
-    if (held.has(midi)) {
-        read?.trackHeldSource(source);
-        return;
-    }
-    sustained.delete(midi);
-    midiSustainOwners.delete(midi);
-    held.add(midi);
-    heldOrder.push(midi);
-    audioNoteOn(midi, vel);
-    kbPress(midi, true);
-    wakePing();
-    onInputChange('on', midi, source, null);
-}
-function handleNoteOff(midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = 'physical', silence = false) {
-    const owners = inputOwners.get(midi);
-    if (!owners || !owners.delete(source))
-        return;
-    if (owners.size)
-        return;
-    inputOwners.delete(midi);
-    if (!held.has(midi))
-        return;
-    held.delete(midi);
-    const i = heldOrder.indexOf(midi);
-    if (i >= 0)
-        heldOrder.splice(i, 1);
-    kbPress(midi, false);
-    if (silence)
-        audioEngine.silenceNote(midi);
-    else if (pedalDown)
-        sustained.add(midi);
-    else
-        audioNoteOff(midi);
-    onInputChange('off', midi, source, releaseKind);
-}
-function pedalUp() { sustained.forEach((m) => { if (!held.has(m))
-    audioNoteOff(m); }); sustained.clear(); midiSustainOwners.clear(); }
-function heldMidis() { return [...held]; }
-function heldPcs() { return [...new Set(heldMidis().map(pc))].sort((a, b) => a - b); }
-function releaseLiveInput() {
-    held.forEach((m) => audioNoteOff(m));
-    sustained.forEach((m) => audioNoteOff(m));
-    held.clear();
-    heldOrder.length = 0;
-    sustained.clear();
-    inputOwners.clear();
-    midiChannels.clear();
-    midiSustainOwners.clear();
-    pointerKey.clear();
-    scorePlayer?.releaseInput();
-    typingDown.clear();
-    pedalDown = false;
-    keyEl.forEach((el) => { el._kd = false; el.classList.remove('pressed'); if (el.dataset.s === 'active')
-        delete el.dataset.s; });
-}
-// Without focus no key-up or pointer-up arrives, so keys held from the computer keyboard, the screen or a rhythm pad are let go as if
-// lifted (drills see an ordinary release). MIDI and Bluetooth go on reporting, so keys and pedal held on the instrument stay as they are.
-function releaseFocusInput() {
-    let fell = false;
-    [...inputOwners.entries()].forEach(([m, o]) => [...o].forEach((s) => { if (s === 'midi' || s === 'ble')
-        return; if (s.startsWith('fall:'))
-        fell = true; handleNoteOff(m, s, 'focus'); }));
-    pointerKey.clear();
-    typingDown.clear();
-    keyEl.forEach((el) => { el._kd = false; });
-    read?.releaseFocus();
-    scorePlayer?.releaseFocus(fell);
-}
-function panic() {
-    practice?.stopPrompts();
-    read?.panicBegin();
-    if (CAL.on) {
-        calStop();
-        calSay('');
-    }
-    pianoBank.cancelWarmIdle();
-    read?.panicRecorder();
-    releaseLiveInput();
-    read?.panicRhythm();
-    practice?.stopAccompaniment();
-    read?.panicStopAll();
-    held.forEach(audioNoteOff);
-    held.clear();
-    heldOrder.length = 0;
-    sustained.forEach(audioNoteOff);
-    sustained.clear();
-    liveVoices.forEach(voice => voice.stop());
-    liveVoices.clear();
-    stopPreviews();
-    stopDrone();
-    pointerKey.clear();
-    typingDown.clear();
-    pedalDown = false;
-    audioEngine.setBendFromValue(0);
-    audioEngine.setModulation(0, .02);
-    keyEl.forEach(el => {
-        el.classList.remove('pressed');
-        if (el.dataset.s === 'active') delete el.dataset.s;
-    });
-    panicLoadedFeatures();
-}
-const inputBusListeners = new Set<InputBusListener>();
-// midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
-function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
-    if (calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
-        if (kind === 'on')
-            calTap();
-        return;
-    }
-    // MIDI still sounds in a dialog. Only calibration and note releases reach their handlers.
-    if (kind === 'on' && overlaysOpen())
-        return;
-    for (const listener of inputBusListeners) listener({ kind, midi, source, releaseKind });
-    if (read?.preInput(kind, midi, source, releaseKind))
-        return;
-    if (view0() === 'analysis') {
-        scorePlayer?.practiceInput(kind, midi, source);
-        return;
-    }
-    if (view0() === 'explore' || view0() === 'sing' || view0() === 'learn') {
-        return;
-    }
-    if (view0() === 'read' && read?.viewInput(kind, midi, heldOrder[heldOrder.length - 1]))
-        return;
-    if (practice?.sesActive())
-        practice.sessionInput(kind, midi);
-}
+/* ---------- KEYBOARD, DOCK AND INPUT BUS (src/app/keyboard-dock.ts, src/app/input-bus.ts) ---------- */
+// Created here, before anything below uses them; their dependencies are read lazily (getters), so shell values declared
+// further down are resolved when a key is played or the dock is drawn, not now.
+const inputBus = createInputBus({
+    get practice() { return practice; },
+    get scorePlayer() { return scorePlayer; },
+    get read() { return read; },
+    audioEngine,
+    liveVoices,
+    pianoBank,
+    get keyEl() { return keyboardDock.keyEl; },
+    get pointerKey() { return keyboardDock.pointerKey; },
+    get typingDown() { return typingDown; },
+    get cal() { return CAL; },
+    get pedalDown() { return pedalDown; },
+    set pedalDown(value: boolean) { pedalDown = value; },
+    view0: () => view0(),
+    kbPress: (midi, on) => keyboardDock.kbPress(midi, on),
+    audioNoteOn: (midi, velocity) => audioNoteOn(midi, velocity),
+    audioNoteOff: (midi) => audioNoteOff(midi),
+    ensureAudio: (warm) => ensureAudio(warm),
+    wakePing: () => wakePing(),
+    stopPreviews: () => stopPreviews(),
+    stopDrone: () => stopDrone(),
+    panicLoadedFeatures: () => panicLoadedFeatures(),
+    overlaysOpen: () => overlaysOpen(),
+    calListening: () => calListening(),
+    calTap: () => calTap(),
+    calStop: () => calStop(),
+    calSay: (text) => calSay(text),
+});
+const keyboardDock = createKeyboardDock({
+    keyboardView: view,
+    baseLow: BASE_LOW,
+    baseHigh: BASE_HIGH,
+    dock: DOCK,
+    stage: STAGE,
+    held: inputBus.held,
+    get practice() { return practice; },
+    get scorePlayer() { return scorePlayer; },
+    get read() { return read; },
+    get midiController() { return midiController; },
+    get labelMode() { return labelMode; },
+    view0: () => view0(),
+    t: (key, ...args) => t(key, ...args),
+    noteName: (midi, flat) => noteName(midi, flat),
+    pcName: (p, flat) => pcName(p, flat),
+    rootName: (p) => rootName(p),
+    reduceMotion: () => reduceMotion(),
+    saveAll: () => saveAll(),
+    clampTypeOctave: () => clampTypeOctave(),
+    handleNoteOn: (midi, velocity, source) => inputBus.handleNoteOn(midi, velocity, source),
+    handleNoteOff: (midi, source, releaseKind, silence) => inputBus.handleNoteOff(midi, source, releaseKind, silence),
+    inField: () => !!inField(),
+    closeMobileMenu: () => closeMobileMenu(),
+    scoreFocusUi: () => scoreFocusUi(),
+    anLayoutVars: () => anLayoutVars(),
+    bleLive: () => bleLive(),
+    bleName: () => bleName(),
+});
+const { LAND_PHONE, bindKeyA11y, blackEl, blurInputField, buildKeyboard, chooseView, dockForced, dockKeepEnd, dockKeyInSight, dockLabels, dockOpen, dockReflowListeners, dockReveal, dockSet, dockShown, dockSync, dockWanted, fixedBottomTop, foldToView, initPointer, kbClear, kbClearAll, kbDegrees, kbPress, kbState, keyAt, keyDg, keyEl, keyMk, midiLive, notifyDockReflow, pointerKey, positionBlacks, reflowKeys, repaintHeld, sesNeedsKeys, stageDock, syncKeyboardPan, touchInput, viewHigh, whiteEl, BLACK_NUDGE } = keyboardDock;
+const { handleNoteOff, handleNoteOn, held, heldMidis, heldOrder, heldPcs, inputBusListeners, inputOwners, midiChannels, midiSustainOwners, onInputChange, panic, pedalUp, releaseFocusInput, releaseLiveInput, sustained } = inputBus;
 /* ---------- WEB MIDI ---------- */
 const midiController = createMidiController({
     t,
@@ -3850,7 +3453,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "ivName": () => ivName,
   "kbClear": () => kbClear,
   "kbClearAll": () => kbClearAll,
-  "kbDegSrc": () => kbDegSrc,
+  "kbDegSrc": () => keyboardDock.kbDegSrc,
   "kbPress": () => kbPress,
   "kbState": () => kbState,
   "kbdLayoutLabels": () => kbdLayoutLabels,
