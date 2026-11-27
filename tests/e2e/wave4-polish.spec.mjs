@@ -120,6 +120,7 @@ test.describe('Wave 4: Explore, Voice, Continuity/Progress, BLE-MIDI & Mobile er
 
     // Verify persistence across reload and display in Progress > Studio section.
     await page.reload();
+    await page.waitForFunction(() => typeof window.__etude?.show === 'function');
     const savedLog = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.practiceLog);
     expect(savedLog.techRuns).toBe(1);
     expect(savedLog.techClean).toBe(1);
