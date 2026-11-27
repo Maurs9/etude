@@ -278,12 +278,15 @@ test.describe('Read home', () => {
           // The level buttons: two rows of four below 480px, so none is narrower than 44px either.
           narrow: [...document.querySelectorAll('.rdn-lv')].filter((el) => el.getBoundingClientRect().width < 44).map((el) => el.dataset.rdnLv),
           count: controls.length,
+          // The three Read tabs are all inside the viewport: none is cut off at a phone's edge.
+          tabsOut: [...document.querySelectorAll('#rd-tabs [role=tab]')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 0.5).map((el) => el.id),
           today: box('.rdn-today'), main: box('.rdn-today-main'), side: box('.rdn-today-side'), bookCard: box('.rdn-book'), tools: box('#rdn-home .tools'),
         };
       });
       expect(facts.overflow).toBeLessThanOrEqual(0);
       expect(facts.small).toEqual([]);
       expect(facts.narrow).toEqual([]);
+      expect(facts.tabsOut).toEqual([]);
       expect(facts.count).toBeGreaterThan(100);
       // The book and the other ways come after the hero row, full width.
       expect(facts.bookCard.top).toBeGreaterThan(facts.today.bottom - 1);

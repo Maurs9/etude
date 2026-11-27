@@ -58,6 +58,8 @@
   display:grid; place-items:center; padding:4px 2px; line-height:1.15; cursor:pointer; min-width:0}
 .rdn-slot b{font-family:var(--serif); font-size:18px}
 .rdn-slot small{font-size:11.5px; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* Phones: the slot role ("your level", "nivelul tău") wraps to a second line instead of being cut. */
+@media (max-width:479.98px){ .rdn-slot small{white-space:normal; overflow:visible; text-align:center; font-size:11px; line-height:1.15; overflow-wrap:break-word} }
 .rdn-slot.done{background:var(--good-bg); border-color:transparent; color:var(--good)}
 .rdn-slot.done small{color:var(--good); font-weight:700}
 
