@@ -22,23 +22,23 @@ import * as safety from './data-safety.js';
 import { createPwaLifecycle, WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
 import * as theory from './theory.js';
 import type { PracticeHintDiagram, PracticeHintNote, PracticeHintStep } from './practice-hints.js';
-import { playControl } from './practice-hint-dom.js';
 import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
+import { createAccompanimentController } from '../features/practice/accompaniment.js';
+import { createSongBookController } from '../features/practice/song-book.js';
 import { evaluateWaitChord } from './wait-chord.js';
 import type { gradePracticeSustain as gradePracticeSustainFn, practiceAccuracy as pracAccFn, practicePercent as practicePercentFn, practiceSustainReference as practiceSustainReferenceFn, TimedSustain } from './practice-scoring.js';
 import type { classifyUnmatchedKeyPress as classifyUnmatchedKeyPressFn, extractSustainMistakes as extractSustainMistakesFn, groupPracticeMistakes as groupPracticeMistakesFn, practicePassageBounds as practicePassageBoundsFn, MeasureMistakeGroup, PracticeMistakeEvent } from './practice-mistakes.js';
 import type { createCursorCurves as createCursorCurvesFn, cursorCurveAt as cursorCurveAtFn } from './score-cursor.js';
 import type { bindScoreGestures as bindScoreGesturesFn, ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
-import type { IntervalSongDirection, IntervalSongNote } from './interval-songs.js';
 import type * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from './score-symbols.js';
 import type { ExpressiveNotePlan } from './score-expression.js';
-import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
+import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type IntervalDefinition } from './repertoire-data.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
 import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srSpellName, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
 import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidiChange, ScoreMidiNote, ScoreMidiTime } from './score-midi.js';
@@ -466,20 +466,7 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     fillRoots(byId('pr-key'), true);
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = String(pk || 'all');
-    const ap = selectById('ac-pat');
-    if (ap && ap._filled) {
-        const v = ap.value;
-        ap.innerHTML = '';
-        Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; ap.appendChild(o); });
-        ap.value = v || 'block';
-    }
-    const acp = selectById('ac-prog');
-    if (acp && acp._filled) {
-        const v = acp.value;
-        acp.innerHTML = '';
-        ACCOMP_PROGS.forEach((p, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = progDisp(p.name); acp.appendChild(o); });
-        acp.value = v || '0';
-    }
+    accompaniment.localize();
     localizeLoadedFeatures();
     if (view0() === 'today')
         refreshToday();
@@ -645,8 +632,6 @@ function notifyPreviewSequence(frames: PreviewSequenceFrame[]) {
 function stopPreviews() {
     clearPracticeHintPreview();
     for (const stop of previewStoppers) stop();
-    clearIntervalSongPreview();
-    clearIntervalHintPlay();
     clearMelodyDemoPreview();
     audioEngine.stopPreviews();
 }
@@ -692,146 +677,7 @@ const TONES = { soft: { w: ['triangle', 'sawtooth', 'sawtooth'], cut: 6 }, brigh
 let _noiseBuf: null = null;
 function noiseBuffer() { return _noiseBuf; }
 function makeIR() { return null; }
-/* ---------- ACCOMPANIMENT LOOP ---------- */
-interface AccompanimentBuild { events: AccompanimentEvent[]; beatsTotal: number }
-interface AccompanimentState { on: boolean; runId: number; progIdx: number; key: number; pattern: string; bpm: number; hands: string; click: boolean; improScale: string; timer: number | null; hlTimers: number[]; built: AccompanimentBuild | null; beatSec: number; loopDur: number; nextLoop: number }
-const accomp: AccompanimentState = { on: false, runId: 0, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, improScale: 'off', timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
-function clearAccompImproScale() {
-    keyEl.forEach((el) => { delete el.dataset.impro; });
-    const leg = maybeById('ac-impro-legend');
-    if (leg) leg.hidden = true;
-}
-function paintAccompImproScale() {
-    clearAccompImproScale();
-    if (!prAlongWanted() || !accomp.improScale || accomp.improScale === 'off') return;
-    let scaleName = accomp.improScale;
-    if (scaleName === 'auto') {
-        const prog = ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0];
-        const firstSym = prog?.chords[0]?.[1] ?? 'maj';
-        const isMinor = firstSym.startsWith('m') && !firstSym.startsWith('maj');
-        scaleName = isMinor ? 'Aeolian (Natural minor)' : 'Major (Ionian)';
-    }
-    const offs = SCALES[scaleName];
-    if (!offs) return;
-    const key = accompKey();
-    const pcs = new Set(offs.map((iv) => (((key + iv) % 12) + 12) % 12));
-    keyEl.forEach((el, m) => {
-        if (pcs.has(pc(m))) el.dataset.impro = '1';
-    });
-    const leg = maybeById('ac-impro-legend');
-    if (leg) leg.hidden = false;
-}
-function accompVoicing(ch: readonly [number, string, string]) {
-    const rootPc = (((accomp.key + ch[0]) % 12) + 12) % 12;
-    const tpl = progChordTpl(ch[1]) || progChordTpl('maj');
-    if (!tpl)
-        throw new Error('Étude: no major chord template');
-    const ivs = tpl.intervals.filter((i) => i < 24);
-    const right = ivs.map((i) => {
-        let m = 60 + rootPc + i;
-        while (m > 72) m -= 12;
-        while (m < 57) m += 12;
-        return m;
-    }).sort((a, b) => a - b);
-    return { bass: 36 + rootPc, fifth: 36 + ((rootPc + 7) % 12), right };
-}
-;
-function buildAccomp() {
-    const prog = ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0];
-    const pat = ACCOMP_PATTERNS[accomp.pattern] || ACCOMP_PATTERNS.block;
-    const ev: AccompanimentEvent[] = [];
-    let beat = 0;
-    prog.chords.forEach((ch) => { pat.gen(ev, beat, accompVoicing(ch)); beat += pat.beats; });
-    return { events: ev, beatsTotal: beat };
-}
-function accompTimer(fn: () => void, ms: number) {
-    const id = window.setTimeout(() => { const i = accomp.hlTimers.indexOf(id); if (i >= 0)
-        accomp.hlTimers.splice(i, 1); fn(); }, Math.max(0, ms));
-    accomp.hlTimers.push(id);
-}
-function accompHL(midi: number, st: string, onMs: number, offMs: number) {
-    accompTimer(() => { if (accomp.on)
-        kbState(midi, st, true); }, onMs);
-    accompTimer(() => { if (!accomp.on)
-        return; const el = keyEl.get(foldToView(midi)); if (el && el.dataset.s === st)
-        kbState(midi, null, true); }, offMs);
-}
-function scheduleAccompAt(t0: number) {
-    const bs = accomp.beatSec, built = accomp.built;
-    if (!built)
-        return;
-    const now = requireAudioContext().currentTime;
-    built.events.forEach((e) => {
-        if (accomp.hands !== 'both' && e.hand !== (accomp.hands === 'left' ? 'L' : 'R'))
-            return;
-        const when = t0 + e.beat * bs, dur = Math.max(.12, e.durB * bs * 0.95);
-        previewNote(e.midi, when, dur, e.hand === 'L' ? 78 : 98);
-        const onMs = (when - now) * 1000;
-        accompHL(e.midi, e.hand === 'L' ? 'lh' : 'rh', onMs, onMs + Math.min(dur, 1.05) * 1000);
-    });
-    const n = (ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0]).chords.length, per = built.beatsTotal / Math.max(1, n);
-    for (let i = 0; i < n; i++)
-        accompTimer(() => { if (accomp.on)
-            acChainHL(i); }, (t0 + i * per * bs - now) * 1000);
-}
-function acChainHL(i: number) { (document).querySelectorAll('#ac-chain .ch').forEach((el, k) => el.classList.toggle('on', k === i)); }
-function accompTick() { if (!accomp.on || !audioEngine.context)
-    return; while (accomp.nextLoop < audioEngine.context.currentTime + 0.6) {
-    scheduleAccompAt(accomp.nextLoop);
-    accomp.nextLoop += accomp.loopDur;
-} }
-function startAccompLoop(ctx: AudioContext) {
-    accomp.nextLoop = ctx.currentTime + 0.18;
-    if (accomp.click) startMetro(accomp.bpm, accomp.nextLoop);
-    accomp.timer = window.setInterval(accompTick, 40);
-    accompTick();
-}
-function accompStart() {
-    const ctx = ensureAudio();
-    accompStop(true);
-    if (!ctx)
-        return;
-    const runId = ++accomp.runId;
-    accomp.on = true;
-    const built = accomp.built = buildAccomp();
-    accomp.beatSec = 60 / accomp.bpm;
-    accomp.loopDur = built.beatsTotal * accomp.beatSec;
-    if (accomp.loopDur <= 0) {
-        accomp.on = false;
-        return;
-    }
-    if (ctx.state === 'running') {
-        startAccompLoop(ctx);
-        return;
-    }
-    void timedAudioReady(ctx).then((ready) => {
-        if (!ready || !accomp.on || accomp.runId !== runId || audioEngine.context !== ctx) {
-            if (accomp.runId === runId && accomp.on) accompStop();
-            return;
-        }
-        startAccompLoop(ctx);
-    });
-}
-function accompStop(silent?: boolean) {
-    accomp.runId++;
-    accomp.on = false;
-    if (accomp.timer) {
-        clearInterval(accomp.timer);
-        accomp.timer = null;
-    }
-    accomp.hlTimers.forEach(clearTimeout);
-    accomp.hlTimers = [];
-    stopMetro();
-    kbClear('lh');
-    kbClear('rh');
-    stopPreviews();
-    acChainHL(-1);
-    if (!silent) { // a restart (accompStart) keeps the Stop label
-        clearAccompImproScale();
-        paintAccompImproScale();
-        updatePracticeModeHint(); // the Practice Start button reads Play loop again
-    }
-}
+/* ---------- ACCOMPANIMENT LOOP moved to src/features/practice/accompaniment.ts ---------- */
 /* ---------- VOICE (lazy feature in src/features/voice/index.ts) ---------- */
 /* ---------- KEYBOARD ---------- */
 const BASE_LOW = 24, BASE_HIGH = 96;
@@ -1948,7 +1794,7 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
     return q;
 }
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
-    if (practiceHintPreview || intervalSongPreview) stopPreviews();
+    if (practiceHintPreview || songBook.isPreviewing()) stopPreviews();
     ensureAudio();
     sesStopPrompt();
     sesStopAnswerReplay();
@@ -3398,6 +3244,34 @@ const appHost: AppHost = {
     testSurface: null,
 };
 
+const accompaniment = createAccompanimentController({
+    host: appHost,
+    isAlongWanted: () => prAlongWanted(),
+    getPracticeKey: () => { const k = prChoice().key; return k === 'all' ? 0 : (+k || 0); },
+    progDisp: (name) => progDisp(name),
+    rootName: (p) => rootName(p),
+    updatePracticeModeHint: () => updatePracticeModeHint(),
+    getKeyElements: () => keyEl,
+});
+const accomp = accompaniment.state;
+const accompStart = accompaniment.start;
+const accompStop = accompaniment.stop;
+const accompSync = accompaniment.sync;
+const accompRestartIfPlaying = accompaniment.restartIfPlaying;
+const clearAccompImproScale = accompaniment.clearImproScale;
+const paintAccompImproScale = accompaniment.paintImproScale;
+const renderAccompany = accompaniment.render;
+const updateAccompChain = accompaniment.updateChain;
+
+const songBook = createSongBookController({
+    host: appHost,
+    ivName: (semi) => ivName(semi),
+    playIvDir: (root, semi, dir, style) => playIvDir(root, semi, dir, style),
+    pianoEnsure: (midis) => pianoEnsure(midis),
+    setHintControlPressed: (btn, pressed) => setHintControlPressed(btn, pressed),
+});
+const renderSongs = songBook.render;
+
 function teardownView(prev: string, next: string) {
     if (prev !== next && activeFeatureAbort) {
         activeFeatureAbort.abort();
@@ -3827,154 +3701,7 @@ function fillRoots(sel: HTMLElement, withAll: boolean) {
         sel.appendChild(o);
     });
 }
-/* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
-let songDir: IntervalSongDirection = 'asc';
-interface IntervalSongPreview {
-    frame: number;
-    button?: HTMLButtonElement;
-    card?: HTMLElement;
-}
-let intervalSongPreview: IntervalSongPreview | null = null;
-let intervalHintPlay: { button: HTMLButtonElement; card: HTMLElement; timer: number } | null = null;
-
-function clearIntervalHintPlay() {
-    if (!intervalHintPlay) return;
-    clearTimeout(intervalHintPlay.timer);
-    setHintControlPressed(intervalHintPlay.button, false);
-    intervalHintPlay.card.classList.remove('is-playing');
-    intervalHintPlay = null;
-}
-
-function clearIntervalSongPreview() {
-    if (!intervalSongPreview) return;
-    const { frame, button, card } = intervalSongPreview;
-    intervalSongPreview = null;
-    cancelAnimationFrame(frame);
-    button?.setAttribute('aria-pressed', 'false');
-    button?.classList.remove('is-playing');
-    card?.classList.remove('is-playing');
-    kbClear('target');
-}
-
-async function previewIntervalSong(notes: readonly IntervalSongNote[], button?: HTMLButtonElement, card?: HTMLElement) {
-    if (button && intervalSongPreview?.button === button) {
-        stopPreviews();
-        return;
-    }
-    stopPreviews();
-    const context = ensureAudio();
-    const last = notes.at(-1);
-    if (!context || !last) return;
-    const preview: IntervalSongPreview = { frame: 0, button, card };
-    intervalSongPreview = preview;
-    button?.setAttribute('aria-pressed', 'true');
-    button?.classList.add('is-playing');
-    card?.classList.add('is-playing');
-    // A cold sample can miss a short opening note if decoding starts after playback is scheduled.
-    const [audioReady, samplesReady] = await Promise.all([
-        context.state === 'running' || timedAudioReady(context),
-        pianoEnsure(notes.map(note => note.midi)),
-    ]);
-    if (intervalSongPreview !== preview) return;
-    if (!audioReady || !samplesReady || context.state !== 'running' || audioEngine.context !== context) {
-        clearIntervalSongPreview();
-        return;
-    }
-    const start = context.currentTime + 0.035;
-    for (const { midi, at, duration, velocity } of notes)
-        previewNote(midi, start + at, duration, velocity, { hold: true });
-    const end = last.at + last.duration;
-    let previous: IntervalSongNote | undefined;
-    const paint = () => {
-        const elapsed = context.currentTime - start;
-        if (elapsed >= end || context.state === 'closed') {
-            clearIntervalSongPreview();
-            return;
-        }
-        const current = notes.find(({ at, duration }) => elapsed >= at && elapsed < at + duration);
-        if (current !== previous) {
-            kbClear('target');
-            if (current) kbState(current.midi, 'target', true);
-            previous = current;
-        }
-        preview.frame = requestAnimationFrame(paint);
-    };
-    preview.frame = requestAnimationFrame(paint);
-}
-// Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
-// reaches them); opening it builds them (the panel's toggle event).
-let intervalSongsMod: typeof import('./interval-songs.js') | null = null;
-let intervalSongsGen = 0;
-function renderSongs() {
-    const box = maybeById('songsList'), panel = maybeById('pr-songs');
-    if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open)
-        return;
-    clearIntervalHintPlay();
-    clearIntervalSongPreview();
-    if (!intervalSongsMod) {
-        const gen = ++intervalSongsGen;
-        void import('./interval-songs.js').then((mod) => {
-            intervalSongsMod = mod;
-            if (gen === intervalSongsGen)
-                renderSongs();
-        }).catch(() => {});
-        return;
-    }
-    const { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle } = intervalSongsMod;
-    box.innerHTML = '';
-    const root = 60 + parseInt(selectById('song-root').value || '0', 10);
-    const hearLabel = t('ex_hear').replace(/^▶\s*/u, '');
-    const stopLabel = t('pr_hints_stop');
-    for (let semi = 1; semi <= 12; semi++) {
-        const iv = INTERVALS.find((i) => i.semi === semi) || { short: '' };
-        const direction = songDir;
-        const list = INTERVAL_SONGS[semi]?.[direction] ?? [];
-        const name = ivName(semi);
-        const card = document.createElement('article');
-        card.className = 'songcard pr-hint-card pr-interval-card';
-        card.dataset.semi = String(semi);
-        const hd = document.createElement('div');
-        hd.className = 'hd pr-hint-hd';
-        const main = document.createElement('div');
-        main.className = 'pr-hint-hd-main';
-        const heading = document.createElement('h3');
-        heading.className = 'pr-hint-name';
-        const bold = document.createElement('b');
-        bold.textContent = name;
-        heading.append(bold);
-        const formula = document.createElement('p');
-        formula.className = 'pr-hint-formula';
-        const sh = document.createElement('span');
-        sh.className = 'sh';
-        sh.textContent = iv.short;
-        formula.append(sh, ` · ${t('pr_hints_semitones', String(semi))}`);
-        main.append(heading, formula);
-        const play = playControl(`interval:${semi}`, hearLabel, stopLabel, name, false, () => {
-            if (intervalHintPlay?.button === play) {
-                stopPreviews();
-                return;
-            }
-            playIvDir(root, semi, direction, 'melodic');
-            setHintControlPressed(play, true);
-            card.classList.add('is-playing');
-            intervalHintPlay = { button: play, card, timer: window.setTimeout(clearIntervalHintPlay, 960) };
-        });
-        play.classList.add('play');
-        hd.append(main, play);
-        const ul = document.createElement('div');
-        ul.className = 'pr-hint-stage songlist';
-        for (const song of list) {
-            const title = document.createElement('button');
-            title.type = 'button';
-            title.textContent = intervalSongTitle(song, lang);
-            title.setAttribute('aria-pressed', 'false');
-            title.onclick = () => { void previewIntervalSong(intervalSongNotes(root, song), title, card); };
-            ul.appendChild(title);
-        }
-        card.append(hd, ul);
-        box.appendChild(card);
-    }
-}
+/* ---------- SONGS moved to src/features/practice/song-book.ts ---------- */
 
 interface PracticeHintPreview {
     id: string;
@@ -17503,7 +17230,7 @@ function updatePracticeModeHint() {
     const melCfg = maybeById('pr-mel-cfg');
     if (melCfg) melCfg.hidden = cat !== 'melody';
     if (cat !== 'melody' && melDemoPlaying) clearMelodyDemoPreview();
-    if (cat !== 'interval' && intervalSongPreview) stopPreviews();
+    if (cat !== 'interval' && songBook.isPreviewing()) stopPreviews();
     byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
     if (along) {
         hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
@@ -18650,96 +18377,7 @@ function applyNotation() {
     rdOnLocale();
     coachRefresh();
 }
-/* ---------- ACCOMPANIMENT UI: Progressions · Play along in the Practice setup ---------- */
-/** A `<select>` whose options are built once; `_filled` marks it as built. */
-type AccompFilledSelect = HTMLSelectElement & { _filled?: boolean };
-const ACCOMP_GROUPS: readonly { readonly key: string; readonly names: readonly string[] }[] = [
-    { key: 'ac_grp_pop', names: ['I–V–vi–IV (pop)', 'vi–IV–I–V', 'I–vi–IV–V (50s)', 'I–♭VII–IV (rock)', 'i–♭VI–♭VII (epic)', 'I–V–vi–iii–IV–I (Pachelbel pop)', 'Ballad I–iii–IV–V'] },
-    { key: 'ac_grp_classic', names: ['I–IV–V', 'Pachelbel’s Canon', 'Andalusian i–♭VII–♭VI–V'] },
-    { key: 'ac_grp_jazz', names: ['ii–V–I (jazz)', 'minor ii–V–i', 'Jazz turnaround I–vi–ii–V', 'Circle of 5ths vi–ii–V–I'] },
-    { key: 'ac_grp_blues', names: ['12-bar blues'] },
-];
-const ACCOMP_IMPRO_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Major pentatonic', 'Minor pentatonic', 'Blues'] as const;
-const ACCOMP_DEFAULT_PROG = Math.max(0, ACCOMP_PROGS.findIndex((p) => p.name === 'I–V–vi–IV (pop)'));
-function renderAccompany(refreshLabels = false) {
-    const ps: AccompFilledSelect = selectById('ac-prog');
-    if (ps && (!ps._filled || refreshLabels)) {
-        const prev = ps._filled ? ps.value : String(ACCOMP_DEFAULT_PROG);
-        ps.innerHTML = '';
-        const used = new Set<number>();
-        for (const grp of ACCOMP_GROUPS) {
-            const og = document.createElement('optgroup');
-            og.label = t(grp.key);
-            for (const nm of grp.names) {
-                const idx = ACCOMP_PROGS.findIndex((p) => p.name === nm);
-                if (idx >= 0) {
-                    used.add(idx);
-                    const o = document.createElement('option');
-                    o.value = String(idx);
-                    o.textContent = progDisp(ACCOMP_PROGS[idx].name);
-                    og.appendChild(o);
-                }
-            }
-            if (og.children.length) ps.appendChild(og);
-        }
-        ACCOMP_PROGS.forEach((p, i) => {
-            if (used.has(i)) return;
-            const o = document.createElement('option');
-            o.value = String(i);
-            o.textContent = progDisp(p.name);
-            ps.appendChild(o);
-        });
-        ps.value = [...ps.options].some((o) => o.value === prev) ? prev : String(ACCOMP_DEFAULT_PROG);
-        ps._filled = true;
-    }
-    const pt: AccompFilledSelect = selectById('ac-pat');
-    if (pt && (!pt._filled || refreshLabels)) {
-        const prevPat = pt._filled ? pt.value : 'block';
-        pt.innerHTML = '';
-        Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; pt.appendChild(o); });
-        pt.value = [...pt.options].some((o) => o.value === prevPat) ? prevPat : 'block';
-        pt._filled = true;
-    }
-    const pi = maybeById('ac-impro-scale');
-    if (pi instanceof HTMLSelectElement) {
-        const prevImpro = pi.value || 'off';
-        while (pi.options.length > 2) pi.remove(2);
-        for (const sc of ACCOMP_IMPRO_SCALES) {
-            const o = document.createElement('option');
-            o.value = sc;
-            o.textContent = scaleDisp(sc);
-            pi.appendChild(o);
-        }
-        pi.value = [...pi.options].some((o) => o.value === prevImpro) ? prevImpro : 'off';
-    }
-    updateAccompChain();
-}
-// The loop's key: the Practice key chip, or C when All keys is chosen.
-function accompKey() { const k = prChoice().key; return k === 'all' ? 0 : (+k || 0); }
-function updateAccompChain() {
-    const el = byId('ac-chain');
-    if (!el) return;
-    const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)];
-    if (!prog) return;
-    const key = accompKey();
-    el.innerHTML = prog.chords.map((ch) => '<span class="ch"><small class="ch-rn">' + rdEsc(ch[2]) + '</small> <span class="ch-nm">' + rdEsc(formatChord(rootName(((key + ch[0]) % 12 + 12) % 12), dispSym(ch[1]))) + '</span></span>').join('<span class="sep" aria-hidden="true">·</span>');
-}
-function accompSync() {
-    accomp.progIdx = +(selectById('ac-prog').value || 0);
-    accomp.key = accompKey();
-    accomp.pattern = selectById('ac-pat').value || 'block';
-    accomp.bpm = +(inputById('ac-bpm').value || 90);
-    const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]');
-    accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both';
-    accomp.click = inputById('ac-click').checked;
-    const pi = maybeById('ac-impro-scale');
-    accomp.improScale = pi instanceof HTMLSelectElement ? (pi.value || 'off') : 'off';
-    paintAccompImproScale();
-}
-function accompRestartIfPlaying() { if (accomp.on) {
-    accompSync();
-    accompStart();
-} }
+/* ---------- ACCOMPANIMENT UI moved to src/features/practice/accompaniment.ts ---------- */
 /** The text field, slider or select an input/change event fired on. */
 function wiringField(e: Event): HTMLInputElement | HTMLSelectElement {
     const el = e.target;
@@ -18960,17 +18598,7 @@ function initControls() {
     maybeById('pr-mel-scale')?.addEventListener('change', (e) => { prMelScale = wiringField(e).value || 'auto'; });
     maybeById('pr-mel-demo')?.addEventListener('click', toggleMelodyDemo);
     // accompaniment
-    byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
-        return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
-    ['ac-prog', 'ac-pat'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); paintAccompImproScale(); accompRestartIfPlaying(); }));
-    maybeById('ac-impro-scale')?.addEventListener('change', () => {
-        const pi = maybeById('ac-impro-scale');
-        accomp.improScale = pi instanceof HTMLSelectElement ? (pi.value || 'off') : 'off';
-        paintAccompImproScale();
-    });
-    byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = wiringField(e).value; });
-    byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
-    byId('ac-click').addEventListener('change', accompRestartIfPlaying);
+    accompaniment.wireControls();
     // read & play (sheet music)
     byId('rd-to-pieces').addEventListener('click', () => show('analysis'));
     const onHandsClick = (e: MouseEvent) => {
@@ -19105,19 +18733,7 @@ function initControls() {
     // explore (wired lazily on mount in src/features/explore/index.ts)
     anInitControls();
     // songs
-    byId('song-root').addEventListener('change', () => { if (intervalSongPreview) stopPreviews(); renderSongs(); });
-    byId('pr-songs').addEventListener('toggle', (event) => {
-        if (event.currentTarget instanceof HTMLDetailsElement && !event.currentTarget.open && intervalSongPreview) stopPreviews();
-        syncPracticeHintsPanel();
-    });
-    byId('song-dir').addEventListener('click', (e) => {
-        const b = eventClosest(e, 'button');
-        if (!b) return;
-        if (intervalSongPreview) stopPreviews();
-        songDir = b.dataset.v === 'desc' ? 'desc' : 'asc';
-        wiringSegment(e).forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-        renderSongs();
-    });
+    songBook.wireControls(syncPracticeHintsPanel);
     // progress
     byId('prog-report-csv').addEventListener('click', () => {
         void (async () => {
@@ -19385,16 +19001,16 @@ const __etudeGetters: Record<string, () => unknown> = {
   "_routed": () => _routed,
   "_saveT": () => _saveT,
   "_view": () => _view,
-  "acChainHL": () => acChainHL,
-  "accompHL": () => accompHL,
-  "accompKey": () => accompKey,
+  "acChainHL": () => accompaniment.chainHL,
+  "accompHL": () => accompaniment.hl,
+  "accompKey": () => accompaniment.key,
   "accompRestartIfPlaying": () => accompRestartIfPlaying,
   "accompStart": () => accompStart,
   "accompStop": () => accompStop,
   "accompSync": () => accompSync,
-  "accompTick": () => accompTick,
-  "accompTimer": () => accompTimer,
-  "accompVoicing": () => accompVoicing,
+  "accompTick": () => accompaniment.tick,
+  "accompTimer": () => accompaniment.timer,
+  "accompVoicing": () => accompaniment.voicing,
   "activeInputId": () => midiController.state.activeInputId,
   "actx": () => audioEngine.context,
   "anAccent": () => scoreFeature?.harmony.anAccent,
@@ -19567,7 +19183,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "bleUi": () => bleUi,
   "bleUnhook": () => bleUnhook,
   "boxOf": () => boxOf,
-  "buildAccomp": () => buildAccomp,
+  "buildAccomp": () => accompaniment.build,
   "buildKeyboard": () => buildKeyboard,
   "buildQueue": () => buildQueue,
   "catLabel": () => catLabel,
@@ -19940,7 +19556,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "scaleDisp": () => scaleDisp,
   "scaleEarOptions": () => scaleEarOptions,
   "scaleFormula": () => scaleFormula,
-  "scheduleAccompAt": () => scheduleAccompAt,
+  "scheduleAccompAt": () => accompaniment.scheduleAt,
   "scheduleEval": () => scheduleEval,
   "scoreAnchorAt": () => scoreAnchorAt,
   "scoreBeamGroups": () => scoreBeamGroups,
@@ -20022,7 +19638,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "showSummary": () => showSummary,
   "shuffle": () => shuffle,
   "slashLabel": () => slashLabel,
-  "songDir": () => songDir,
+  "songDir": () => songBook.getDir(),
   "songsFor": () => songsFor,
   "spellMidi": () => spellMidi,
   "spellName": () => spellName,
