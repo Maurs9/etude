@@ -63,7 +63,8 @@
     background:var(--paper);
     color:var(--ink);
     font-family:var(--sans);
-    font-optical-sizing:auto;
+    font-optical-sizing:none;
+    font-variation-settings:'opsz' 6;
     font-weight:450;
     font-size:16px; line-height:1.5;
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
@@ -74,6 +75,8 @@
   }
   h1,h2,h3,.display{font-family:var(--serif); font-weight:600; letter-spacing:-.01em}
   h1{font-family:var(--script); font-weight:400; letter-spacing:0}
+  /* Mr De Haviland lacks Romanian ă, ș, ț; keep script on the É brand mark and numerals while rendering Romanian titles cleanly in italic Bodoni Moda. */
+  :root[lang="ro"] h1, :root[lang="ro"] .brand .tag{font-family:var(--serif); font-style:italic; font-weight:500}
   .num{font-variant-numeric:tabular-nums}
   a{color:var(--accent)}
   button{font-family:inherit}
@@ -91,6 +94,7 @@
   .brand .mark{font-family:var(--script); font-weight:400; font-size:38px; line-height:.9; letter-spacing:0}
   .brand .mark b{color:var(--accent); font-weight:400}
   .brand .tag{font-size:24px; line-height:1; color:var(--muted); font-style:normal; font-weight:400; font-family:var(--script); white-space:nowrap}
+  :root[lang="ro"] .brand .tag{font-size:13.5px}
   nav.tabs{display:flex; gap:2px}
   nav.tabs button{appearance:none; border:none; background:none; color:var(--muted); font-size:14px; font-weight:600;
     padding:8px 12px; border-radius:8px; cursor:pointer; transition:color .15s, background-color .15s; position:relative; white-space:nowrap}
@@ -126,6 +130,7 @@
   /* ---------- TODAY ---------- */
   .today-head{display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap}
   .greet h1{font-size:clamp(44px,6vw,60px); margin:.04em 0 .1em; line-height:.96}
+  :root[lang="ro"] .greet h1{font-size:clamp(30px,5vw,44px); margin:.1em 0 .14em; line-height:1.06}
   .greet .lede{font-size:15px}
   .streak{display:flex; align-items:center; gap:10px; text-align:right}
   .streak .big{font-family:var(--script); font-size:48px; font-weight:400; color:var(--gold); line-height:.88}
@@ -156,7 +161,7 @@
   .hero-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:0}
   .hero-actions .btn.lg{padding:9px 18px; font-size:14.5px}
   .hero-why{padding:9px 20px; border-top:1px solid var(--line); background:var(--paper)}
-  .why{font-size:12.5px; color:var(--muted); font-style:italic; font-family:var(--serif); line-height:1.55}
+  .why{font-size:13px; color:var(--muted); font-style:italic; font-family:var(--serif); line-height:1.55}
   #whyLink{white-space:nowrap}
 
   .btn{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink); font-weight:600; font-size:15px;
@@ -273,7 +278,7 @@
   .cof-arc.sharp{fill:#b5532f} .cof-arc.flat{fill:#33669a}
   .cof-hub{fill:var(--paper2); stroke:var(--line)}
   .cof-g{font-family:var(--sans); font-weight:600; font-size:.72em}
-  .cof-title{font-family:var(--serif); font-size:18px; font-weight:650; text-anchor:middle; fill:var(--ink)}
+  .cof-title{font-family:var(--serif); font-size:16.5px; font-weight:650; text-anchor:middle; fill:var(--ink)}
   .cof-iv{font-size:13.5px; font-weight:700; text-anchor:middle}
   .cof-iv.up{fill:#b5532f} .cof-iv.dn{fill:#33669a}
   .cof-st{font-size:11.5px; font-weight:600; text-anchor:middle; fill:var(--muted)}
@@ -1293,6 +1298,7 @@
   @media (max-width:680px){
     .today-head{gap:8px; align-items:flex-start}
     .greet h1{font-size:40px; margin:0 0 2px}
+    :root[lang="ro"] .greet h1{font-size:28px}
     .greet .lede{font-size:13.5px; margin:2px 0 0; line-height:1.4}
     .today-overview{gap:12px; margin-top:12px}
     .hero-top{padding:14px 16px 12px}

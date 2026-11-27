@@ -250,6 +250,8 @@ describe('performance and bug regressions', () => {
 
     expect(twaManifest.packageId).toBe('io.github.maurs9.etude');
     expect(twaManifest.monochromeIconUrl).toBe('https://maurs9.github.io/etude/icons/icon-monochrome.svg');
+    expect(twaManifest.themeColor.toLowerCase()).toBe(webManifest.theme_color.toLowerCase());
+    expect(twaManifest.backgroundColor.toLowerCase()).toBe(webManifest.background_color.toLowerCase());
     expect(twaManifest.orientation).toBe('any');
     expect(webManifest.orientation).toBe('any');
 

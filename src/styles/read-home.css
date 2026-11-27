@@ -110,6 +110,11 @@
 #view-read[data-rdn=melody] #rd-staff{margin-top:6px !important}
 #view-read[data-rdn=melody] #rd-coach{margin-top:6px; padding:7px 12px}
 #view-read[data-rdn=melody] #rd-play-controls{margin-top:6px !important}
+@media (min-width:960px){
+  #view-read[data-rdn=melody] #rd-pieces-controls{gap:8px 10px}
+  #view-read[data-rdn=melody] #rd-hands button,
+  #view-read[data-rdn=melody] #rd-mode button{flex:0 0 auto; white-space:nowrap; padding:8px 11px}
+}
 
 /* The player */
 .rdn-phead{display:flex; align-items:center; gap:6px 10px; flex-wrap:wrap; margin-bottom:8px}
