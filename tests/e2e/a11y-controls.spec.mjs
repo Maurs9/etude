@@ -68,3 +68,29 @@ test('control borders reach 3:1 against the page and the card in both themes', a
     }
   }
 });
+
+test('the mode bar has its own landmark name, and each language button names its language', async ({ app }) => {
+  const page = await app.open({ hash: 'practice' });
+  await expect(page.locator('#modeNav')).toHaveAttribute('aria-label', STRINGS.en.nav_practice);
+  await page.evaluate(() => window.__etude.show('learn'));
+  await expect(page.locator('#modeNav')).toHaveAttribute('aria-label', STRINGS.en.nav_learn);
+  for (const v of ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'])
+    await expect(page.locator(`#set-lang button[data-v="${v}"]`)).toHaveAttribute('lang', v);
+});
+
+test('the Learn outline lists sections, not the headings of lesson widgets', async ({ app, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await app.open({ hash: 'learn' });
+  await page.evaluate(() => window.__etude.learnReady);
+  const chapters = page.locator('#learnToc button[data-li]');
+  let checked = 0;
+  for (let i = 0; i < await chapters.count(); i++) {
+    await chapters.nth(i).click();
+    const widgetHeads = await page.locator('#learnBody [data-widget] h4').allTextContents();
+    if (!widgetHeads.length) continue;
+    const entries = (await page.locator('#learnRail [data-lsec]').allTextContents()).map((t) => t.trim());
+    for (const head of widgetHeads) expect(entries).not.toContain(head.replace(/^[^\p{L}\p{N}]+/u, '').trim());
+    checked++;
+  }
+  expect(checked).toBeGreaterThan(0);
+});
