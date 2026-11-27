@@ -21,8 +21,8 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('[data-i18n="set_lede"]')).toBeHidden();
     expect(await page.locator('[data-i18n="ses_keys_hint"]').evaluate(e => getComputedStyle(e).display)).toBe('none');
     await page.evaluate(() => window.__etude.show('analysis'));
-    await expect(page.locator('#an-catalog .an-open-cta')).toBeVisible();
-    await expect(page.locator('#an-empty-host')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Choose files' })).toBeVisible();
+    await expect(page.locator('#an-drop-t .ctx-touch')).toBeVisible();
     await expect(page.locator('#an-drop-t .ctx-kbd')).toBeHidden();
   });
 
@@ -77,11 +77,15 @@ test('the MIDI keyboard tip sits in a collapsed help note', async ({ app, page }
   await expect(help.locator('[data-i18n="set_midi_hint"]')).toContainText('Arturia MicroLab Mk3');
 });
 
-test('Pieces shows one Open file button at a time, and the built-in list stays above the player', async ({ app, page }) => {
+test('Pieces shows the import bar in the catalog and the single-file picker in the player', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  const playerOpen = page.locator('#an-src label[for="an-file"]'), twinkle = page.locator('#pc-list .pc-item[data-piece="twinkle"]');
-  await expect(page.locator('#an-catalog .an-open-cta')).toBeVisible();
-  await expect(page.locator('#an-empty-host [data-an-open]')).toBeVisible();
+  const playerOpen = page.locator('#an-src .an-src-actions [data-an-open]');
+  const twinkle = page.locator('#pc-list .pc-item[data-piece="twinkle"]');
+  await expect(page.getByRole('button', { name: 'Choose files' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Choose folder' })).toHaveCount(1);
+  await page.locator('#an-tab-library').click();
+  await expect(page.locator('#score-library [type=file]:visible')).toHaveCount(1); // Backup restore.
+  await page.locator('#an-tab-builtin').click();
   await expect(page.locator('#pc-list .pc-item')).toHaveCount(23);
   await expect(playerOpen).toBeHidden();
   await expect(page.locator('#an-example')).toHaveCount(0);
@@ -89,6 +93,10 @@ test('Pieces shows one Open file button at a time, and the built-in list stays a
   await expect.poll(() => page.evaluate(() => !window.__etude.AN.loading && window.__etude.AN.notes.length > 0)).toBe(true);
   await expect(page.locator('#an-panel')).toBeVisible();
   await expect(playerOpen).toBeVisible();
+  await expect(page.locator('#an-drop')).toBeHidden();
+  const pending = page.waitForEvent('filechooser');
+  await playerOpen.press('Enter');
+  expect((await pending).isMultiple()).toBe(false);
   await page.locator('#an-back').click();
   await expect(twinkle).toHaveAttribute('aria-current', 'true');
 });

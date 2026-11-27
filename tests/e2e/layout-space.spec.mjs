@@ -64,7 +64,7 @@ test.describe('wide window', () => {
 
   test('Pieces: the empty drop zone is one row, not a tall panel', async ({ app, page }) => {
     await app.open({ hash: 'analysis' });
-    const drop = await box(page, '#an-drop'), title = await box(page, '#an-drop-t'), open = await box(page, '#an-drop [data-an-open]');
+    const drop = await box(page, '#an-drop'), title = await box(page, '#an-drop-t'), open = await box(page, '#an-choose-files');
     expect(drop.height).toBeLessThan(140);   // 210px before
     expect(open.x).toBeGreaterThan(title.x + title.width);
     expect(open.height).toBeGreaterThanOrEqual(44);

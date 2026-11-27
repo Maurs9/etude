@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { test, expect, handleAppDialog } from '../helpers/fixtures.mjs';
 
 const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -30,12 +30,19 @@ async function openRow(page, title) {
 
 test('library multi-import is persistent, searchable, duplicate-safe, and resumes each piece after reload', async ({ app, page }) => {
   await app.open({ hash: 'analysis', lang: 'ro' });
-  await library(page);
+  await expect(page.locator('#an-tab-builtin')).toHaveAttribute('aria-selected', 'true');
+  const chooseFiles = page.getByRole('button', { name: 'Alege fișiere', exact: true });
+  await expect(chooseFiles).toBeEnabled();
+  const pickFiles = page.waitForEvent('filechooser');
+  await chooseFiles.press('Enter');
+  const chooser = await pickFiles;
+  expect(chooser.isMultiple()).toBe(true);
   const alpha = score();
-  await page.locator('#library-files').setInputFiles([
+  await chooser.setFiles([
     file('alpha.musicxml', alpha), file('beta.xml', score('Library Beta', 'Composer Beta', 'D')),
     file('renamed.xml', alpha), file('broken.xml', 'not a score'), file('document.pdf', '%PDF'),
   ]);
+  await expect(page.locator('#an-tab-library')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#library-status')).toContainText('Adăugate: 2. Deja stocate: 1. Eșuate: 2.');
   await expect(rows(page)).toHaveCount(2);
   await expect(page.locator('#library-failures')).toContainText('broken.xml');
@@ -81,6 +88,52 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await library(page);
   await page.locator('[data-library-tab=recent]').click();
   await expect(rows(page)).toHaveCount(1);
+});
+
+test('the Pieces bar imports folders recursively and handles a folder without scores', async ({ app, page }, info) => {
+  await app.open({ hash: 'analysis' });
+  const scores = info.outputPath('scores');
+  const nested = info.outputPath('scores', 'nested');
+  const noScores = info.outputPath('notes');
+  mkdirSync(nested, { recursive: true });
+  mkdirSync(noScores);
+  writeFileSync(info.outputPath('notes', 'readme.txt'), 'No score here');
+  writeFileSync(info.outputPath('scores', 'alpha.musicxml'), score());
+  writeFileSync(info.outputPath('scores', 'nested', 'beta.XML'), score('Library Beta'));
+  writeFileSync(info.outputPath('scores', 'nested', 'cover.pdf'), '%PDF');
+
+  async function chooseFolder(path) {
+    const pending = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Choose folder' }).click();
+    await (await pending).setFiles(path);
+  }
+  await chooseFolder(noScores);
+  await expect(page.locator('#an-catalog-status')).toHaveText(/No MIDI, MusicXML or MXL scores/);
+  await expect(page.locator('#an-tab-builtin')).toHaveAttribute('aria-selected', 'true');
+  await chooseFolder(scores);
+  await expect(page.locator('#library-status')).toHaveText('Added: 2. Already stored: 0. Failed: 0.');
+  await expect(rows(page)).toHaveCount(2);
+  await expect(page.locator('#an-catalog')).toBeVisible();
+  await chooseFolder(scores);
+  await expect(page.locator('#library-status')).toHaveText('Added: 0. Already stored: 2. Failed: 0.');
+  await expect(rows(page)).toHaveCount(2);
+});
+
+test('dropping several scores on the Pieces bar adds them to My Library', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  const drop = page.locator('#an-drop');
+  const dataTransfer = await page.evaluateHandle(xml => {
+    const transfer = new DataTransfer();
+    xml.forEach((source, index) => transfer.items.add(new File([source], `score-${index}.musicxml`)));
+    return transfer;
+  }, [score(), score('Library Beta')]);
+  await drop.dispatchEvent('dragenter', { dataTransfer });
+  await expect(drop).toHaveClass(/\bis-over\b/);
+  await drop.dispatchEvent('drop', { dataTransfer });
+  await expect(drop).not.toHaveClass(/\bis-over\b/);
+  await expect(page.locator('#library-status')).toHaveText('Added: 2. Already stored: 0. Failed: 0.');
+  await expect(rows(page)).toHaveCount(2);
+  await expect(page.locator('#an-panel')).toBeHidden();
 });
 
 test('failed replacement imports never overwrite the current piece checkpoint', async ({ app, page }) => {
@@ -225,7 +278,7 @@ for (const width of [320, 600, 1024]) {
     await expect(rows(page).locator('h3')).toHaveText(title);
     expect(await rows(page).locator('img,script').count()).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controls = await page.locator('#score-library button:visible,#library-files,#library-search,#library-sort,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
+    const controls = await page.locator('#score-library button:visible,#an-drop button:visible,#library-search,#library-sort,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
     expect(controls.every(control => control.height >= 43 && control.right <= width + 1)).toBe(true);
     await page.locator('#library-toggle-filters').click();
     const secondaryControls = await page.locator('#library-filter,#library-composer-filter,#library-tag-filter,#library-group').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
@@ -233,9 +286,8 @@ for (const width of [320, 600, 1024]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator('#library-toggle-filters').click();
     if (width === 1024) {
-      const bottoms = await page.locator('#library-search,#library-sort,#library-files').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().bottom));
+      const bottoms = await page.locator('#library-search,#library-sort').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().bottom));
       expect(Math.abs(bottoms[0] - bottoms[1])).toBeLessThanOrEqual(1);
-      expect(Math.abs(bottoms[1] - bottoms[2])).toBeLessThanOrEqual(1);
     }
     await page.evaluate(() => window.__etude.setLang('fr'));
     await expect(page.locator('#score-library summary')).toContainText('Ma bibliothèque');
@@ -486,17 +538,11 @@ test('reopening a saved MIDI score via file input restores its saved reconstruct
   expect(savedRecon).toMatchObject({ hands: 'tracks', grid: 8 });
 });
 
-test('row action menu (⋯) supports keyboard navigation, Escape return focus, and corrupt import retry', async ({ app, page }) => {
+test('row action menu (⋯) supports keyboard navigation and Escape return focus after import', async ({ app, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await app.open({ hash: 'analysis' });
   await expect(page.locator('#an-tab-builtin')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('.an-open-cta')).toBeVisible();
-
-  await page.locator('#an-file').setInputFiles({ name: 'corrupt.xml', mimeType: 'application/xml', buffer: Buffer.from('not xml') });
-  await expect(page.locator('#an-import-banner')).toBeVisible();
-  await expect(page.locator('#an-import-retry')).toBeVisible();
-
-  await library(page);
+  await expect(page.getByRole('button', { name: 'Choose files' })).toBeEnabled();
   await page.locator('#library-files').setInputFiles(file('menu-test.xml', score('Menu Study')));
   await expect(rows(page)).toHaveCount(1);
   await page.reload();

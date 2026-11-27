@@ -319,15 +319,26 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   </section>
 
   <section class="view" id="view-analysis" data-an-screen="catalog"><div class="wrap">
-    <input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" class="visually-hidden">
+    <input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" hidden>
     <div class="an-catalog" id="an-catalog">
       <div class="section-head">
         <div><h1 data-i18n="an_title">Pieces</h1></div>
-        <div class="an-head-actions"><label class="btn primary an-open-cta" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label></div>
       </div>
-      <p class="lede" data-i18n="an_desc">Pick a built-in piece or open your own MIDI or MusicXML file, then play it with the score. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
-      <div class="an-import-banner" id="an-import-banner" hidden><span class="an-catalog-status" id="an-catalog-status" role="status" aria-live="polite"></span><button type="button" class="btn sm an-try-another" id="an-import-retry" data-an-open data-i18n="an_try_another" hidden>Try another file</button></div>
-      <div id="an-empty-host" class="an-empty an-empty-host"></div>
+      <p class="lede" data-i18n="an_desc">Pick a built-in piece or add your own scores to My Library. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
+      <div id="an-empty-host">
+        <div class="an-drop" id="an-drop">
+          <p class="an-drop-t" id="an-drop-t"><span class="ctx-kbd" data-i18n="an_drop_t">Drop scores or folders here</span><span class="ctx-touch" data-i18n="an_pick_t">Add scores to My Library</span></p>
+          <p class="an-drop-hint" data-i18n="an_drop_over" hidden>Release to add to My Library</p>
+          <p class="an-drop-s" data-i18n="an_drop_s">MIDI, MusicXML or MXL · up to 2 MB per score</p>
+          <div class="an-drop-actions">
+            <button type="button" class="btn primary" id="an-choose-files" data-i18n="an_open" disabled>Choose files</button>
+            <button type="button" class="btn" id="an-choose-folder" data-i18n="an_pick_folder" hidden>Choose folder</button>
+          </div>
+          <input type="file" id="library-files" accept=".mid,.midi,.musicxml,.xml,.mxl" multiple hidden>
+          <input type="file" id="an-folder" webkitdirectory multiple hidden>
+        </div>
+      </div>
+      <div class="an-import-banner" id="an-import-banner" hidden><span class="an-catalog-status" id="an-catalog-status" role="status"></span></div>
       <section class="an-continue" id="an-continue" hidden>
         <div class="an-continue-txt">
           <span class="an-continue-eye" data-i18n="an_continue_eye">Continue</span>
@@ -353,7 +364,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <button type="button" class="btn ghost sm an-back-btn" id="an-back" data-i18n="an_back_pieces">← Back to pieces</button>
         <div class="an-src-text"><span id="an-name" class="an-name"></span><span class="an-msg-row"><span id="an-msg" class="an-msg" role="status" aria-live="polite"></span><button type="button" class="btn sm ghost an-msg-retry" id="an-msg-retry" data-an-open data-i18n="an_try_another" hidden>Try another file</button></span></div>
         <div class="an-src-actions">
-          <label class="btn sm primary" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label>
+          <button type="button" class="btn sm primary" data-an-open><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></button>
         </div>
       </div>
       <div class="an-fs-top" id="an-fs-top" hidden>

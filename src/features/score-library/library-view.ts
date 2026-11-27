@@ -64,14 +64,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const content = element('div', 'score-library-content');
   const privacy = element('p', 'score-library-note');
   const toolbar = element('div', 'score-library-toolbar');
-  const importLabel = element('label', 'score-library-picker');
-  const importText = element('span');
-  const files = element('input');
-  files.id = 'library-files';
-  files.type = 'file';
-  files.multiple = true;
-  files.accept = '.xml,.musicxml,.mxl,.mid,.midi';
-  importLabel.append(importText, files);
   const searchLabel = element('label', 'score-library-search');
   const searchText = element('span');
   const search = element('input');
@@ -141,7 +133,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   resetFilters.id = 'library-reset-filters';
   resetFilters.type = 'button';
   const toolbarMain = element('div', 'score-library-toolbar-main');
-  toolbarMain.append(searchLabel, sortLabel, importLabel);
+  toolbarMain.append(searchLabel, sortLabel);
   const toolbarBarActions = element('div', 'score-library-toolbar-bar-actions');
   toolbarBarActions.append(toggleFilters);
   const toolbarBar = element('div', 'score-library-toolbar-bar');
@@ -315,7 +307,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = backup.disabled = sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    restore.disabled = backup.disabled = sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = tagFilter.disabled = group.disabled = value;
     syncDifficultyFilters();
     for (const { button } of tabButtons) button.disabled = value;
@@ -1012,8 +1004,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const locale = host.language();
     privacy.textContent = t('privacy');
     transferNote.textContent = t('transfer');
-    importText.textContent = t('import');
-    files.setAttribute('aria-label', t('import'));
     searchText.textContent = t('search_label');
     search.placeholder = t('search');
     search.setAttribute('aria-label', t('search'));
@@ -1062,23 +1052,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       localize();
     });
   };
-  files.addEventListener('click', onRequestProtection);
   restore.addEventListener('click', onRequestProtection);
-  files.addEventListener('change', () => {
-    const selected = Array.from(files.files ?? []);
-    if (!selected.length || busy) { files.value = ''; return; }
-    void run(async () => {
-      const result = await importLibraryFiles(selected, host, (fileName) => {
-        const failed = element('li');
-        failed.textContent = fileName;
-        failures.append(failed);
-        failures.hidden = false;
-      });
-      await refresh();
-      notice('import_result', result);
-      files.value = '';
-    });
-  });
   restore.addEventListener('change', () => {
     const file = restore.files?.[0];
     if (!file || busy) { restore.value = ''; return; }
@@ -1207,6 +1181,21 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     if (busy) { event.preventDefault(); event.returnValue = ''; }
   });
   const controller: LibraryController = {
+    async importFiles(selected) {
+      if (busy) return false;
+      await run(async () => {
+        const result = await importLibraryFiles(selected, host, (fileName) => {
+          const failed = element('li');
+          failed.textContent = fileName;
+          failures.append(failed);
+          failures.hidden = false;
+        });
+        await refresh();
+        notice('import_result', result);
+      });
+      return true;
+    },
+    requestStorageProtection: onRequestProtection,
     refresh: () => {
       needsRefresh = false;
       return refresh();
