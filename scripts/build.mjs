@@ -86,6 +86,7 @@ export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html')
           output: {
             manualChunks(id) {
               const norm = id.replaceAll('\\', '/');
+              if (norm.includes('/src/features/')) return undefined;
               if (/\/src\/domain\/score-(import|svg-post|midi|feature|harmony|markings|svg-markings|xml-markings|symbols|repeats|expression|cursor|gestures)\.ts$/.test(norm)) return 'score-tools';
               if (/\/src\/(domain\/score-difficulty(?:-calibration|-import)?|sight-reading\/scored-exercise)\.ts$/.test(norm)) return undefined;
               if (norm.includes('/src/domain/score-library-ui')) return undefined;

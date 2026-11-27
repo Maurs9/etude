@@ -234,12 +234,22 @@ export interface TestSurfaceRegistry {
   defineValue<T>(key: string, value: T): void;
 }
 
+export type PracticeModePref = 'play' | 'ear' | 'keys' | 'along' | 'tech';
+
 export interface ShowOptions {
   readonly moveFocus?: boolean;
   readonly fromHistory?: boolean;
   readonly analysisRoute?: AnalysisRoute | null;
   /** Opens a file directly in `#analysis` (used by Voice → Pieces `trxOpenInPieces`). */
   readonly openFile?: File;
+  /** Scrolls/focuses a sub-section in `#explore` (e.g. `'circle'`). */
+  readonly extab?: string;
+  /** Pre-selects Practice topic/mode/key when navigating into `#practice`. */
+  readonly practiceTopic?: string;
+  readonly practiceMode?: PracticeModePref;
+  readonly practiceKey?: string;
+  /** Pre-selects a Reading key when navigating into `#read`. */
+  readonly readingKeyId?: string;
 }
 
 /**
@@ -267,18 +277,20 @@ export interface InputBus {
   subscribe(listener: InputBusListener): () => void;
   heldMidis(): number[];
   heldPcs(): number[];
+  isMidiLive(): boolean;
   releaseLiveInput(): void;
   releaseFocusInput(): void;
 }
 
 export type ScoreLayoutPref = 'fit' | 'page' | 'cont';
 export type ScoreLookPref = 'paper' | 'night';
+export type ScoreFallModePref = 'score' | 'fall';
 
 export interface UiPrefsSnapshot {
   readonly scoreLook: ScoreLookPref;
   readonly scoreHl: boolean;
   readonly scoreLayout: ScoreLayoutPref;
-  readonly scoreFallMode: boolean;
+  readonly scoreFallMode: ScoreFallModePref;
   readonly scoreLayoutExplicit: boolean;
   readonly anSide: { readonly open: boolean; readonly tab: string; readonly w: number };
 }
@@ -295,7 +307,12 @@ export interface UiPrefsStore {
 
 export type CoachSurface = 'today' | 'read' | 'practice' | 'analysis' | 'settings';
 export type TranslateFn = (key: string, ...args: ReadonlyArray<string | number | null | undefined>) => string;
-export type SpellNoteFn = (letter: number, accidental: number) => string;
+export type SpellNoteFn = (letter: number, accidental: number, asciiSharpFlat?: boolean) => string;
+
+export interface PreviewSequenceFrame {
+  readonly at: number;
+  readonly notes: number[];
+}
 
 export interface AudioHostFacade {
   ensure(): void;
@@ -303,6 +320,8 @@ export interface AudioHostFacade {
   noteOff(midi: number): void;
   previewNote(midi: number, when?: number, duration?: number, velocity?: number, options?: PianoVoiceOptions): void;
   playInterval(rootMidi: number, semitones: number, style?: 'both' | 'harmonic' | 'melodic'): void;
+  playChordMidis(midis: number[], arpeggio: boolean): void;
+  playScaleNotes(rootMidi: number, offsets: readonly number[], ascending: boolean): void;
   stopPreviews(): void;
 }
 
@@ -318,9 +337,14 @@ export interface MetronomeHostFacade {
 
 export interface DockHostFacade {
   sync(): void;
+  setOpen(open: boolean): void;
+  isShown(): boolean;
   clear(state?: string): void;
   mark(midi: number, state: 'target' | 'good' | 'bad' | null, anyOctave?: boolean): void;
+  setDegrees(degrees: Map<number, string> | null): void;
   ensureVisible(midis: readonly number[]): void;
+  fixedBottomTop(): number;
+  onReflow(listener: () => void): () => void;
 }
 
 /**
@@ -339,6 +363,7 @@ export interface FeatureController {
   panic?(): void;
   localize?(): void;
   onEscape?(): boolean;
+  registerTestSurface?(registry: TestSurfaceRegistry): void;
 }
 
 export interface AppHost {
@@ -348,6 +373,19 @@ export interface AppHost {
     readonly spell: SpellNoteFn;
     readonly notation: () => NotationSystem;
     readonly loadLearn: () => Promise<void>;
+    readonly chordDisp: (chord: ChordTemplate | string | undefined) => string;
+    readonly scaleDisp: (name: string) => string;
+    readonly invName: (inversion: number) => string;
+    readonly intervalLabel: (semitones: number) => string;
+    readonly noteName: (midi: number, preferFlat?: boolean) => string;
+    readonly pcName: (pc: number, preferFlat?: boolean) => string;
+    readonly slashLabel: (
+      id: { rootPc: number; chord: { symbol: string }; bassPc: number; inversion: number },
+      rootSp?: { li: number; acc: number; oct: number },
+      bassSp?: { li: number; acc: number; oct: number },
+    ) => string;
+    readonly formatChord: (root: string, symbol: string) => string;
+    readonly fillRoots: (sel: HTMLElement, withAll: boolean) => void;
   };
   readonly audio: AudioHostFacade;
   readonly metro: MetronomeHostFacade;
@@ -376,6 +414,7 @@ export interface AppHost {
   };
   readonly previews: {
     readonly registerStopper: (stop: () => void) => () => void;
+    readonly registerSequenceHandler: (handler: (frames: PreviewSequenceFrame[]) => void) => () => void;
     readonly stopAll: () => void;
   };
   readonly wake: {
@@ -386,6 +425,7 @@ export interface AppHost {
     readonly setContext: (surface: CoachSurface, snapshot: Readonly<Record<string, unknown>> | null) => void;
     readonly refresh: () => void;
   };
+  readonly reduceMotion: () => boolean;
   readonly testSurface: TestSurfaceRegistry | null;
 }
 
