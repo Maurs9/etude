@@ -1,6 +1,8 @@
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import type { AppSettings, StoredSrsEntry } from './storage.js';
-import type { AudioTone, PianoStatus, PianoVoiceOptions } from './audio.js';
+import type { AudioEngine, AudioTone, AudioVoice, PianoStatus, PianoVoiceOptions } from './audio.js';
+import type { identifyChord as identifyChordFn } from './theory.js';
+import type { Localised } from '../locales/content-types.js';
 import type { AnalysisRoute, AppView } from './router.js';
 import type { NotationSystem } from './score-types.js';
 import type { ChordTemplate, ProgressionTemplate, ScaleDefinitions } from './view-contracts.js';
@@ -447,6 +449,116 @@ export interface AppHost {
   };
   readonly reduceMotion: () => boolean;
   readonly testSurface: TestSurfaceRegistry | null;
+}
+
+/** The Score Player's side-panel tabs, in order; the shell validates restored `anSide.tab` against it without loading the feature. */
+export const SCORE_SIDE_TABS: readonly string[] = ['now', 'piece', 'practice'];
+
+/** A coaching tip: a string key with what fills it in, and optionally an action (a button label and what it does). */
+export interface CoachTip {
+  k: string;
+  args?: () => (string | number)[];
+  act?: { k: string; args?: () => (string | number)[]; run: () => void } | null;
+}
+
+/** The shell's full-window score focus (Pieces and Read share it); the shell owns and mutates it. */
+export interface ScoreFocusState {
+  owner: 'analysis' | 'read' | null;
+  native: boolean;
+  token: number;
+  returnTo: HTMLElement | null;
+  scroll: number;
+  readOverride: boolean | null;
+  zoom: number;
+}
+
+/**
+ * Shell services the lazy Score Player (`src/features/score-player/`) needs beyond `AppHost`: live keyboard/dock state,
+ * the shared audio engine, score focus, layout CSS variables and shared spelling/coaching helpers that stay in the shell.
+ * Mutable shell values are exposed as getters so the feature never caches a stale binding.
+ */
+export interface ScorePlayerShell {
+  readonly audioEngine: AudioEngine;
+  readonly scoreClicks: Set<AudioVoice>;
+  readonly keyboardView: { low: number; oct: number };
+  readonly keyEl: Map<number, HTMLButtonElement>;
+  readonly held: Set<number>;
+  readonly scoreFocus: ScoreFocusState;
+  readonly baseLow: number;
+  readonly baseHigh: number;
+  readonly view0: () => string;
+  readonly kbState: (midi: number, state: string | null, fold: boolean) => void;
+  readonly labelMode: () => string;
+  readonly strings: () => Readonly<Record<string, Readonly<Record<string, string>>>>;
+  readonly navigationToken: () => number;
+  readonly bumpNavigation: () => number;
+  readonly ensureAudio: (warm?: boolean) => AudioContext | null;
+  readonly pianoEnsure: (midis: readonly number[]) => Promise<unknown>;
+  readonly stopClicks: (clicks: Set<AudioVoice>) => void;
+  readonly buildKeyboard: () => void;
+  readonly repaintHeld: () => void;
+  readonly foldToView: (midi: number) => number;
+  readonly dockOpen: (view?: string) => boolean;
+  readonly layoutVars: () => void;
+  readonly layoutVarsSoon: () => void;
+  readonly handleNoteOn: (midi: number, velocity: number, source?: string) => void;
+  readonly handleNoteOff: (midi: number, source?: string, releaseKind?: InputReleaseKind, silence?: boolean) => void;
+  readonly touchInput: (event: Event, fn: () => void) => void;
+  readonly inField: () => boolean;
+  readonly blurInputField: () => void;
+  readonly touchDay: () => void;
+  readonly scoreFocusExit: (quiet?: boolean) => void;
+  readonly scoreFocusToggle: (owner: 'analysis' | 'read', target: HTMLElement) => void;
+  readonly appConfirm: (message: string) => Promise<boolean>;
+  readonly learnGoId: (id: string) => void;
+  readonly showNotationReloadPrompt: (message?: (lang: InterfaceLanguage) => { message: string; button: string }) => void;
+  readonly defaultScoreLayoutForViewport: (viewportWidth: number) => ScoreLayoutPref;
+  readonly savedScoreView: (view: unknown, explicit: unknown) => ScoreLayoutPref | 'fall' | null;
+  readonly identifyChord: (notes: readonly number[], expected?: number) => ReturnType<typeof identifyChordFn>;
+  readonly srPieceTitle: (piece: { id?: string; t?: Localised<string> }) => string;
+  readonly spelledName: (sys: NotationSystem, letter: number, accidental: number, ascii?: boolean) => string;
+  readonly tl: (lang: string, key: string, a?: string | number | null, b?: string | number | null) => string;
+  readonly anNum: (x: number, digits: number) => string;
+  readonly tf: (key: string, ...args: unknown[]) => string;
+  readonly coachList: (items: string[]) => string;
+  readonly coachHTML: (lead: string, tip: CoachTip, actId?: string) => string;
+}
+
+/** The Score Player controller: `FeatureController` plus the synchronous hooks the shell calls while it is loaded. */
+export interface ScorePlayerController extends FeatureController {
+  ensureModules(): Promise<void>;
+  modulesReady(): boolean;
+  currentRoute(): AnalysisRoute;
+  onPopRoute(route: AnalysisRoute): void;
+  /** Live score preferences, pushed to the shell before every save. */
+  prefs(): UiPrefsSnapshot;
+  /** Applies shell-held score preferences (boot restore or another tab's save). */
+  applyPrefs(prefs: UiPrefsSnapshot): void;
+  layoutVars(): void;
+  stageOn(): boolean;
+  setStage(on: boolean, quiet?: boolean): void;
+  hasNotes(): boolean;
+  sideOpen(): boolean;
+  setSide(open: boolean): void;
+  closeSheet(quiet?: boolean): void;
+  dockWanted(): boolean;
+  keysCenterIfPending(): void;
+  keysPaint(force?: boolean): void;
+  keysClear(): void;
+  keepPlace(): () => void;
+  updateControls(): void;
+  practiceInput(kind: 'on' | 'off', midi: number, source: string): void;
+  sustainInput(down: boolean): void;
+  syncPracticeLine(): void;
+  /** Clears the falling-notes keyboard's held keys. */
+  releaseInput(): void;
+  /** Releases focus-owned falling-notes keys; `fell` says a falling-notes key was released. */
+  releaseFocus(fell: boolean): void;
+  relocalize(): void;
+  /** Re-words the practice summary's next-step tip (language or note names changed). */
+  refreshCoach(): void;
+  localizeLibrary(): void;
+  onScreenChange(flipped: boolean): void;
 }
 
 declare global {
