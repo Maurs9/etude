@@ -3399,7 +3399,7 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
     expect(results.segOverflow).toBe('visible');
   });
 
-  test('Explore reference group uses ARIA role=group, Voice view has eyebrow, and t() preserves dollar signs', async ({ app, page }) => {
+  test('Explore reference group uses ARIA role=group, Voice view has heading, and t() preserves dollar signs', async ({ app, page }) => {
     await app.open({ hash: 'explore' });
     const refGroup = page.locator('#ex-ref .ref-field');
     await expect(refGroup).toHaveAttribute('role', 'group');
@@ -3407,7 +3407,7 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
     expect(await refGroup.evaluate(el => el.tagName)).toBe('DIV');
 
     await page.evaluate(() => window.__etude.show('sing'));
-    await expect(page.locator('#view-sing .section-head .eyebrow')).toBeVisible();
+    await expect(page.locator('#view-sing .section-head h1')).toBeVisible();
 
     const interpolated = await page.evaluate(() => window.__etude.t('snap_item', '$&', "$$ $1 $'"));
     expect(interpolated).toBe("$& ($$ $1 $')");

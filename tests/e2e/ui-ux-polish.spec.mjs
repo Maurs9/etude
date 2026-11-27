@@ -359,9 +359,12 @@ test.describe('Wave 2A UX and localization regressions', () => {
     const bodyOptical = await page.evaluate(() => getComputedStyle(document.body).fontOpticalSizing);
     expect(bodyOptical).toBe('none');
 
-    // Romanian headings use italic Bodoni Moda because Mr De Haviland lacks ă/ș/ț, while the É brand mark and numerals keep script.
+    // Romanian headings use italic Bodoni Moda because Mr De Haviland lacks ă/ș/ț, while the É brand mark, fixed 'note & nuance' tagline, and numerals keep script.
+    await expect(page.locator('#brand-tag')).toHaveText('note & nuance');
+    await expect(page.locator('#view-today .today-head .eyebrow, #view-learn .section-head .eyebrow, #view-practice .section-head .eyebrow')).toHaveCount(0);
     await page.evaluate(() => { window.__etude.setLang('ro'); window.__etude.show('today'); });
     await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
+    await expect(page.locator('#brand-tag')).toHaveText('note & nuance');
     const ro = await page.evaluate(() => ({
       h1Font: getComputedStyle(document.querySelector('#greet-title')).fontFamily,
       h1Style: getComputedStyle(document.querySelector('#greet-title')).fontStyle,
@@ -371,7 +374,7 @@ test.describe('Wave 2A UX and localization regressions', () => {
     }));
     expect(ro.h1Font).toContain('Bodoni Moda');
     expect(ro.h1Style).toBe('italic');
-    expect(ro.tagFont).toContain('Bodoni Moda');
+    expect(ro.tagFont).toContain('Mr De Haviland');
     expect(ro.markFont).toContain('Mr De Haviland');
     expect(ro.countFont).toContain('Mr De Haviland');
 

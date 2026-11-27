@@ -30,7 +30,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 <a class="skip-link" href="#main" id="skipLink" data-i18n="skip_content">Skip to main content</a>
 <header>
   <div class="wrap bar">
-    <a class="brand" href="#today" data-view="today"><span class="mark">Étude<b>.</b></span><span class="tag" id="brand-tag" data-i18n="brand_tag">ear &amp; hand</span></a>
+    <a class="brand" href="#today" data-view="today"><span class="mark">Étude<b>.</b></span><span class="tag" id="brand-tag" translate="no">note &amp; nuance</span></a>
     <nav class="tabs" id="nav" aria-label="Sections" data-i18n-aria="nav_sections">
       <button data-view="today" data-i18n="nav_today" aria-current="page">Today</button>
       <button data-view="learn" data-i18n="nav_learn">Learn</button>
@@ -56,7 +56,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     <div class="wrap" id="today-home">
       <div class="today-head">
         <div class="greet">
-          <div class="eyebrow" id="greet-eyebrow" data-i18n="today_eyebrow">Today’s practice</div>
           <h1 id="greet-title">Welcome back</h1>
           <p class="lede" id="greet-lede" data-i18n="greet_lede">Short, spaced sessions beat long cramming. A few minutes a day is all it takes.</p>
         </div>
@@ -154,7 +153,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== LEARN ===================== -->
   <section class="view" id="view-learn">
     <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="ln_eyebrow">Theory handbook</div><h1 data-i18n="ln_title">Learn the language</h1></div></div>
+      <div class="section-head"><div><h1 data-i18n="ln_title">Learn the language</h1></div></div>
       <p class="lede" data-i18n="ln_lede">Short, plain-language chapters — every example has a play button, and the keyboard below lights up so you can see it under your fingers.</p>
       <div class="learn-grid">
         <div class="learn-side"><div class="learn-meta" id="learnMeta" aria-live="polite"></div><div class="learn-prog" aria-hidden="true"><i id="learnProg"></i></div>
@@ -167,7 +166,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== READ (sheet music) ===================== -->
 <section class="view" id="view-read">
     <div class="wrap">
-      <div class="today-head rdn-head"><div class="greet"><div class="eyebrow" data-i18n="rd_eyebrow">Sheet music</div><h1 data-i18n="rd_title">Read &amp; play</h1>
+      <div class="today-head rdn-head"><div class="greet"><h1 data-i18n="rd_title">Read &amp; play</h1>
       <p class="lede" id="rd-lede" data-i18n="rd_lede" hidden>Learn to read music fluently: short daily drills for notes, intervals, chords, key signatures and rhythm, then sight-read real pieces. Use MIDI, the on-screen keys, or A–K.</p>
       <p class="lede" id="rdn-lede" data-i18n="rdn_lede">Read a new piece every day: at first sight, in time, without stopping.</p></div>
       <div class="streak" id="rdn-streak" hidden></div></div>
@@ -323,7 +322,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     <input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" class="visually-hidden">
     <div class="an-catalog" id="an-catalog">
       <div class="section-head">
-        <div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Pieces</h1></div>
+        <div><h1 data-i18n="an_title">Pieces</h1></div>
         <div class="an-head-actions"><label class="btn primary an-open-cta" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label></div>
       </div>
       <p class="lede" data-i18n="an_desc">Pick a built-in piece or open your own MIDI or MusicXML file, then play it with the score. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
@@ -534,7 +533,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== PRACTICE ===================== -->
   <section class="view" id="view-practice">
     <div class="wrap" id="pr-home">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="pr_eyebrow">Targeted practice</div><h1 data-i18n="pr_title">Drill one thing</h1></div></div>
+      <div class="section-head"><div><h1 data-i18n="pr_title">Drill one thing</h1></div></div>
       <p class="lede" data-i18n="pr_lede">Free practice on a single topic — it won’t change your review schedule, daily goal or streak, so grind as much as you like.</p>
       <!-- Continue strip: the last drill, restarted with one tap (renderPracticeLast). -->
       <div id="pr-last" class="pr-continue" hidden>
@@ -651,7 +650,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <section class="view" id="view-sing">
     <div class="wrap">
       <div class="section-head">
-        <div><div class="eyebrow" data-i18n="vo_eyebrow">Voice &amp; ear</div><h1 data-i18n="nav_sing">Voice</h1></div>
+        <div><h1 data-i18n="nav_sing">Voice</h1></div>
         <div class="vo-switch" id="vo-switch" role="tablist" aria-label="Activity" data-i18n-aria="vo_switch_aria">
           <button type="button" role="tab" id="vo-tab-sing" data-act="sing" aria-selected="true" aria-controls="vo-sing" tabindex="0" data-i18n="vo_sing">Sing from the staff</button>
           <button type="button" role="tab" id="vo-tab-hum" data-act="hum" aria-selected="false" aria-controls="vo-hum" tabindex="-1" data-i18n="vo_hum">Hum to notes</button>
@@ -725,7 +724,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== EXPLORE ===================== -->
   <section class="view" id="view-explore">
     <div class="wrap">
-      <div class="section-head ex-head"><div><div class="eyebrow" data-i18n="ex_eyebrow">Free play</div><h1 data-i18n="ex_title">Explore</h1></div>
+      <div class="section-head ex-head"><div><h1 data-i18n="ex_title">Explore</h1></div>
         <p class="lede" data-i18n="ex_lede">Play anything — Étude names what you hold and shows it on the staff and on the circle. Pick a key on the circle to read chords in Roman numerals and to see its fingering.</p></div>
       <!-- One screen: the circle picks the key (left on wide screens); what you hold, the staff and the key card sit beside it. -->
       <div class="ex-layout" id="ex-layout">
@@ -805,7 +804,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <section class="view" id="view-progress">
     <div class="wrap">
       <div class="section-head">
-        <div><div class="eyebrow" data-i18n="prog_eyebrow">Your learning</div><h1 data-i18n="prog_title">Progress</h1></div>
+        <div><h1 data-i18n="prog_title">Progress</h1></div>
       </div>
       <div class="prog-print-head" id="prog-print-head" aria-hidden="true"></div>
       <div class="prog-empty" id="prog-empty" hidden><p data-i18n="prog_empty">No reviews yet. Your stats, memory strength and practice calendar fill in as you answer questions.</p><button type="button" class="btn primary sm" id="prog-start" data-i18n="prog_empty_cta">Start today’s session →</button></div>
@@ -870,7 +869,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== METHOD ===================== -->
   <section class="view" id="view-method">
     <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="method_eyebrow">Why this works</div><h1 data-i18n="method_title">The method behind Étude</h1></div></div>
+      <div class="section-head"><div><h1 data-i18n="method_title">The method behind Étude</h1></div></div>
       <p class="lede method-hero" data-i18n="method_intro">Étude isn’t a quiz — it’s built on what cognitive science actually says about learning a skill. Six ideas do the heavy lifting. None of them involve studying harder; they involve studying smarter.</p>
       <div class="principles" style="margin-top:22px">
         <div class="principle"><div class="n">01</div><h3 data-i18n="m1n">Spaced repetition</h3><p data-i18n="m1d">You remember something best when you review it right as you’re about to forget it. Each successful recall lets the next review wait a little longer.</p><div class="applied"><b data-i18n="applied_in">In Étude:</b> <span data-i18n="m1a">every concept carries its own due-date. Today shows what’s due; the schedule stretches as you succeed and snaps back when you slip.</span></div></div>

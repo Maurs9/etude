@@ -75,8 +75,8 @@
   }
   h1,h2,h3,.display{font-family:var(--serif); font-weight:600; letter-spacing:-.01em}
   h1{font-family:var(--script); font-weight:400; letter-spacing:0}
-  /* Mr De Haviland lacks Romanian ă, ș, ț; keep script on the É brand mark and numerals while rendering Romanian titles cleanly in italic Bodoni Moda. */
-  :root[lang="ro"] h1, :root[lang="ro"] .brand .tag{font-family:var(--serif); font-style:italic; font-weight:500}
+  /* Mr De Haviland lacks Romanian ă, ș, ț; keep script on the É brand mark, fixed 'note & nuance' tagline, and numerals while rendering Romanian titles cleanly in italic Bodoni Moda. */
+  :root[lang="ro"] h1{font-family:var(--serif); font-style:italic; font-weight:500}
   .num{font-variant-numeric:tabular-nums}
   a{color:var(--accent)}
   button{font-family:inherit}
@@ -90,11 +90,10 @@
   header{position:sticky; top:0; z-index:var(--z-header); background:var(--headbg); backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line)}
   .bar{display:flex; align-items:center; gap:18px; height:62px}
-  .brand{display:flex; align-items:baseline; gap:12px; margin-right:auto; text-decoration:none; color:var(--ink)}
-  .brand .mark{font-family:var(--script); font-weight:400; font-size:38px; line-height:.9; letter-spacing:0}
+  .brand{display:flex; align-items:baseline; gap:14px; margin-right:auto; text-decoration:none; color:var(--ink)}
+  .brand .mark{font-family:var(--script); font-weight:400; font-size:44px; line-height:.88; letter-spacing:0}
   .brand .mark b{color:var(--accent); font-weight:400}
-  .brand .tag{font-size:24px; line-height:1; color:var(--muted); font-style:normal; font-weight:400; font-family:var(--script); white-space:nowrap}
-  :root[lang="ro"] .brand .tag{font-size:13.5px}
+  .brand .tag{font-size:28px; line-height:1; color:var(--ink2); font-style:normal; font-weight:400; font-family:var(--script); white-space:nowrap}
   nav.tabs{display:flex; gap:2px}
   nav.tabs button{appearance:none; border:none; background:none; color:var(--muted); font-size:14px; font-weight:600;
     padding:8px 12px; border-radius:8px; cursor:pointer; transition:color .15s, background-color .15s; position:relative; white-space:nowrap}
@@ -129,8 +128,8 @@
 
   /* ---------- TODAY ---------- */
   .today-head{display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap}
-  .greet h1{font-size:clamp(44px,6vw,60px); margin:.04em 0 .1em; line-height:.96}
-  :root[lang="ro"] .greet h1{font-size:clamp(30px,5vw,44px); margin:.1em 0 .14em; line-height:1.06}
+  .greet h1{font-size:clamp(48px,6.4vw,66px); margin:0 0 .1em; line-height:.96}
+  :root[lang="ro"] .greet h1{font-size:clamp(32px,5vw,46px); margin:.02em 0 .12em; line-height:1.06}
   .greet .lede{font-size:15px}
   .streak{display:flex; align-items:center; gap:10px; text-align:right}
   .streak .big{font-family:var(--script); font-size:48px; font-weight:400; color:var(--gold); line-height:.88}
@@ -218,7 +217,8 @@
 
   /* ---------- generic cards / explore / progress ---------- */
   .section-head{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:8px}
-  .section-head h1{font-size:clamp(38px,4.8vw,50px); line-height:.98; margin:.04em 0 .08em}
+  .section-head h1{font-size:clamp(44px,5.4vw,58px); line-height:.96; margin:0 0 .08em}
+  :root[lang="ro"] .section-head h1{font-size:clamp(30px,4.5vw,42px); line-height:1.08}
   .panel{border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:var(--shadow); padding:20px}
   .row{display:flex; gap:14px; flex-wrap:wrap; align-items:center}
   .seg{display:inline-flex; border:1px solid var(--line); border-radius:10px; background:var(--card)}
@@ -1297,8 +1297,8 @@
   details.osmd-lic + footer{border-top:none}
   @media (max-width:680px){
     .today-head{gap:8px; align-items:flex-start}
-    .greet h1{font-size:40px; margin:0 0 2px}
-    :root[lang="ro"] .greet h1{font-size:28px}
+    .greet h1{font-size:44px; margin:0 0 2px}
+    :root[lang="ro"] .greet h1{font-size:30px}
     .greet .lede{font-size:13.5px; margin:2px 0 0; line-height:1.4}
     .today-overview{gap:12px; margin-top:12px}
     .hero-top{padding:14px 16px 12px}
