@@ -62,7 +62,7 @@
 .rdx-bar{display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-top:14px}
 .rdx-filters{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
 .rdx-filters .chip{min-height:38px; padding:6px 12px}
-.rdx-filters .chip[aria-pressed=true]{background:var(--accent); color:#fff; border-color:var(--accent)}
+.rdx-filters .chip[aria-pressed=true]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 .rdx-bar-end{display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-left:auto}
 .rdx-ladder{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; margin-top:14px}
 .rdx-unit{margin-bottom:0}

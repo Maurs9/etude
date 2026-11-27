@@ -355,5 +355,44 @@ test.describe('Wave 2A UX and localization regressions', () => {
     expect(prog.h1Font).toContain('Mr De Haviland');
     expect(prog.statFont).toContain('Mr De Haviland');
     expect(prog.statLabelFont).toContain('Bodoni Moda');
+
+    const bodyOptical = await page.evaluate(() => getComputedStyle(document.body).fontOpticalSizing);
+    expect(bodyOptical).toBe('none');
+
+    // Romanian headings use italic Bodoni Moda because Mr De Haviland lacks ă/ș/ț, while the É brand mark and numerals keep script.
+    await page.evaluate(() => { window.__etude.setLang('ro'); window.__etude.show('today'); });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
+    const ro = await page.evaluate(() => ({
+      h1Font: getComputedStyle(document.querySelector('#greet-title')).fontFamily,
+      h1Style: getComputedStyle(document.querySelector('#greet-title')).fontStyle,
+      tagFont: getComputedStyle(document.querySelector('.brand .tag')).fontFamily,
+      markFont: getComputedStyle(document.querySelector('.brand .mark')).fontFamily,
+      countFont: getComputedStyle(document.querySelector('#c-due')).fontFamily,
+    }));
+    expect(ro.h1Font).toContain('Bodoni Moda');
+    expect(ro.h1Style).toBe('italic');
+    expect(ro.tagFont).toContain('Bodoni Moda');
+    expect(ro.markFont).toContain('Mr De Haviland');
+    expect(ro.countFont).toContain('Mr De Haviland');
+
+    // Dark-mode active reading drill filter chip uses --accent-ink instead of low-contrast white.
+    await page.evaluate(() => {
+      window.__etude.theme = 'dark';
+      window.__etude.applyTheme();
+      window.__etude.show('read');
+    });
+    await page.locator('#rdt-drills').click();
+    const chipContrast = await page.evaluate(() => {
+      const chip = document.querySelector('#rdx-filters .chip[aria-pressed="true"]');
+      const parse = str => str.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const lum = ([r, g, b]) => [r, g, b].map(v => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      }).reduce((acc, c, i) => acc + c * [0.2126, 0.7152, 0.0722][i], 0);
+      const cs = getComputedStyle(chip);
+      const l1 = lum(parse(cs.color)), l2 = lum(parse(cs.backgroundColor));
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    });
+    expect(chipContrast).toBeGreaterThanOrEqual(4.5);
   });
 });
