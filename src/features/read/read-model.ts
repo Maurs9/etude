@@ -1,11 +1,9 @@
-import * as storage from '../../domain/storage.js';
+
 import { type ReadClefDraw, type ReadClefStaff, type ReadDrillChordQuality, type ReadDrillLevel, type ReadDrillType } from '../../core/reading-curriculum.js';
 import { type SrBeatX, type SrLayout, type SrPiece, type SrRenderResult, type SrStaffNote, type SrToken } from '../../domain/score-types.js';
-import { PIECES } from '../../domain/repertoire-data.js';
 import { type CoachTip } from '../../domain/views.js';
 import { type SightReadingEvaluation } from '../../sight-reading/evaluate.js';
 import { type SightReadingPiece } from '../../sight-reading/model.js';
-import { srtFingerprint } from '../../sight-reading/fingerprint.js';
 import { type ReadingKeyId } from '../../sight-reading/levels.js';
 import { type WarmupStep } from '../../sight-reading/warmup.js';
 import type { GeneratedPiece } from '../../sight-reading/rules.js';
