@@ -78,7 +78,7 @@ export const LESSONS: LessonMetadata[] = [
   },
   {
     "id": "symbols",
-    "icon": "𝄋",
+    "icon": "↻",
     "en": {
       "t": "Road signs: repeats, codas, pedal & ornaments"
     },
@@ -103,7 +103,7 @@ export const LESSONS: LessonMetadata[] = [
   },
   {
     "id": "dyn",
-    "icon": "𝆐",
+    "icon": "ƒ",
     "en": {
       "t": "Dynamics & articulation"
     },
@@ -153,7 +153,7 @@ export const LESSONS: LessonMetadata[] = [
   },
   {
     "id": "rh2",
-    "icon": "𝅘𝅥𝅮",
+    "icon": "³",
     "en": {
       "t": "Rests, ties, triplets & syncopation"
     },
@@ -353,7 +353,7 @@ export const LESSONS: LessonMetadata[] = [
   },
   {
     "id": "ch7",
-    "icon": "𝄪",
+    "icon": "⁷",
     "en": {
       "t": "Seventh chords, colour chords & slash chords"
     },
