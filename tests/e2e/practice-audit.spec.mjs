@@ -27,6 +27,8 @@ test('cancelled placement leaves daily counters and schedule untouched until com
   await expect(page.locator('#placeBtn')).toBeVisible();
   await expect(page.locator('#summary')).toBeHidden();
   await page.reload();
+  // The test surface appears once boot finishes (lazy feature hooks included), after the page is already visible.
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function');
   await expect(page.locator('#placeBtn')).toBeVisible();
   expect(await page.evaluate(() => window.__etude.data)).toMatchObject({
     totalReviews: 0, todayCount: 0, placed: false,

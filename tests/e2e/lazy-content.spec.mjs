@@ -178,8 +178,10 @@ test('all language and Learn chunks open offline after warming only Today @sw', 
 for (const view of ['today', 'explore']) {
   test(`Progress and lesson staves load on demand from ${view}`, async ({ app, page }) => {
     await app.open({ hash: view });
+    // The module itself: `name.ts` from the dev server or `name-<8-char hash>.js` from the build. A longer file name that only
+    // starts with it (learn-staves-and-demos.ts, eager in dev) is a different module.
     const loaded = name => page.evaluate(name => performance.getEntriesByType('resource').some(entry =>
-      new RegExp(`/${name}(?:-[^/]+)?\\.(?:js|ts)$`).test(new URL(entry.name).pathname)), name);
+      new RegExp(`/${name}(?:-[\\w-]{8})?\\.(?:js|ts)$`).test(new URL(entry.name).pathname)), name);
     expect(await loaded('progress-view')).toBe(false);
     expect(await loaded('learn-staves')).toBe(false);
     await page.locator('#nav [data-view=progress]').click();
