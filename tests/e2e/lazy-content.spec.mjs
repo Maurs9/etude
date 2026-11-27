@@ -43,8 +43,12 @@ for (const language of LANGUAGES) {
     expect(catalog.count).toBeGreaterThan(10);
     expect(catalog.containsBodies).toBe(false);
     await expect(page.locator('[data-plan="learn"]')).toContainText(catalog.firstTitle);
+    // Test-surface builds also load the lazy feature chunks at boot to register their window.__etude hooks; production
+    // Today never requests them, so they stay out of the startup budget (the production smoke test in deploy.spec.mjs
+    // covers their lazy paths).
     const decodedJs = await page.evaluate(() => performance.getEntriesByType('resource')
       .filter(entry => /\.(?:m?js|ts)$/.test(new URL(entry.name).pathname))
+      .filter(entry => !/\/(?:explore|voice|learn|score-player|practice|test-surface-wiring)-[\w-]{8}\.js$/.test(new URL(entry.name).pathname))
       .reduce((sum, entry) => sum + entry.decodedBodySize, 0));
     expect(decodedJs).toBeGreaterThan(0);
     // Compare minified production bytes, never Vite's unminified development modules.

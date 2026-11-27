@@ -75,7 +75,7 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - [x] **Faza 2:** Pilot #1 `src/features/explore/` (lazy).
   - [x] **Faza 3:** [x] PR 3A `src/features/voice/`, [x] PR 3B `src/features/learn/`, [x] PR 3C `accompaniment` + `song-book`.
   - [x] **Faza 4:** [x] PR 4A `src/features/score-library/`, [x] PR 4B `src/features/score-player/` (lazy pe `#analysis`; modulele `score-*` se încarcă doar din `ensureScoreModules()`, preferințele partiturii rămân în shell).
-  - [ ] **Faza 5:** [x] PR 5A `src/core/srs.ts`, [ ] PR 5B `src/features/practice/`, [ ] PR 5C `src/app/coaching.ts`, `today`, `progress`.
+  - [ ] **Faza 5:** [x] PR 5A `src/core/srs.ts`, [x] PR 5B `src/features/practice/` (lazy; Today pornește sesiunea prin `withPractice`), [ ] PR 5C `src/app/coaching.ts`, `today`, `progress`.
   - [ ] **Faza 6:** `src/features/read/` + `src/core/pitch-match.ts` (păstrând `ledger`/`flow` + oglinda `pendingSave` eager).
   - [ ] **Faza 7:** `src/app/{keyboard-dock,input-bus}.ts`, subțiere finală `views-runtime.ts`, opțional curățare selectori feature din `etude.css`.
 
