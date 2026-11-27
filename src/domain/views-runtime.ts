@@ -24,7 +24,6 @@ import type { createCursorCurves as createCursorCurvesFn, cursorCurveAt as curso
 import type { bindScoreGestures as bindScoreGesturesFn, ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
 import type { IntervalSongDirection, IntervalSongNote } from './interval-songs.js';
-import { detectVoicePitch as trxAutoCorrelate } from './voice-pitch.js';
 import type * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
@@ -32,7 +31,6 @@ import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeig
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from './score-symbols.js';
 import type { ExpressiveNotePlan } from './score-expression.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
-import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssSyllables, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLabelMode, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
 import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srSpellName, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
 import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidiChange, ScoreMidiNote, ScoreMidiTime } from './score-midi.js';
@@ -42,7 +40,7 @@ import '../styles/native.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
 import type { ImportedScoreDifficultyOptions } from './score-difficulty-import.js';
 import * as router from './router.js';
-import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
+import { byId, downloadBlob, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
 import {
   createTestSurfaceRegistry,
   type AppHost,
@@ -437,10 +435,6 @@ function applyI18n() {
     scoreLibrary?.localize();
     renderPracticeSetup();
     fitHeader();
-    if (sing.ex) {
-        sing.ex.syl = ssSyllables(sing.ex.minor, lang);
-        ssDraw();
-    }
     renderAccompany(true);
     renderPracticeMelodyScales();
     const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
@@ -489,13 +483,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     fillRoots(byId('pr-key'), true);
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = String(pk || 'all');
-    const ssc = selectById('tr-sscale');
-    if (ssc && ssc._filled) {
-        const v = ssc.value;
-        ssc.innerHTML = '';
-        Object.keys(SCALES).forEach((nm) => { const o = (document).createElement('option'); o.value = nm; o.textContent = scaleDisp(nm); ssc.appendChild(o); });
-        ssc.value = v || 'Major (Ionian)';
-    }
     const ap = selectById('ac-pat');
     if (ap && ap._filled) {
         const v = ap.value;
@@ -530,8 +517,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         anDraw();
     rdOnLocale();
     refreshSessionCopy();
-    renderTranscribe();
-    ssFillLevels();
     coachRefresh();
     saveAll();
 }
@@ -866,955 +851,7 @@ function accompStop(silent?: boolean) {
         updatePracticeModeHint(); // the Practice Start button reads Play loop again
     }
 }
-/* ---------- TRANSCRIBE (hum → notes) ---------- */
-interface TranscribeNote { midi: number; start: number; dur: number }
-interface TranscribeDisplayNote { midi: number; sb: number; db: number; label: string }
-interface TranscribeState { on: boolean; pending: boolean; micRequest: number; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; analyser: AnalyserNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; notes: TranscribeNote[]; display: TranscribeDisplayNote[] | null; curMidi: number | null; curStart: number; lastVoice: number; lastPitchTs: number; ring: number[]; hlTimers: number[]; bpm?: number }
-const trx: TranscribeState = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, lastPitchTs: 0, ring: [], hlTimers: [] };
-function trxFreqToMidi(f: number) { return Math.round(69 + 12 * Math.log2(f / 440)); }
-/* ---------- VOICE microphone: the one path both activities (Sing from the staff, Hum to notes) listen through ---------- */
-interface MicTap { stream: MediaStream; src: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> }
-// The raw mic (no echo cancellation, noise suppression or gain control) into an analyser that is not connected to the
-// speakers, so nothing feeds back. 'stale' when the caller stopped wanting it while the browser asked: nothing stays open then.
-async function micOpen(wanted: () => boolean): Promise<MicTap | 'fail' | 'stale'> {
-    ensureAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
-        return 'fail';
-    let stream: MediaStream;
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    }
-    catch (_) {
-        return wanted() ? 'fail' : 'stale';
-    }
-    if (!wanted()) {
-        stream.getTracks().forEach((tr) => tr.stop());
-        return 'stale';
-    }
-    try {
-        const ac = requireAudioContext();
-        if (ac.state !== 'running') void ac.resume().catch(() => undefined);
-        const src = ac.createMediaStreamSource(stream), analyser = ac.createAnalyser();
-        analyser.fftSize = ac.sampleRate >= 90000 ? 8192 : ac.sampleRate >= 44000 ? 4096 : 2048;
-        src.connect(analyser);
-        return { stream, src, analyser, buf: new Float32Array(analyser.fftSize) };
-    }
-    catch (_) {
-        stream.getTracks().forEach((tr) => tr.stop());
-        return 'fail';
-    }
-}
-function micClose(src: MediaStreamAudioSourceNode | null, stream: MediaStream | null) {
-    if (src) {
-        try {
-            src.disconnect();
-        }
-        catch (_) { }
-    }
-    if (stream)
-        stream.getTracks().forEach((tr) => tr.stop());
-}
-// The live pitch readout both activities show (.tr-live): the note, and how many cents off it when they are given.
-function livePitch(el: HTMLElement, midi: number, cents?: number) {
-    const key = midi + ':' + (cents ?? '');
-    if (!el.classList.contains('rec')) el.classList.add('rec');
-    if (el.dataset.lastPitch === key) return;
-    el.dataset.lastPitch = key;
-    el.innerHTML = noteName(midi, false) + (cents === undefined ? '' : '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>');
-}
-const trxCountTimers: number[] = [];
-function trxClearCountTimers() {
-    while (trxCountTimers.length) clearTimeout(trxCountTimers.pop());
-}
-async function trxStart()  {
-    if (trx.on || trx.pending)
-        return;
-    stopPreviews();
-    trx.hlTimers.forEach(clearTimeout);
-    trx.hlTimers = [];
-    trxClearCountTimers();
-    kbClear('rh');
-    const request = ++trx.micRequest;
-    trx.pending = true;
-    byId('tr-rec').textContent = t('tr_stop');
-    const wantCountIn = maybeById('tr-countin') instanceof HTMLInputElement && inputById('tr-countin').checked;
-    if (wantCountIn) {
-        const ctx = ensureAudio();
-        const bpm = +(inputById('tr-bpm').value || 90);
-        const beatSec = 60 / Math.max(40, bpm);
-        const countPromise = new Promise<boolean>((resolve) => {
-            for (let b = 0; b < 4; b++) {
-                trxCountTimers.push(window.setTimeout(() => {
-                    if (request !== trx.micRequest || !trx.pending) { resolve(false); return; }
-                    byId('tr-msg').textContent = t('tr_countin_msg', b + 1);
-                    if (ctx) audioEngine.scheduleClick(ctx.currentTime + 0.01, b === 0);
-                }, b * beatSec * 1000));
-            }
-            trxCountTimers.push(window.setTimeout(() => {
-                resolve(request === trx.micRequest && trx.pending);
-            }, 4 * beatSec * 1000));
-        });
-        const ok = await countPromise;
-        if (!ok) return;
-    }
-    const tap = await micOpen(() => request === trx.micRequest && voiceActive('hum'));
-    if (tap === 'stale')
-        return;
-    trx.pending = false;
-    if (tap === 'fail') {
-        byId('tr-rec').textContent = t('tr_rec');
-        byId('tr-msg').textContent = t('tr_micfail');
-        return;
-    }
-    byId('tr-msg').textContent = '';
-    trx.stream = tap.stream;
-    trx.src = tap.src;
-    trx.analyser = tap.analyser;
-    trx.buf = tap.buf;
-    trx.on = true;
-    trx.notes = [];
-    trx.display = null;
-    trx.curMidi = null;
-    trx.ring = [];
-    trx.lastVoice = audioEngine.context?.currentTime ?? 0;
-    byId('tr-rec').classList.add('rec-on');
-    byId('tr-rec').textContent = t('tr_stop');
-    byId('tr-live').classList.add('rec');
-    byId('tr-actions').style.display = 'none';
-    byId('tr-out').innerHTML = '';
-    for (const track of tap.stream.getAudioTracks()) {
-        track.addEventListener('ended', () => {
-            if (trx.stream !== tap.stream || tap.stream.getAudioTracks().some(input => input.readyState === 'live')) return;
-            trxStop();
-            byId('tr-msg').textContent = t('tr_micended');
-        }, { once: true });
-    }
-    trxLoop();
-}
-function trxMedian() { const a = trx.ring.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; }
-function trxCloseNote(tEnd: number) { if (trx.curMidi == null)
-    return; const dur = tEnd - trx.curStart; if (dur >= 0.09)
-    trx.notes.push({ midi: trx.curMidi, start: trx.curStart, dur }); trx.curMidi = null; }
-function trxLoop(ts: number = performance.now()) {
-    if (!trx.on)
-        return;
-    if (!trx.analyser || !trx.buf || !audioEngine.context) {
-        trxStop();
-        return;
-    }
-    if (trx.stream && !trx.stream.getAudioTracks().some(track => track.readyState === 'live')) {
-        trxStop();
-        byId('tr-msg').textContent = t('tr_micended');
-        return;
-    }
-    if (ts - trx.lastPitchTs >= 33) {
-        trx.lastPitchTs = ts;
-        trx.analyser.getFloatTimeDomainData(trx.buf);
-        const f = trxAutoCorrelate(trx.buf, audioEngine.context.sampleRate), now = audioEngine.context.currentTime;
-        if (f < 0) {
-            if (trx.curMidi != null && now - trx.lastVoice > 0.12) {
-                trxCloseNote(now);
-                trx.ring = [];
-            }
-            if (now - trx.lastVoice > 0.15)
-                byId('tr-live').textContent = '—';
-        }
-        else {
-            trx.lastVoice = now;
-            let m = trxFreqToMidi(f);
-            m = Math.max(36, Math.min(88, m));
-            trx.ring.push(m);
-            if (trx.ring.length > 5)
-                trx.ring.shift();
-            const sm = trxMedian(), cents = Math.round(1200 * Math.log2(f / midiToFreq(sm)));
-            livePitch(byId('tr-live'), sm, cents);
-            if (trx.ring.length >= 3) {
-                if (trx.curMidi == null) {
-                    trx.curMidi = sm;
-                    trx.curStart = now;
-                }
-                else if (sm !== trx.curMidi) {
-                    trxCloseNote(now);
-                    trx.curMidi = sm;
-                    trx.curStart = now;
-                }
-            }
-        }
-    }
-    trx.raf = requestAnimationFrame(trxLoop);
-}
-function trxStop() {
-    trx.micRequest++;
-    trxClearCountTimers();
-    trx.pending = false;
-    byId('tr-rec').textContent = t('tr_rec');
-    if (!trx.on) {
-        if (!trx.notes.length) byId('tr-msg').textContent = '';
-        return;
-    }
-    trx.on = false;
-    cancelAnimationFrame(trx.raf);
-    trxCloseNote(audioEngine.context?.currentTime ?? 0);
-    micClose(trx.src, trx.stream);
-    trx.src = null;
-    trx.stream = null;
-    trx.analyser = null;
-    byId('tr-rec').classList.remove('rec-on');
-    byId('tr-rec').textContent = t('tr_rec');
-    byId('tr-live').classList.remove('rec');
-    byId('tr-live').textContent = '—';
-    trxRender();
-}
-function trxSnap(midi: number) {
-    if (!inputById('tr-snap').checked)
-        return midi;
-    const root = +(selectById('tr-skey').value || 0), scale = SCALES[selectById('tr-sscale').value] || SCALES['Major (Ionian)'], set = scale.map((s) => (root + s) % 12);
-    let best = midi, bd = 99;
-    for (let dd = -2; dd <= 2; dd++) {
-        if (set.includes(((midi + dd) % 12 + 12) % 12) && Math.abs(dd) < bd) {
-            bd = Math.abs(dd);
-            best = midi + dd;
-        }
-    }
-    return best;
-}
-const TRX_VALS = [{ b: 4, l: '1/1' }, { b: 3, l: '1/2.' }, { b: 2, l: '1/2' }, { b: 1.5, l: '1/4.' }, { b: 1, l: '1/4' }, { b: 0.75, l: '1/8.' }, { b: 0.5, l: '1/8' }, { b: 0.25, l: '1/16' }];
-function trxDurLabel(beats: number) { let best = TRX_VALS[0], bd = 1e9; TRX_VALS.forEach((v) => { const d = Math.abs(v.b - beats); if (d < bd) {
-    bd = d;
-    best = v;
-} }); return best.l; }
-function trxRender() {
-    const out = byId('tr-out');
-    out.innerHTML = '';
-    if (!trx.notes.length) {
-        byId('tr-msg').textContent = t('tr_none');
-        const staff = maybeById('tr-staff');
-        if (staff) { staff.hidden = true; staff.innerHTML = ''; }
-        byId('tr-actions').style.display = 'none';
-        return;
-    }
-    byId('tr-msg').textContent = '';
-    trx.bpm = +(inputById('tr-bpm').value || 90);
-    const beatSec = 60 / trx.bpm, quant = inputById('tr-quant').checked, step = 4 / (+(selectById('tr-gridSel').value || 8)); // step in beats
-    const base = trx.notes[0].start;
-    trx.display = trx.notes.map((n) => {
-        let sb = (n.start - base) / beatSec, db = n.dur / beatSec;
-        if (quant) {
-            sb = Math.round(sb / step) * step;
-            db = Math.max(step, Math.round(db / step) * step);
-        }
-        return { midi: trxSnap(n.midi), sb, db, label: quant ? trxDurLabel(db) : '' };
-    });
-    const maxDb = Math.max(...trx.display.map((n) => n.db));
-    trx.display.forEach((n) => {
-        const w = Math.max(16, Math.round(120 * n.db / maxDb));
-        const el = (document).createElement('div');
-        el.className = 'tr-note';
-        el.innerHTML = '<span class="nm">' + noteName(n.midi, false) + '</span><span class="bar" style="width:' + w + 'px"></span>' + (n.label ? '<span class="dl">' + n.label + '</span>' : '');
-        out.appendChild(el);
-    });
-    const staff = maybeById('tr-staff');
-    if (staff) {
-        const durs = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
-        const snapDur = (d: number) => durs.reduce((best, cur) => (Math.abs(cur - d) < Math.abs(best - d) ? cur : best), 1);
-        const midis = trx.display.map((n) => n.midi).sort((a, b) => a - b);
-        const isBass = (midis[Math.floor(midis.length / 2)] ?? 60) < 57;
-        const flatKey = [5, 10, 3, 8, 1, 6].includes(+(selectById('tr-skey').value || 0));
-        const tokens: SrToken[] = trx.display.slice(0, 16).map((n) => {
-            const sym = (flatKey ? PC_FLAT : PC_SHARP)[pc(n.midi)];
-            return [sym + (Math.floor(n.midi / 12) - 1), snapDur(n.db)];
-        });
-        const score: SrScore = isBass ? { ts: [4, 4], keyN: 0, lh: tokens } : { ts: [4, 4], keyN: 0, rh: tokens };
-        staff.hidden = false;
-        const lay = srPaperOf(staff) ?? { width: 520 };
-        staff.innerHTML = srRender(score, { width: Math.max(320, lay.width), maxBars: 4 }).svg;
-    }
-    byId('tr-actions').style.display = 'flex';
-}
-function trxPlay() {
-    if (!trx.display || !trx.display.length)
-        return;
-    const ctx = ensureAudio();
-    stopPreviews();
-    trx.hlTimers.forEach(clearTimeout);
-    trx.hlTimers = [];
-    const beatSec = 60 / (trx.bpm || 90), now = ctx ? ctx.currentTime : 0, t0 = now + 0.12;
-    trx.display.forEach((n) => {
-        const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - now) * 1000;
-        if (ctx) previewNote(n.midi, when, dur, 100);
-        trx.hlTimers.push(window.setTimeout(() => kbState(n.midi, 'rh', true), Math.max(0, onMs)));
-        trx.hlTimers.push(window.setTimeout(() => { const el = keyEl.get(foldToView(n.midi)); if (el && el.dataset.s === 'rh')
-            kbState(n.midi, null, true); }, Math.max(0, onMs + Math.min(dur, 1.0) * 1000)));
-    });
-}
-/* MIDI / text export */
-function trxPushVar(arr: number[], v: number) { v = Math.max(0, Math.round(v)); const b = [v & 0x7F]; v >>= 7; while (v > 0) {
-    b.unshift((v & 0x7F) | 0x80);
-    v >>= 7;
-} b.forEach((x) => arr.push(x)); }
-function trxBuildMidi() {
-    const TPQN = 480, bpm = trx.bpm || 90, ev: { t: number; k: number; m: number; }[] = [];
-    if (!trx.display)
-        throw new Error('Étude: no transcription to export');
-    trx.display.forEach((n) => { const on = Math.round(n.sb * TPQN), off = on + Math.max(1, Math.round(n.db * TPQN)); ev.push({ t: on, k: 1, m: n.midi }); ev.push({ t: off, k: 0, m: n.midi }); });
-    ev.sort((a, b) => a.t - b.t || a.k - b.k);
-    const trk: number[] = [], mpqn = Math.round(60000000 / bpm);
-    trxPushVar(trk, 0);
-    trk.push(0xFF, 0x51, 0x03, (mpqn >> 16) & 255, (mpqn >> 8) & 255, mpqn & 255);
-    let last = 0;
-    ev.forEach((e) => { trxPushVar(trk, e.t - last); last = e.t; trk.push(e.k ? 0x90 : 0x80, e.m & 127, e.k ? 90 : 0); });
-    trxPushVar(trk, 0);
-    trk.push(0xFF, 0x2F, 0x00);
-    const head = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, (TPQN >> 8) & 255, TPQN & 255];
-    const L = trk.length, th = [0x4D, 0x54, 0x72, 0x6B, (L >> 24) & 255, (L >> 16) & 255, (L >> 8) & 255, L & 255];
-    const out = new Uint8Array(head.length + th.length + L);
-    out.set(head, 0);
-    out.set(th, head.length);
-    out.set(trk, head.length + th.length);
-    return out;
-}
-function trxDownload(name: string, blob: Blob|MediaSource) { const url = URL.createObjectURL(blob), a = (document).createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
-function trxExportMidi() { if (!trx.display || !trx.display.length)
-    return; trxDownload('etude-melody.mid', new Blob([trxBuildMidi()], { type: 'audio/midi' })); }
-async function trxOpenInPieces() {
-    if (!trx.display || !trx.display.length)
-        return;
-    trxStop();
-    const file = new File([trxBuildMidi()], 'etude-melody.mid', { type: 'audio/midi' });
-    await show('analysis');
-    await anOpenFile(file);
-}
-function trxExportTxt() { if (!trx.display || !trx.display.length)
-    return; const txt = t('tr_export_melody') + '\nTempo: ' + (trx.bpm || 90) + ' BPM\n\n' + t('tr_export_note') + '\t' + t('tr_export_val') + '\n' + trx.display.map((n) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
-function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); const staff = maybeById('tr-staff'); if (staff) { staff.hidden = true; staff.innerHTML = ''; } byId('tr-out').innerHTML = ''; byId('tr-actions').style.display = 'none'; byId('tr-msg').textContent = ''; }
-function renderTranscribe() {
-    const ks = selectById('tr-skey');
-    if (ks) {
-        const v = ks.value;
-        fillRoots(ks, false);
-        ks.value = String(v || 0);
-    }
-    const ss = selectById('tr-sscale');
-    if (ss) {
-        const selected = ss.value;
-        ss.replaceChildren(...Object.keys(SCALES).map((nm) => new Option(scaleDisp(nm), nm)));
-        if (selected && Object.prototype.hasOwnProperty.call(SCALES, selected))
-            ss.value = selected;
-    }
-}
-/* ============================================================================
-   SIGHT-SINGING — pure-SVG staff engraver + on-demand exercise generator.
-   Notes carry letter+octave so spelling/staff-position is exact. Offline.
-   ============================================================================ */
-/* ---- state + draw ---- */
-interface SightSingState {
-    ex: SightSingExercise | null; render: SightSingRender | null; level: number; clef: string; range: 'soprano' | 'tenor' | 'bass'; labelMode: SightSingLabelMode; mode: string; idx: number; active: boolean; results: string[]; bpm: number;
-    runId: number; micRequest: number; analyser: AnalyserNode | null; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; ring: number[]; stable: number; hint: number;
-    samples: { t: number; pc: number; cents: number }[]; keyEvents: { t: number; midi: number }[];
-    hlTimers: number[]; playRaf: number; playStart: number; loopA: number | null; loopB: number | null;
-    flat: SightSingNote[] | null; holdT: number; wrongT: number; muteUntil: number; lastPitchTs: number; countInMs: number; phraseStartPN: number; phraseSingPN: number; freePN: number; trail: [number, number][];
-}
-// flat…trail are filled in by the modes before they are read; phraseSingPN starts as NaN so key presses before the count-in never match a note.
-const sing: SightSingState = { ex: null, render: null, level: 0, clef: 'treble', range: 'soprano', labelMode: 'solfege', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
-    runId: 0, micRequest: 0, analyser: null, stream: null, src: null, buf: null, raf: 0, ring: [], stable: 0, hint: 0, samples: [], keyEvents: [],
-    hlTimers: [], playRaf: 0, playStart: 0, loopA: null, loopB: null,
-    flat: null, holdT: 0, wrongT: 0, muteUntil: 0, lastPitchTs: 0, countInMs: 0, phraseStartPN: 0, phraseSingPN: NaN, freePN: 0, trail: [] };
-/** The exercise on the staff; every caller runs after `ssNewExercise()`. */
-function requireSingExercise(): SightSingExercise {
-    if (!sing.ex)
-        throw new Error('Étude: no sight-singing exercise');
-    return sing.ex;
-}
-/** The exercise's notes in order, filled in by `ssDraw()`. */
-function requireSingFlat(): SightSingNote[] {
-    if (!sing.flat)
-        throw new Error('Étude: sight-singing exercise is not drawn');
-    return sing.flat;
-}
-function ssFillLevels() {
-    const sel = selectById('si-level');
-    const selected = sel.value;
-    sel.replaceChildren(...SS_LEVELS.map((level, i) => new Option((i + 1) + ' · ' + t(level.label), String(i))));
-    sel.value = selected || String(sing.level);
-}
-// The staff's paper; while it is hidden the staff is drawn at its natural size, and ssFit lays it out once it shows.
-let ssPaperSeen: SrLayout | undefined;
-let ssStaffMetrics: { render: SightSingRender | null; clientWidth: number; scrollWidth: number; scrollLeft: number } = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 };
-function ssDraw() { if (!sing.ex)
-    return; ssPaperSeen = srPaperOf(byId('si-staff')); const r = ssRender(sing.ex, ssPaperSeen?.width ?? 0, sing.labelMode, (n) => spelledName(notation, n.li, n.acc)); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssStaffMetrics = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 }; ssPaint(); }
-// Draws the staff again when its paper changed width; the cursor and the pitch trail come back on their next frame.
-function ssFit() { ssStaffMetrics.clientWidth = 0; if (sing.render && srPaperChanged(ssPaperSeen, srPaperOf(byId('si-staff'))))
-    ssDraw(); }
-interface SsSvgCacheEntry {
-    notes: Map<number, SVGElement>;
-    playhead: SVGLineElement | null;
-    trail: SVGPolylineElement | null;
-}
-const ssSvgCache = new WeakMap<SVGSVGElement, SsSvgCacheEntry>();
-const ssBeatPtsCache = new WeakMap<SightSingRender, { b: number; x: number }[]>();
-function ssSvgEntry(svg: SVGSVGElement): SsSvgCacheEntry {
-    let entry = ssSvgCache.get(svg);
-    if (!entry) {
-        const notes = new Map<number, SVGElement>();
-        svg.querySelectorAll('.ss-n').forEach((g) => {
-            if (g instanceof SVGElement && g.dataset.i != null)
-                notes.set(Number(g.dataset.i), g);
-        });
-        const ph = svg.querySelector('.ss-playhead'), pl = svg.querySelector('.ss-trail');
-        entry = {
-            notes,
-            playhead: ph instanceof SVGLineElement ? ph : null,
-            trail: pl instanceof SVGPolylineElement ? pl : null,
-        };
-        ssSvgCache.set(svg, entry);
-    }
-    return entry;
-}
-function ssPaint() {
-    const svg = ssSvg();
-    if (!svg)
-        return;
-    const { notes } = ssSvgEntry(svg);
-    notes.forEach((g, i) => {
-        const res = sing.results[i];
-        if ((sing.mode === 'note') && sing.active && i === sing.idx)
-            g.dataset.s = 'now';
-        else if (res)
-            g.dataset.s = res;
-        else
-            g.removeAttribute('data-s');
-    });
-}
-function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0, lang); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = inputById('si-bpm'); if (bp) {
-    bp.value = String(sing.ex.bpm);
-    byId('si-bpmLbl').textContent = String(sing.ex.bpm);
-} ssDraw(); }
-function renderSing() { ssFillLevels(); if (!sing.ex || sing.ex.clef !== sing.clef || sing.ex.level !== sing.level)
-    ssNewExercise();
-else
-    ssDraw(); ssModeUI(); }
-function singStopAll() {
-    sing.active = false;
-    if (sing.raf)
-        cancelAnimationFrame(sing.raf);
-    sing.raf = 0;
-    ssMicStop();
-    ssRemoveCursor();
-    ssClearTrail();
-    sing.hlTimers.forEach(clearTimeout);
-    sing.hlTimers = [];
-    stopClicks(phraseClicks);
-    stopPreviews();
-    stopMetro();
-    stopDrone();
-    ssPaint();
-    const g = byId('si-go');
-    if (g)
-        g.textContent = t(sing.mode === 'free' ? 'si_play' : 'si_listen');
-    const lv = byId('si-live');
-    if (lv) {
-        delete lv.dataset.lastPitch;
-        lv.textContent = '—';
-        lv.classList.remove('rec');
-    }
-}
-function ssModeUI() { const m = sing.mode; const tw = byId('si-tempo-wrap'); if (tw)
-    tw.style.display = (m === 'note') ? 'none' : 'flex'; const go = byId('si-go'); if (go)
-    go.textContent = t(m === 'free' ? 'si_play' : 'si_listen'); }
-/* ---- pitch input (the Voice mic path and Transcribe's autocorrelation) ---- */
-function ssMicStart() {
-    const request = ++sing.micRequest;
-    return micOpen(() => request === sing.micRequest && sing.active && voiceActive('sing')).then((tap) => {
-        if (typeof tap === 'string')
-            return false;
-        sing.stream = tap.stream;
-        sing.src = tap.src;
-        sing.analyser = tap.analyser;
-        sing.buf = tap.buf;
-        for (const track of tap.stream.getAudioTracks()) {
-            track.addEventListener('ended', () => {
-                if (sing.stream !== tap.stream) return;
-                if (sing.mode === 'free') singStopAll();
-                else ssMicStop();
-                byId('si-hint').textContent = t('si_nomic');
-            }, { once: true });
-        }
-        return true;
-    });
-}
-function ssMicMaybe() { return sing.analyser ? Promise.resolve(true) : ssMicStart(); }
-function ssMicStop() { sing.runId++; sing.micRequest++; micClose(sing.src, sing.stream); sing.src = null; sing.stream = null; sing.analyser = null; }
-function ssReadPitch() { if (!sing.analyser || !sing.buf || !audioEngine.context)
-    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, audioEngine.context.sampleRate); if (f < 0)
-    return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
-function ssNeed(targetPc: number, sungPc: number) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
-    d -= 12; return d; } // + → sing higher
-function ssCurNote() { return sing.flat ? sing.flat[sing.idx] : null; }
-/* ---- cursor + trail + scroll ---- */
-function ssSvg() { return byId('si-staff').querySelector('svg'); }
-function ssCursorEl() {
-    const svg = ssSvg();
-    if (!svg)
-        return null;
-    const entry = ssSvgEntry(svg);
-    if (!entry.playhead || entry.playhead.parentNode !== svg) {
-        const c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        c.setAttribute('class', 'ss-playhead');
-        c.setAttribute('y1', '38');
-        c.setAttribute('y2', '102');
-        svg.appendChild(c);
-        entry.playhead = c;
-    }
-    return entry.playhead;
-}
-function ssMoveCursor(x: number) { const c = ssCursorEl(); if (c) {
-    c.setAttribute('x1', String(x));
-    c.setAttribute('x2', String(x));
-} ssScrollToX(x); }
-function ssRemoveCursor() {
-    const svg = ssSvg();
-    if (!svg)
-        return;
-    const entry = ssSvgEntry(svg), c = entry.playhead || svg.querySelector('.ss-playhead');
-    if (c)
-        c.remove();
-    entry.playhead = null;
-}
-// x is in SVG units, shown sing.render.scale pixels each.
-function ssScrollToX(x: number) {
-    const w = byId('si-staff');
-    if (ssStaffMetrics.render !== sing.render || !ssStaffMetrics.clientWidth) {
-        ssStaffMetrics.render = sing.render;
-        ssStaffMetrics.clientWidth = w.clientWidth;
-        ssStaffMetrics.scrollWidth = w.scrollWidth;
-    }
-    if (ssStaffMetrics.scrollWidth > ssStaffMetrics.clientWidth + 4) {
-        const next = Math.max(0, x * (sing.render?.scale ?? 1) - ssStaffMetrics.clientWidth * 0.4);
-        if (Math.abs(next - ssStaffMetrics.scrollLeft) >= 1) {
-            ssStaffMetrics.scrollLeft = next;
-            w.scrollLeft = next;
-        }
-    }
-}
-function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx]; if (o)
-    ssScrollToX(o.x); }
-function ssPitchY(f: number) { const bottomMidi = requireSingExercise().clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
-    y -= 42; while (y < 4)
-    y += 42; return y; }
-function ssDrawTrail() {
-    const svg = ssSvg();
-    if (!svg)
-        return;
-    const entry = ssSvgEntry(svg);
-    if (!entry.trail || entry.trail.parentNode !== svg) {
-        const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-        pl.setAttribute('class', 'ss-trail');
-        svg.appendChild(pl);
-        entry.trail = pl;
-    }
-    entry.trail.setAttribute('points', sing.trail.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '));
-}
-function ssClearTrail() {
-    const svg = ssSvg();
-    if (!svg)
-        return;
-    const entry = ssSvgEntry(svg), pl = entry.trail || svg.querySelector('.ss-trail');
-    if (pl)
-        pl.remove();
-    entry.trail = null;
-}
-function ssBeatToX(beat: number) {
-    const render = sing.render;
-    if (!render)
-        return 10;
-    const ns = render.noteX;
-    if (!ns || !ns.length)
-        return 10;
-    let pts = ssBeatPtsCache.get(render);
-    if (!pts) {
-        pts = ns.map((o) => ({ b: o.note.tBeat, x: o.x }));
-        pts.push({ b: requireSingExercise().totalBeats, x: render.W - 12 });
-        ssBeatPtsCache.set(render, pts);
-    }
-    if (beat <= pts[0].b)
-        return pts[0].x;
-    if (beat >= pts[pts.length - 1].b)
-        return pts[pts.length - 1].x;
-    let lo = 0, hi = pts.length - 2;
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (beat < pts[mid].b)
-            hi = mid - 1;
-        else if (beat > pts[mid + 1].b)
-            lo = mid + 1;
-        else {
-            const f = (beat - pts[mid].b) / Math.max(1e-3, pts[mid + 1].b - pts[mid].b);
-            return pts[mid].x + f * (pts[mid + 1].x - pts[mid].x);
-        }
-    }
-    return pts[pts.length - 1].x;
-}
-/* ---- reference cues ---- */
-function ssTonicShift() { return sing.range === 'tenor' ? -12 : 0; }
-function ssTonic() { if (!sing.ex)
-    return; const ctx = ensureAudio(); if (ctx) previewNote(sing.ex.tonicMidi + ssTonicShift(), ctx.currentTime + 0.02, 0.85, 92); }
-// A pulse running along the staff while the melody plays; with reduced motion the notes simply stay as they are.
-function ssFlash(i: number) { if (reduceMotion())
-    return; const svg = ssSvg(); if (!svg)
-    return; const g = ssSvgEntry(svg).notes.get(i); if (!g)
-    return; const prev = g.getAttribute('data-s'); g.dataset.s = 'now'; sing.hlTimers.push(window.setTimeout(() => { if (g.dataset.s === 'now') {
-    if (prev && prev !== 'now')
-        g.dataset.s = prev;
-    else
-        g.removeAttribute('data-s');
-} }, 240)); }
-function ssPlayIt() {
-    if (!sing.ex || !sing.flat)
-        return;
-    const ctx = ensureAudio();
-    stopPreviews();
-    sing.hlTimers.forEach(clearTimeout);
-    sing.hlTimers = [];
-    const beatSec = 60 / (sing.bpm || sing.ex.bpm), now = ctx ? ctx.currentTime : 0, t0 = now + 0.12, shift = ssTonicShift();
-    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); if (ctx) previewNote(n.midi + shift, when, dur, 92); sing.hlTimers.push(window.setTimeout(() => ssFlash(i), Math.max(0, (when - now) * 1000))); });
-}
-function ssDrone() { if (inputById('si-drone').checked) {
-    if (sing.ex) {
-        ensureAudio();
-        startDrone(pc(sing.ex.tonicMidi));
-    }
-}
-else
-    stopDrone(); }
-/* ---- mode: note-by-note ---- */
-function ssNoteStart() {
-    sing.active = true;
-    sing.idx = 0;
-    sing.results = [];
-    sing.hint = 0;
-    sing.holdT = 0;
-    sing.wrongT = 0;
-    ssPaint();
-    ssScrollToCur();
-    byId('si-verdict').className = 'verdict neutral';
-    byId('si-verdict').textContent = t('si_singit');
-    const ctx = ensureAudio();
-    if (ctx) {
-        previewNote(requireSingExercise().tonicMidi + ssTonicShift(), ctx.currentTime + 0.02, 0.6, 85);
-        sing.muteUntil = performance.now() + 780;
-    } else {
-        sing.muteUntil = 0;
-    }
-    const run = sing.runId;
-    ssMicMaybe().then((ok) => { if (run === sing.runId && sing.active && sing.mode === 'note') {
-        if (!ok)
-            byId('si-hint').textContent = t('si_nomic');
-        sing.raf = requestAnimationFrame(ssNoteLoop);
-    } });
-}
-function ssNoteLoop(ts: number) {
-    if (!sing.active || sing.mode !== 'note')
-        return;
-    if (ts < sing.muteUntil) {
-        sing.holdT = 0;
-        sing.wrongT = 0;
-        sing.raf = requestAnimationFrame(ssNoteLoop);
-        return;
-    }
-    if (ts - sing.lastPitchTs >= 33) {
-        sing.lastPitchTs = ts;
-        const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = byId('si-live');
-        if (p) {
-            livePitch(lv, p.midi, p.cents);
-            if (pc(p.midi) === tgt && Math.abs(p.cents) < 42) {
-                if (!sing.holdT)
-                    sing.holdT = ts;
-                else if (ts - sing.holdT >= 320) {
-                    ssNoteCorrect();
-                }
-                sing.wrongT = 0;
-            }
-            else {
-                sing.holdT = 0;
-                if (!sing.wrongT)
-                    sing.wrongT = ts;
-                else if (ts - sing.wrongT > 700) {
-                    sing.wrongT = 0;
-                    ssHintBump(p.midi, p.cents);
-                }
-            }
-        }
-        else {
-            lv.classList.remove('rec');
-            lv.textContent = '—';
-            sing.holdT = 0;
-            sing.wrongT = 0;
-        }
-    }
-    if (sing.active) sing.raf = requestAnimationFrame(ssNoteLoop);
-}
-function ssNoteCorrect() {
-    if (!sing.active)
-        return;
-    sing.results[sing.idx] = 'good';
-    sing.holdT = 0;
-    sing.wrongT = 0;
-    sing.hint = 0;
-    byId('si-hint').textContent = '';
-    sing.idx++;
-    ssPaint();
-    ssScrollToCur();
-    if (sing.idx >= requireSingFlat().length)
-        ssNoteFinish();
-}
-function ssHintBump(am: number, cents = 0) {
-    const cur = ssCurNote();
-    if (!cur)
-        return;
-    sing.hint++;
-    const need = ssNeed(pc(cur.midi), pc(am)) || -cents, syl = requireSingExercise().syl[((cur.p % 7) + 7) % 7];
-    if (sing.hint === 1)
-        byId('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
-    else {
-        byId('si-hint').textContent = t('si_hi_syl', syl);
-        const ctx = ensureAudio();
-        if (ctx) {
-            previewNote(cur.midi, ctx.currentTime + 0.02, 0.6, 80);
-            sing.muteUntil = performance.now() + 780;
-            sing.holdT = 0;
-            sing.wrongT = 0;
-        }
-    }
-}
-function ssNoteFinish() {
-    sing.active = false;
-    if (sing.raf)
-        cancelAnimationFrame(sing.raf);
-    sing.raf = 0;
-    ssMicStop();
-    ssPaint();
-    const tot = requireSingFlat().length;
-    const v = byId('si-verdict');
-    v.className = 'verdict good';
-    v.textContent = t('si_perfect');
-    byId('si-go').textContent = t('si_listen');
-    byId('si-live').textContent = '—';
-    byId('si-hint').textContent = '';
-    ssBumpProgress(tot, tot);
-}
-/* ---- mode: phrase ---- */
-function ssPhraseStart() {
-    sing.active = true;
-    sing.results = [];
-    sing.samples = [];
-    sing.keyEvents = [];
-    sing.phraseSingPN = NaN;
-    ssPaint();
-    byId('si-hint').textContent = '';
-    const context = ensureAudio(), run = sing.runId;
-    void ssMicMaybe().then(async (ok) => {
-        if (run !== sing.runId || !sing.active || sing.mode !== 'phrase')
-            return;
-        const audible = context && (context.state === 'running' || await timedAudioReady(context));
-        if (run !== sing.runId || !sing.active || sing.mode !== 'phrase')
-            return;
-        if (!ok)
-            byId('si-hint').textContent = t('si_nomic');
-        const [beats, unit] = requireSingExercise().ts;
-        const compound = unit === 8 && beats > 3 && beats % 3 === 0;
-        const beatSec = 60 / sing.bpm * (compound ? 1.5 : 4 / unit), ci = compound ? beats / 3 : beats;
-        sing.countInMs = ci * beatSec * 1000;
-        sing.phraseStartPN = performance.now() + 150;
-        sing.phraseSingPN = sing.phraseStartPN + sing.countInMs;
-        if (audible && context) {
-            const t0 = context.currentTime + Math.max(0, (sing.phraseStartPN - performance.now()) / 1000);
-            for (let b = 0; b < ci; b++)
-                audioEngine.scheduleClick(t0 + b * beatSec, b === 0, phraseClicks);
-        }
-        byId('si-verdict').className = 'verdict neutral';
-        byId('si-verdict').textContent = t('si_count');
-        sing.raf = requestAnimationFrame(ssPhraseLoop);
-    });
-}
-function ssPhraseLoop(ts: number) {
-    if (!sing.active || sing.mode !== 'phrase')
-        return;
-    const beatSec = 60 / sing.bpm, dur = requireSingExercise().totalBeats * beatSec;
-    if (ts < sing.phraseSingPN) {
-        byId('si-verdict').textContent = t('si_count');
-        ssMoveCursor(ssBeatToX(0));
-        sing.raf = requestAnimationFrame(ssPhraseLoop);
-        return;
-    }
-    const tt = (ts - sing.phraseSingPN) / 1000;
-    if (tt <= dur) {
-        byId('si-verdict').textContent = t('si_sing_now');
-        if (ts - sing.lastPitchTs >= 33) {
-            sing.lastPitchTs = ts;
-            const p = ssReadPitch();
-            if (p)
-                sing.samples.push({ t: tt, pc: pc(p.midi), cents: p.cents });
-            const lv = byId('si-live');
-            if (p)
-                livePitch(lv, p.midi);
-            else {
-                lv.classList.remove('rec');
-                lv.textContent = '—';
-            }
-        }
-        ssMoveCursor(ssBeatToX(tt / beatSec));
-        sing.raf = requestAnimationFrame(ssPhraseLoop);
-    }
-    else
-        ssPhraseGrade();
-}
-function ssPhraseGrade() {
-    sing.active = false;
-    if (sing.raf)
-        cancelAnimationFrame(sing.raf);
-    sing.raf = 0;
-    ssMicStop();
-    ssRemoveCursor();
-    const beatSec = 60 / sing.bpm;
-    requireSingFlat().forEach((n, i) => {
-        const s = n.tBeat * beatSec, e = (n.tBeat + n.dur) * beatSec, tpc = pc(n.midi);
-        const win = sing.samples.filter((x) => x.t >= s - 0.05 && x.t <= e), onp = win.filter((x) => x.pc === tpc), frac = win.length ? onp.length / win.length : 0;
-        let verdict = frac > 0.55 ? 'good' : frac > 0.18 ? 'near' : 'bad';
-        if (sing.keyEvents.some((k) => pc(k.midi) === tpc && k.t >= s - 0.18 && k.t <= e + 0.05) && verdict !== 'good')
-            verdict = 'good';
-        sing.results[i] = verdict;
-    });
-    ssPaint();
-    const good = sing.results.filter((r) => r === 'good').length, tot = requireSingFlat().length;
-    const v = byId('si-verdict');
-    v.className = 'verdict ' + (good === tot ? 'good' : 'neutral');
-    v.textContent = good === tot ? t('si_perfect') : t('si_nicetry', good, tot);
-    byId('si-live').textContent = '—';
-    byId('si-go').textContent = t('si_listen');
-    ssBumpProgress(good, tot);
-}
-/* ---- mode: free (follow-along scroll + pitch trail) ---- */
-function ssFreeStart() {
-    sing.active = true;
-    sing.trail = [];
-    ssClearTrail();
-    ssPaint();
-    ensureAudio();
-    const run = sing.runId;
-    ssMicMaybe().then((ok) => { if (run !== sing.runId || !sing.active || sing.mode !== 'free')
-        return; if (!ok) {
-        singStopAll();
-        const v = byId('si-verdict');
-        v.className = 'verdict bad';
-        v.textContent = t('tr_micfail');
-        return;
-    } if (inputById('si-drone').checked)
-        startDrone(pc(requireSingExercise().tonicMidi)); sing.freePN = performance.now() + 100; byId('si-verdict').className = 'verdict neutral'; byId('si-verdict').textContent = t('si_freehint'); sing.raf = requestAnimationFrame(ssFreeLoop); });
-}
-function ssFreeLoop(ts: number) {
-    if (!sing.active || sing.mode !== 'free')
-        return;
-    const beatSec = 60 / sing.bpm, dur = requireSingExercise().totalBeats * beatSec;
-    let tt = (ts - sing.freePN) / 1000;
-    if (tt > dur + 0.4) {
-        sing.freePN = ts;
-        sing.trail = [];
-        ssClearTrail();
-        tt = 0;
-    }
-    const x = ssBeatToX(Math.min(Math.max(tt, 0), dur) / beatSec);
-    ssMoveCursor(x);
-    if (ts - sing.lastPitchTs >= 33) {
-        sing.lastPitchTs = ts;
-        const p = ssReadPitch(), lv = byId('si-live');
-        if (p) {
-            livePitch(lv, p.midi, p.cents);
-            sing.trail.push([x, ssPitchY(p.f)]);
-            if (sing.trail.length > 400)
-                sing.trail.shift();
-            ssDrawTrail();
-        }
-        else {
-            lv.classList.remove('rec');
-            lv.textContent = '—';
-        }
-    }
-    sing.raf = requestAnimationFrame(ssFreeLoop);
-}
-/* ---- input from keyboard / MIDI (alternative to singing) ---- */
-function singKeyInput(m: number) { if (!sing.active)
-    return; if (sing.mode === 'note') {
-    const cur = ssCurNote();
-    if (!cur)
-        return;
-    if (pc(m) === pc(cur.midi))
-        ssNoteCorrect();
-    else
-        ssHintBump(m);
-}
-else if (sing.mode === 'phrase') {
-    sing.keyEvents.push({ t: (inputTime() - sing.phraseSingPN) / 1000, midi: m });
-} }
-/* ---- dispatcher + light progress ---- */
-function singGo() {
-    if (!sing.ex)
-        return;
-    if (sing.active) {
-        singStopAll();
-        byId('si-verdict').textContent = '';
-        return;
-    }
-    byId('si-hint').textContent = '';
-    sing.bpm = +(inputById('si-bpm').value || sing.ex.bpm);
-    if (sing.mode === 'note')
-        ssNoteStart();
-    else if (sing.mode === 'phrase')
-        ssPhraseStart();
-    else
-        ssFreeStart();
-    byId('si-go').textContent = t('si_stop');
-}
-function ssBumpProgress(good: number, tot: number) { if (sing.mode !== 'free' && good === tot && tot > 0) {
-    data.singCleared = data.singCleared || {};
-    data.singCleared[sing.level] = true;
-    saveAll();
-} }
-/* ---------- VOICE: one screen (view sing) with two activities ----------
-   Sing from the staff (sight-singing, above) or Hum to notes (Transcribe). One shows at a time. The choice lasts while the
-   page is open and is not saved; #transcribe (an old link or a saved lastTool) opens the Hum to notes side. */
-type VoiceAct = 'sing' | 'hum';
-const VOICE_ACTS: readonly VoiceAct[] = ['sing', 'hum'];
-const voice: { act: VoiceAct } = { act: 'sing' };
-function voiceActive(a: VoiceAct) { return view0() === 'sing' && voice.act === a; }
-// Switching activity or leaving the screen: the microphone is off, and the playback and key lights of both activities stop.
-function voiceStop() {
-    singStopAll();
-    trxStop();
-    trx.hlTimers.forEach(clearTimeout);
-    trx.hlTimers = [];
-    kbClear('rh');
-}
-function voiceSync() {
-    queryAllHtml(document, '#vo-switch [role=tab]').forEach((b) => { const on = b.dataset.act === voice.act; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
-    byId('vo-sing').hidden = voice.act !== 'sing';
-    byId('vo-hum').hidden = voice.act !== 'hum';
-}
-function renderVoice() {
-    voiceSync();
-    if (voice.act === 'sing')
-        renderSing();
-    else
-        renderTranscribe();
-}
-function voiceSetAct(a: VoiceAct) {
-    if (a !== voice.act && view0() === 'sing') // off the screen nothing of Voice runs: leaving it stopped everything
-        voiceStop();
-    voice.act = a;
-    if (view0() === 'sing')
-        renderVoice();
-    else
-        voiceSync();
-}
+/* ---------- VOICE (lazy feature in src/features/voice/index.ts) ---------- */
 /* ---------- KEYBOARD ---------- */
 const BASE_LOW = 24, BASE_HIGH = 96;
 const view = { low: 48, oct: 4 };
@@ -2265,11 +1302,7 @@ function panic() {
     if (srtRecorder) srtRecorder.releaseAll('reset', performance.now() - SR.t0);
     releaseLiveInput();
     rdRhInterrupt();
-    trxStop();
     accompStop();
-    trx.hlTimers.forEach(clearTimeout);
-    trx.hlTimers = [];
-    singStopAll();
     srStopAll(true, true);
     held.forEach(audioNoteOff);
     held.clear();
@@ -2316,17 +1349,11 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
         pracInput(kind, midi, source);
         return;
     }
-    if (view0() === 'explore') {
+    if (view0() === 'explore' || view0() === 'sing') {
         return;
     }
     if (view0() === 'learn' && kind === 'on') {
         learnInput();
-        return;
-    }
-    if (view0() === 'sing' && sing.active && kind === 'on') {
-        const m = heldOrder[heldOrder.length - 1];
-        if (m != null)
-            singKeyInput(m);
         return;
     }
     if (view0() === 'read' && kind === 'on' && WARM.on && WARM.phase === 'play') {
@@ -4195,6 +3222,7 @@ let shellPendingSaveMirror = false;
 
 const lazyFeatureLoaders: Partial<Record<router.AppView, () => Promise<FeatureController>>> = {
     explore: async () => (await import('../features/explore/index.js')).createExploreFeature(appHost),
+    sing: async () => (await import('../features/voice/index.js')).createVoiceFeature(appHost),
 };
 
 function localizeLoadedFeatures() {
@@ -4276,6 +3304,13 @@ const appHost: AppHost = {
     },
     audio: {
         ensure: () => ensureAudio(),
+        context: () => audioEngine.context,
+        requireContext: requireAudioContext,
+        timedReady: timedAudioReady,
+        scheduleClick: (when, accent, phraseBucket = false) => {
+            audioEngine.scheduleClick(when, accent, phraseBucket ? phraseClicks : undefined);
+        },
+        stopPhraseClicks: () => stopClicks(phraseClicks),
         noteOn: (midi, velocity) => audioNoteOn(midi, velocity),
         noteOff: (midi) => audioNoteOff(midi),
         previewNote: (midi, when, duration, velocity, options) => previewNote(midi, when, duration, velocity, options),
@@ -4310,6 +3345,10 @@ const appHost: AppHost = {
         isShown: dockShown,
         clear: (state) => { if (state) kbClear(state); else kbClearAll(); },
         mark: (midi, state, anyOctave = false) => kbState(midi, state, anyOctave),
+        clearKeyIfState: (midi, state, anyOctave = false) => {
+            const el = keyEl.get(anyOctave ? foldToView(midi) : midi);
+            if (el && el.dataset.s === state) kbState(midi, null, anyOctave);
+        },
         setDegrees: kbDegrees,
         ensureVisible: (midis) => {
             if (!midis.length) return;
@@ -4415,8 +3454,6 @@ function teardownView(prev: string, next: string) {
             syncPracticeProgSplit();
         }
     }
-    if (prev === 'sing' && next !== 'sing')
-        voiceStop();
     if (prev === 'read' && next !== 'read') {
         srStopAll(undefined, false, 'navigate');
         rdAbort();
@@ -4467,7 +3504,10 @@ function showImpl(
         setViewLoading('view-analysis', true);
         return ensureAnalysisModules().then(() => {
             setViewLoading('view-analysis', false);
-            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory, requestedAnRoute);
+            if (navigation === featureNavigation) {
+                if (opts.openFile) return show(v, { moveFocus, fromHistory, analysisRoute: requestedAnRoute, openFile: opts.openFile });
+                return show(v, moveFocus, fromHistory, requestedAnRoute);
+            }
         }).catch(() => {
             setViewLoading('view-analysis', false);
             if (navigation === featureNavigation && showPendingView) {
@@ -4542,11 +3582,6 @@ function showImpl(
     teardownView(prev, v);
     _view = v;
     stageSync();
-    if (hum && voice.act !== 'hum') { // set before renderVoice below draws the screen
-        if (prev === 'sing')
-            voiceStop();
-        voice.act = 'hum';
-    }
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
     const group = navGroup(v);
     queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
@@ -4573,6 +3608,10 @@ function showImpl(
         const featureParams: Record<string, unknown> = {};
         if (opts.extab) featureParams.extab = opts.extab;
         if (opts.openFile) featureParams.openFile = opts.openFile;
+        if (hum) {
+            featureParams.voiceAct = 'hum';
+            featureParams.wasOnSing = prev === 'sing';
+        }
         const enterFeature = (ctrl: FeatureController): Promise<void> | undefined => {
             activeFeatureAbort?.abort();
             activeFeatureAbort = new AbortController();
@@ -4605,7 +3644,10 @@ function showImpl(
     if (v === 'analysis') {
         void anLibraryEnsure().catch(() => {});
         const targetRoute = requestedAnRoute ?? { kind: 'catalog' };
-        if (targetRoute.kind === 'catalog') {
+        if (opts.openFile) {
+            pendingViewLoad = anOpenFile(opts.openFile).then(() => undefined);
+        }
+        else if (targetRoute.kind === 'catalog') {
             anSetScreen('catalog');
             anCatalogStatus('');
             if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
@@ -4655,8 +3697,6 @@ function showImpl(
             });
         }
     }
-    if (v === 'sing')
-        renderVoice();
     if (v === 'practice' && !SES.active) {
         stopMetro();
         void ensurePracticeHintsView().catch(() => {});
@@ -8708,7 +7748,7 @@ function rdGen(L: ReadDrillLevel): ReadQuestion {
         const r0 = root, ans = r0.li + ':' + qual, set = new Set([ans]);
         quals.forEach((q) => set.add(r0.li + ':' + q));
         while (set.size < 6) {
-            set.add(Math.floor(Math.random() * 7) + ':' + ssPick(quals));
+            set.add(Math.floor(Math.random() * 7) + ':' + randItem(quals));
         }
         const opts = rdShuffle([...set]).map((v) => { const [li, q] = v.split(':'); return { v, l: rdChLabel(+li, q) }; });
         if (!notes)
@@ -8718,7 +7758,7 @@ function rdGen(L: ReadDrillLevel): ReadQuestion {
     }
     let clef = L.clef, pool: ReadDrillPitch[], keyN = 0;
     if (clef === 'mix') {
-        const mc: ReadClefStaff = ssPick(['treble', 'bass', 'alto', 'tenor']);
+        const mc: ReadClefStaff = randItem(['treble', 'bass', 'alto', 'tenor']);
         clef = mc;
         const r = RD_REF[mc];
         pool = [];
@@ -9449,7 +8489,7 @@ function rdRhGen(L: { units?: readonly string[]; }) {
             while (pos < 4 - 1e-6) {
                 const c = units.filter((u): u is RdRhythmUnit => { if (!isRdRhythmUnit(u))
                     return false; const len = RD_RHU[u].reduce((a: number, x: number[]) => a + x[0], 0); return len <= 4 - pos + 1e-6 && !(u === '1' && pos > 0) && !(u === 'r4' && bar === 0 && pos === 0) && !(u === 'd' && pos % 2); });
-                const u: RdRhythmUnit = c.length ? ssPick(c) : '4';
+                const u: RdRhythmUnit = c.length ? randItem(c) : '4';
                 RD_RHU[u].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1], u }); pos += x[0]; });
             }
         }
@@ -9507,7 +8547,7 @@ function rdRhGenLH(L: { n: number; }) {
     const pool: RdLeftHandPattern[] = L.n <= 2 ? ['whole', 'half'] : L.n === 3 ? ['whole', 'half', 'pulse'] : ['half', 'pulse', 'onethree', 'twofour'], ev: RdRhythmEvent[] = [];
     for (let bar = 0; bar < 2; bar++) {
         let pos = 0;
-        const pat: RdLeftHandPattern = ssPick(pool);
+        const pat: RdLeftHandPattern = randItem(pool);
         RD_LH_PAT[pat].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1] }); pos += x[0]; });
     }
     return ev;
@@ -9962,7 +9002,7 @@ function srtLegacyPiece(piece: SightReadingPiece, L: RdSightLevel): RdSightPiece
     return result;
 }
 function rdSightGen(L: RdSightLevel) {
-    const keyN: number = ssPick(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
+    const keyN: number = randItem(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
     const tonLi = SR_LET.indexOf(RD_MAJ[keyN + 7][0]);
     let ton = lo;
     while (((ton % 7) + 7) % 7 !== tonLi)
@@ -9973,7 +9013,7 @@ function rdSightGen(L: RdSightLevel) {
     let cur = ton;
     const mel: [string, number][] = [];
     const mv = () => { const near = [-2, -1, -1, 1, 1, 2, 0], far = [3, -3, 4, -4]; for (let k = 0; k < 24; k++) {
-        const s: number = cur + ssPick(k < 12 && Math.random() < .8 ? near : far);
+        const s: number = cur + randItem(k < 12 && Math.random() < .8 ? near : far);
         if (s >= Math.max(lo, ton - 4) && s <= hi)
             return s;
     } return ton; };
@@ -9982,7 +9022,7 @@ function rdSightGen(L: RdSightLevel) {
         const end = bar === 3 ? 2 : 4;
         while (pos < end - 1e-6) {
             const c = L.durs.filter((d: number) => (d === 1.5 ? 2 : d === 0.5 ? 1 : d) <= end - pos + 1e-6 && !(d === 1.5 && pos % 1));
-            const d: number = c.length ? ssPick(c) : end - pos;
+            const d: number = c.length ? randItem(c) : end - pos;
             if (d === 1.5) {
                 cur = mv();
                 mel.push([nm(cur), 1.5]);
@@ -10015,7 +9055,7 @@ function rdSightGen(L: RdSightLevel) {
     else
         p.rh = mel;
     if (L.clef === 'grand') {
-        const b = SR_LET.indexOf(RD_MAJ[keyN + 7][0]), deg: number[] = [0, ssPick([3, 4]), 4, 0];
+        const b = SR_LET.indexOf(RD_MAJ[keyN + 7][0]), deg: number[] = [0, randItem([3, 4]), 4, 0];
         p.lh = deg.map((dg): [string, number] => { let s = 14 + 7 + b + dg; if (s >= 28)
             s -= 7; return [nm(s), 4]; });
     }
@@ -19255,7 +18295,7 @@ function renderProgress() {
             melRuns: log.melRuns || 0,
             melAcc: melTotal > 0 ? Math.round(100 * (log.melCorrect || 0) / melTotal) : null,
             singCleared,
-            singTotal: SS_LEVELS.length,
+            singTotal: 7, // pinned to SS_LEVELS.length in tests/unit/voice-feature.test.mjs
         },
         openStudio(kind) {
             if (kind === 'sing') {
@@ -20088,7 +19128,7 @@ let syncPull = function syncPull() {
         syncRemember(pair, SYNC.known.get(SYNC.id));
     return swap ? 'swap' : needsWrite ? 'merge-save' : 'merge';
 };
-function syncBusy() { return SES.active || sing.active || SR.active || RD.on || accomp.on || trx.on || SCORE.playing || anyLoadedFeatureBusy(); }
+function syncBusy() { return SES.active || SR.active || RD.on || accomp.on || SCORE.playing || anyLoadedFeatureBusy(); }
 function syncIdle() {
     clearTimeout(SYNC.w);
     if (!Object.keys(SYNC.pend).length)
@@ -20907,8 +19947,6 @@ function applyNotation() {
     if (view0() === 'analysis')
         anDraw();
     refreshSessionCopy();
-    renderTranscribe();
-    if (trx.notes.length) trxRender();
     const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
     if (labelCBtn) labelCBtn.textContent = notation === 'solfege' ? 'Do' : 'C';
     rdOnLocale();
@@ -21099,7 +20137,7 @@ function initControls() {
         saveAll();
         const raw = backupJson();
         const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0');
-        trxDownload('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
+        downloadBlob('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
         storeExported();
     });
     byId('importBtn').addEventListener('click', () => byId('importFile').click());
@@ -21361,71 +20399,13 @@ function initControls() {
     byId('rd-listen').addEventListener('click', srListen);
     maybeById('rd-warm-tonic')?.addEventListener('click', rdWarmPlayTonic);
     maybeById('rd-warm-scale')?.addEventListener('click', rdWarmPracticeScale);
-    // voice: the activity switch is a tab list (arrows, Home and End move along it and choose)
-    byId('vo-switch').addEventListener('click', (e) => { const b = eventClosest(e, '[role=tab]'), a = VOICE_ACTS.find((x) => x === b?.dataset.act); if (a)
-        voiceSetAct(a); });
-    byId('vo-switch').addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End')
-            return;
-        e.preventDefault();
-        const i = VOICE_ACTS.indexOf(voice.act), n = VOICE_ACTS.length;
-        const a = e.key === 'Home' ? VOICE_ACTS[0] : e.key === 'End' ? VOICE_ACTS[n - 1] : VOICE_ACTS[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n];
-        voiceSetAct(a);
-        byId('vo-tab-' + a).focus();
-    });
-    // transcribe
-    byId('tr-rec').addEventListener('click', () => { if (trx.on || trx.pending)
-        trxStop();
-    else
-        trxStart(); });
-    byId('tr-play').addEventListener('click', trxPlay);
-    byId('tr-clear').addEventListener('click', trxClear);
-    byId('tr-pieces').addEventListener('click', () => { void trxOpenInPieces(); });
-    byId('tr-midi').addEventListener('click', trxExportMidi);
-    byId('tr-txt').addEventListener('click', trxExportTxt);
-    byId('tr-bpm').addEventListener('input', (e) => { byId('tr-bpmLbl').textContent = wiringField(e).value; });
-    ['tr-snap', 'tr-skey', 'tr-sscale', 'tr-quant', 'tr-bpm', 'tr-gridSel'].forEach((id) => byId(id).addEventListener('change', () => { if (trx.notes && trx.notes.length)
-        trxRender(); }));
-    // sight-singing
-    byId('si-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
-        return; singStopAll(); wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v ?? sing.mode; ssModeUI(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; ssPaint(); });
-    byId('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +wiringField(e).value; ssNewExercise(); });
-    maybeById('si-range')?.addEventListener('change', (e) => {
-        singStopAll();
-        const r = wiringField(e).value;
-        sing.range = (r === 'tenor' || r === 'bass') ? r : 'soprano';
-        sing.clef = sing.range === 'bass' ? 'bass' : 'treble';
-        const clefEl = maybeById('si-clef');
-        if (clefEl instanceof HTMLSelectElement) clefEl.value = sing.clef;
-        ssNewExercise();
-    });
-    byId('si-clef').addEventListener('change', (e) => {
-        singStopAll();
-        sing.clef = wiringField(e).value;
-        if (sing.clef === 'bass') sing.range = 'bass';
-        else if (sing.range === 'bass') sing.range = 'soprano';
-        const rangeEl = maybeById('si-range');
-        if (rangeEl instanceof HTMLSelectElement) rangeEl.value = sing.range;
-        ssNewExercise();
-    });
-    maybeById('si-lbl-mode')?.addEventListener('change', (e) => {
-        const v = wiringField(e).value;
-        sing.labelMode = (v === 'degree' || v === 'note') ? v : 'solfege';
-        ssDraw();
-    });
-    byId('si-solf').addEventListener('change', () => { byId('si-staff').classList.toggle('nosolf', !inputById('si-solf').checked); });
-    // The sight-reading, rhythm and sight-singing staves are laid out for the size of their paper (see SrLayout).
+    // voice / transcribe / sight-singing (wired lazily on mount in src/features/voice/index.ts)
+    // The sight-reading and rhythm staves are laid out for the size of their paper (see SrLayout).
     if (typeof ResizeObserver === 'function') {
         let fitRaf = 0;
-        const fit = new ResizeObserver(() => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(() => { srFit(); rdRhFit(); ssFit(); }); });
-        ['rd-staff', 'rdx-body', 'si-staff', 'dock'].forEach((id) => { const el = maybeById(id); if (el) fit.observe(el); });
+        const fit = new ResizeObserver(() => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(() => { srFit(); rdRhFit(); }); });
+        ['rd-staff', 'rdx-body', 'dock'].forEach((id) => { const el = maybeById(id); if (el) fit.observe(el); });
     }
-    byId('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; });
-    byId('si-go').addEventListener('click', singGo);
-    byId('si-tonic').addEventListener('click', ssTonic);
-    byId('si-playit').addEventListener('click', ssPlayIt);
-    byId('si-drone').addEventListener('change', ssDrone);
-    byId('si-bpm').addEventListener('input', (e) => { byId('si-bpmLbl').textContent = wiringField(e).value; sing.bpm = +wiringField(e).value; });
     // explore (wired lazily on mount in src/features/explore/index.ts)
     anInitControls();
     // songs
@@ -21484,7 +20464,7 @@ function initControls() {
                 standingLabel: t('prog_ms_head'),
                 standingValue: standingLabelOf(report),
             });
-            trxDownload(`etude-practice-report-${report.generatedDateIso}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            downloadBlob(`etude-practice-report-${report.generatedDateIso}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         })();
     });
     byId('prog-report-print').addEventListener('click', () => {
@@ -22314,10 +21294,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "renderPracticeLast": () => renderPracticeLast,
   "renderProgress": () => renderProgress,
   "renderRead": () => renderRead,
-  "renderSing": () => renderSing,
   "renderSongs": () => renderSongs,
-  "renderTranscribe": () => renderTranscribe,
-  "renderVoice": () => renderVoice,
   "repaintHeld": () => repaintHeld,
   "resolve": () => resolve,
   "revealAnswerKeys": () => revealAnswerKeys,
@@ -22415,9 +21392,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "showProgTarget": () => showProgTarget,
   "showSummary": () => showSummary,
   "shuffle": () => shuffle,
-  "singGo": () => singGo,
-  "singKeyInput": () => singKeyInput,
-  "singStopAll": () => singStopAll,
   "slashLabel": () => slashLabel,
   "songDir": () => songDir,
   "songsFor": () => songsFor,
@@ -22484,61 +21458,13 @@ const __etudeGetters: Record<string, () => unknown> = {
   "srTopSlip": () => srTopSlip,
   "srsOf": () => srsOf,
   "ssAccGlyph": () => ssAccGlyph,
-  "ssBassClef": () => ssBassClef,
-  "ssBeatToX": () => ssBeatToX,
-  "ssBumpProgress": () => ssBumpProgress,
-  "ssClearTrail": () => ssClearTrail,
-  "ssCurNote": () => ssCurNote,
-  "ssCursorEl": () => ssCursorEl,
-  "ssDraw": () => ssDraw,
-  "ssFit": () => ssFit,
-  "ssDrawTrail": () => ssDrawTrail,
-  "ssDrone": () => ssDrone,
-  "ssFillLevels": () => ssFillLevels,
-  "ssFlash": () => ssFlash,
   "ssFlat": () => ssFlat,
-  "ssFreeLoop": () => ssFreeLoop,
-  "ssFreeStart": () => ssFreeStart,
-  "ssGen": () => ssGen,
-  "ssHintBump": () => ssHintBump,
   "ssKeyAcc": () => ssKeyAcc,
-  "ssKeySig": () => ssKeySig,
-  "ssLedger": () => ssLedger,
-  "ssMakeNote": () => ssMakeNote,
-  "ssMicMaybe": () => ssMicMaybe,
-  "ssMicStart": () => ssMicStart,
-  "ssMicStop": () => ssMicStop,
   "ssMidiOf": () => ssMidiOf,
-  "ssModeUI": () => ssModeUI,
-  "ssMoveCursor": () => ssMoveCursor,
   "ssNatural": () => ssNatural,
-  "ssNeed": () => ssNeed,
-  "ssNewExercise": () => ssNewExercise,
-  "ssNextDeg": () => ssNextDeg,
-  "ssNoteCorrect": () => ssNoteCorrect,
-  "ssNoteFinish": () => ssNoteFinish,
-  "ssNoteLoop": () => ssNoteLoop,
-  "ssNoteStart": () => ssNoteStart,
   "ssNotehead": () => ssNotehead,
-  "ssPaint": () => ssPaint,
-  "ssPhraseGrade": () => ssPhraseGrade,
-  "ssPhraseLoop": () => ssPhraseLoop,
-  "ssPhraseStart": () => ssPhraseStart,
-  "ssPick": () => ssPick,
-  "ssPitchY": () => ssPitchY,
-  "ssPlayIt": () => ssPlayIt,
-  "ssReadPitch": () => ssReadPitch,
-  "ssRemoveCursor": () => ssRemoveCursor,
-  "ssRender": () => ssRender,
-  "ssScrollToCur": () => ssScrollToCur,
-  "ssScrollToX": () => ssScrollToX,
   "ssSharp": () => ssSharp,
-  "ssStem": () => ssStem,
   "ssStepOf": () => ssStepOf,
-  "ssSvg": () => ssSvg,
-  "ssTimeSig": () => ssTimeSig,
-  "ssTonic": () => ssTonic,
-  "ssTrebleClef": () => ssTrebleClef,
   "startDrone": () => startDrone,
   "startMetro": () => startMetro,
   "startPlacement": () => startPlacement,
@@ -22578,34 +21504,10 @@ const __etudeGetters: Record<string, () => unknown> = {
   "toolName": () => toolName,
   "touchDay": () => touchDay,
   "trapFocus": () => trapFocus,
-  "trxAutoCorrelate": () => trxAutoCorrelate,
-  "micClose": () => micClose,
-  "micOpen": () => micOpen,
-  "livePitch": () => livePitch,
-  "trxBuildMidi": () => trxBuildMidi,
-  "trxClear": () => trxClear,
-  "trxCloseNote": () => trxCloseNote,
-  "trxDownload": () => trxDownload,
-  "trxDurLabel": () => trxDurLabel,
-  "trxExportMidi": () => trxExportMidi,
-  "trxExportTxt": () => trxExportTxt,
-  "trxFreqToMidi": () => trxFreqToMidi,
-  "trxLoop": () => trxLoop,
-  "trxMedian": () => trxMedian,
-  "trxPlay": () => trxPlay,
-  "trxPushVar": () => trxPushVar,
-  "trxRender": () => trxRender,
-  "trxSnap": () => trxSnap,
-  "trxStart": () => trxStart,
-  "trxStop": () => trxStop,
   "typeOctave": () => typeOctave,
   "updateAccompChain": () => updateAccompChain,
   "view0": () => view0,
   "viewHigh": () => viewHigh,
-  "voiceActive": () => voiceActive,
-  "voiceSetAct": () => voiceSetAct,
-  "voiceStop": () => voiceStop,
-  "voiceSync": () => voiceSync,
   "wakeArm": () => wakeArm,
   "wakeCan": () => wakeCan,
   "wakeDrop": () => wakeDrop,
@@ -22738,12 +21640,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "SR_LET": () => SR_LET,
   "SS_FLAT_ORDER": () => SS_FLAT_ORDER,
   "SS_LETSEMI": () => SS_LETSEMI,
-  "SS_LEVELS": () => SS_LEVELS,
-  "SS_MAJ": () => SS_MAJ,
-  "SS_MIN": () => SS_MIN,
   "SS_SHARP_ORDER": () => SS_SHARP_ORDER,
-  "SS_SYL_MAJ": () => SS_SYL_MAJ,
-  "SS_SYL_MIN": () => SS_SYL_MIN,
   "SYNC": () => SYNC,
   "STORE": () => STORE,
   "storeRefresh": () => storeRefresh,
@@ -22754,7 +21651,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "SYNC_NONE": () => SYNC_NONE,
   "SYNC_PREFS": () => SYNC_PREFS,
   "TONES": () => TONES,
-  "TRX_VALS": () => TRX_VALS,
   "WAKE": () => WAKE,
   "WAKE_IDLE_MS": () => WAKE_IDLE_MS,
   "_modalStack": () => _modalStack,
@@ -22780,16 +21676,13 @@ const __etudeGetters: Record<string, () => unknown> = {
   "rdS": () => rdS,
   "reduceMotion": () => reduceMotion,
   "rootName": () => rootName,
-  "sing": () => sing,
   "srSlipNames": () => srSlipNames,
   "srStepNo": () => srStepNo,
   "sustained": () => sustained,
   "themeMQ": () => themeMQ,
   "todayN": () => todayN,
-  "trx": () => trx,
   "typingDown": () => typingDown,
   "view": () => view,
-  "voice": () => voice,
   "whiteEl": () => whiteEl,
 };
 const __etudeRegistry = createTestSurfaceRegistry(__etude);
