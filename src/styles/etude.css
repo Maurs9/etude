@@ -278,7 +278,7 @@
   .cof-arc.sharp{fill:#b5532f} .cof-arc.flat{fill:#33669a}
   .cof-hub{fill:var(--paper2); stroke:var(--line)}
   .cof-g{font-family:var(--sans); font-weight:600; font-size:.72em}
-  .cof-title{font-family:var(--serif); font-size:18px; font-weight:650; text-anchor:middle; fill:var(--ink)}
+  .cof-title{font-family:var(--serif); font-size:16.5px; font-weight:650; text-anchor:middle; fill:var(--ink)}
   .cof-iv{font-size:13.5px; font-weight:700; text-anchor:middle}
   .cof-iv.up{fill:#b5532f} .cof-iv.dn{fill:#33669a}
   .cof-st{font-size:11.5px; font-weight:600; text-anchor:middle; fill:var(--muted)}
