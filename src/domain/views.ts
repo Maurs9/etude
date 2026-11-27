@@ -315,7 +315,12 @@ export interface PreviewSequenceFrame {
 }
 
 export interface AudioHostFacade {
-  ensure(): void;
+  ensure(): AudioContext | null;
+  context(): AudioContext | null;
+  requireContext(): AudioContext;
+  timedReady(context: AudioContext): Promise<boolean>;
+  scheduleClick(when: number, accent: boolean, phraseBucket?: boolean): void;
+  stopPhraseClicks(): void;
   noteOn(midi: number, velocity?: number): void;
   noteOff(midi: number): void;
   previewNote(midi: number, when?: number, duration?: number, velocity?: number, options?: PianoVoiceOptions): void;
@@ -340,7 +345,8 @@ export interface DockHostFacade {
   setOpen(open: boolean): void;
   isShown(): boolean;
   clear(state?: string): void;
-  mark(midi: number, state: 'target' | 'good' | 'bad' | null, anyOctave?: boolean): void;
+  mark(midi: number, state: 'target' | 'good' | 'bad' | 'rh' | 'lh' | null, anyOctave?: boolean): void;
+  clearKeyIfState(midi: number, state: string, anyOctave?: boolean): void;
   setDegrees(degrees: Map<number, string> | null): void;
   ensureVisible(midis: readonly number[]): void;
   fixedBottomTop(): number;

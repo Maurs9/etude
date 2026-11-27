@@ -62,3 +62,15 @@ export function onPageReturn(handler: () => void, doc: PageDocument = document, 
   doc.addEventListener('visibilitychange', () => { if (doc.visibilityState === 'visible') handler(); });
   win.addEventListener('pageshow', (event) => { if (event.persisted) handler(); });
 }
+
+/** Triggers a browser file download for a generated Blob and revokes the object URL afterwards. */
+export function downloadBlob(name: string, blob: Blob | MediaSource): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
