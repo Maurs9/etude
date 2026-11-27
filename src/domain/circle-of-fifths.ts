@@ -199,6 +199,139 @@ export function cofSigListWith(i: number, spell: (letter: string, acc: number) =
   return { n, sharp: false, list: [...fl.slice(0, n)].map((L) => spell(L, -1)).join(', ') };
 }
 
+export interface CofWheelRenderDeps {
+  t: (key: string, ...args: Array<string | number>) => string;
+  spellName: (letter: number, acc: number) => string;
+  lCofN?: (i: number, enh?: boolean) => number;
+}
+
+export function renderCofWheel(layout: 'compact' | 'wide' | 'staff', deps: CofWheelRenderDeps): string {
+  const lCofN = deps.lCofN ?? cofFifths;
+  const spell = (letter: string, acc: number): string => deps.spellName('CDEFGAB'.indexOf(letter), acc);
+  const name = (s: string): string => {
+    const p = cofParse(s);
+    return spell(p.L, p.acc);
+  };
+  const keyLabel = (i: number, minor: boolean): string => cofKeyLabelWith(i, minor, name);
+  const sigList = (i: number): CofSignature => cofSigListWith(i, spell);
+  const staffSector = (i: number, d0: number, d1: number, id: string): string => {
+    const primary = lCofN(i);
+    const enharmonic = lCofN(i, true);
+    const paired = primary !== enharmonic;
+    const fifths = paired ? [Math.max(primary, enharmonic), Math.min(primary, enharmonic)] : [primary];
+    const [x, y] = cofPt((COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
+    const scale = paired ? (i === 6 ? 0.88 : 0.80) : 0.96;
+    const staves = fifths.map((n, j) => {
+      // The lower staves sit closer to the vertical axis to fit the diagonal sectors.
+      const staffX = paired ? COF_CENTER + (6 - i) * (j === 0 ? 180 : 152) : x;
+      const staffY = paired ? COF_CENTER + (i === 6 ? [309, 384] : [273, 340])[j] : y;
+      const signature = srKeySigG('treble', n, 35, 0, COF_STAFF_ACCIDENTAL_SCALE).svg;
+      return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${staffX} ${staffY}) scale(${scale}) translate(${-COF_STAFF_WIDTH / 2} -26)"><use href="#${id}Staff"/>${signature}</g>`;
+    }).join('');
+    return `<g aria-hidden="true"><path class="lw-cof-staff-sector" d="${cofSector(COF_R_MAJ1, COF_R_STAFF, d0, d1)}"/>${staves}</g>`;
+  };
+  const compact = layout !== 'wide';
+  const withStaff = layout === 'staff';
+  const id = withStaff ? 'lw-cof' : 'cof';
+  const staffFrame = COF_R_STAFF + 6;
+  const viewBox = withStaff
+    ? `${COF_CENTER - staffFrame} ${COF_CENTER - staffFrame} ${2 * staffFrame} ${2 * staffFrame}`
+    : compact ? '92 92 516 516' : '-12 20 724 650';
+  const staff = withStaff
+    ? `<g id="${id}Staff">${Array.from({ length: 5 }, (_, i) =>
+      `<path class="ss-line" stroke-width="1.8" d="M0 ${i * 12}h${COF_STAFF_WIDTH}"/>`).join('')}${srClef('treble', 5, 0)}</g>`
+    : '';
+  let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + deps.t('aria_circle') + '"><defs>' +
+    '<linearGradient id="' + id + 'Split" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
+    '<marker id="' + id + 'AhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
+    '<marker id="' + id + 'AhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
+    (withStaff ? staff : '<path id="cofArcS" d="M' + cofPt(334, 18) + 'A334 334 0 0 1 ' + cofPt(334, 72) + '"/><path id="cofArcF" d="M' + cofPt(334, 288) + 'A334 334 0 0 1 ' + cofPt(334, 342) + '"/>') + '</defs>';
+  if (!compact) {
+    s += '<text class="cof-arc sharp"><textPath href="#cofArcS" startOffset="50%" text-anchor="middle">' + deps.t('cof_sharps') + ' ♯</textPath></text>';
+    s += '<text class="cof-arc flat"><textPath href="#cofArcF" startOffset="50%" text-anchor="middle">♭ ' + deps.t('cof_flats') + '</textPath></text>';
+  }
+  let maj = '';
+  let min = '';
+  let acc = '';
+  const rMajMid = (COF_R_CNT1 + COF_R_MAJ1) / 2;
+  const rCntMid = (COF_R_MIN1 + COF_R_CNT1) / 2;
+  const rMinMid = (COF_R_MIN0 + COF_R_MIN1) / 2;
+  CIRCLE.forEach((_p, i) => {
+    const d0 = i * 30 - 15;
+    const d1 = i * 30 + 15;
+    const sig = sigList(i);
+    const light = i <= 4 || i >= 10;
+    const fill = i === 6 ? 'fill:url(#' + id + 'Split)' : 'fill:' + COF_COL[i];
+    const txt = light ? '#1a1714' : '#fffaf2';
+    const [mx, my] = cofPt(rMajMid, i * 30);
+    const [cx, cy] = cofPt(rCntMid, i * 30);
+    const [nx, ny] = cofPt(rMinMid, i * 30);
+    const majL = i === 6 ? [name('F#'), name('Gb')] : [name(COF_MAJ[i])];
+    const minL = i === 6 ? [name('D#') + 'm', name('Eb') + 'm'] : [name(COF_MIN[i]) + 'm'];
+    const cnt = i === 0 ? '0' : i < 6 ? i + '♯' : i === 6 ? '6♯ 6♭' : (12 - i) + '♭';
+    maj += '<g class="cof-k" data-i="' + i + '" data-ring="maj" tabindex="0" role="button" aria-pressed="false" aria-label="' + deps.t('cof_aria_maj', keyLabel(i, false)) + (sig.n ? ', ' + sig.n + (sig.sharp ? '♯' : '♭') : '') + '">' +
+      '<path class="cof-w" d="' + cofSector(COF_R_CNT1, COF_R_MAJ1, d0, d1) + '" style="' + fill + '"/><path class="cof-w" d="' + cofSector(COF_R_MIN1, COF_R_CNT1, d0, d1) + '" style="' + cofTint(i, 44) + '"/>' +
+      cofText(mx, my, 'cof-maj' + (i === 6 ? ' sm' : ''), majL, 28).replace('<text ', '<text style="fill:' + txt + '" ') +
+      '<text class="cof-cnt" x="' + cx + '" y="' + cy + '">' + cnt + '</text></g>';
+    min += '<g class="cof-k" data-i="' + i + '" data-ring="min" tabindex="0" role="button" aria-pressed="false" aria-label="' + deps.t('cof_aria_min', keyLabel(i, true)) + '">' +
+      '<path class="cof-w" d="' + cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
+    if (withStaff) acc += staffSector(i, d0, d1, id);
+    else if (sig.n && !compact) {
+      const items = sig.list.split(', ');
+      const lines: string[] = [];
+      for (let k = 0; k < items.length; k += 3) lines.push(items.slice(k, k + 3).join(' '));
+      const a = i * 30;
+      const sx = Math.sin(a * Math.PI / 180);
+      const side = Math.abs(sx) > 0.35;
+      const [ax, ay] = cofPt(side ? 268 : 280, a);
+      acc += cofText(ax, (+ay + 6).toFixed(2), 'cof-acc', lines, 19).replace('<text ', '<text style="text-anchor:' + (side ? (sx > 0 ? 'start' : 'end') : 'middle') + '" ');
+    }
+  });
+  s += (withStaff ? acc + maj + min : maj + min + acc) +
+    `<path class="cof-ring-rel" id="${id}-rel" d=""/><path class="cof-ring-sel" id="${id}-sel" d=""/>`;
+  if (!withStaff) s += '<g class="cof-now" id="cof-now"></g>';
+  s += '<circle class="cof-hub" cx="350" cy="350" r="89"/>' +
+    '<path class="cof-arrow up" marker-end="url(#' + id + 'AhUp)" d="M' + cofPt(78, -34) + 'A78 78 0 0 1 ' + cofPt(78, 34) + '"/>' +
+    '<path class="cof-arrow dn" marker-end="url(#' + id + 'AhDn)" d="M' + cofPt(78, 214) + 'A78 78 0 0 0 ' + cofPt(78, 146) + '"/>' +
+    '<text class="cof-iv up" x="350" y="311">' + deps.t('cof_5th') + '</text><text class="cof-st" x="350" y="327">' + deps.t('cof_7st') + '</text>' +
+    '<text class="cof-title" x="350" y="355">' + deps.t('ex_tab_circle') + '</text>' +
+    '<text class="cof-iv dn" x="350" y="381">' + deps.t('cof_4th') + '</text><text class="cof-st" x="350" y="397">' + deps.t('cof_5st') + '</text></svg>';
+  return s;
+}
+
+export function cofBindKeys(box: Element, onPick: (i: number, minor: boolean) => void): void {
+  box.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
+    const doPick = () => onPick(Number(g.dataset.i), g.dataset.ring === 'min');
+    g.addEventListener('click', doPick);
+    g.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        doPick();
+      }
+    });
+  });
+}
+
+export function cofWheelSelect(box: Element, index: number, minor: boolean, picked: boolean): void {
+  const svg = box.querySelector('.cof-svg');
+  if (!svg) return;
+  svg.classList.toggle('has-sel', picked);
+  svg.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
+    const relativePair = picked && Number(g.dataset.i) === index;
+    const on = relativePair && (g.dataset.ring === 'min') === minor;
+    g.classList.toggle('on', on);
+    g.classList.toggle('rel', relativePair && !on);
+    g.setAttribute('aria-pressed', String(on));
+  });
+  const d0 = index * 30 - 15;
+  const d1 = index * 30 + 15;
+  const majD = picked ? cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1) : '';
+  const minD = picked ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : '';
+  svg.querySelector('.cof-ring-sel')?.setAttribute('d', minor ? minD : majD);
+  svg.querySelector('.cof-ring-rel')?.setAttribute('d', minor ? majD : minD);
+}
+
 /** Creates the Circle of Fifths UI, SVG wheel, fingering diagram, diatonic triad strip, and key picker controller. */
 export function createCircleOfFifths(host: CircleOfFifthsHost): CircleOfFifthsController {
   const byId = host.byId ?? defaultById;
@@ -253,124 +386,16 @@ export function createCircleOfFifths(host: CircleOfFifthsHost): CircleOfFifthsCo
     return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches;
   }
 
-  function staffSector(i: number, d0: number, d1: number, id: string): string {
-    const primary = lCofN(i);
-    const enharmonic = lCofN(i, true);
-    const paired = primary !== enharmonic;
-    const fifths = paired ? [Math.max(primary, enharmonic), Math.min(primary, enharmonic)] : [primary];
-    const [x, y] = cofPt((COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
-    const scale = paired ? (i === 6 ? 0.88 : 0.80) : 0.96;
-    const staves = fifths.map((n, j) => {
-      // The lower staves sit closer to the vertical axis to fit the diagonal sectors.
-      const staffX = paired ? COF_CENTER + (6 - i) * (j === 0 ? 180 : 152) : x;
-      const staffY = paired ? COF_CENTER + (i === 6 ? [309, 384] : [273, 340])[j] : y;
-      const signature = srKeySigG('treble', n, 35, 0, COF_STAFF_ACCIDENTAL_SCALE).svg;
-      return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${staffX} ${staffY}) scale(${scale}) translate(${-COF_STAFF_WIDTH / 2} -26)"><use href="#${id}Staff"/>${signature}</g>`;
-    }).join('');
-    return `<g aria-hidden="true"><path class="lw-cof-staff-sector" d="${cofSector(COF_R_MAJ1, COF_R_STAFF, d0, d1)}"/>${staves}</g>`;
-  }
-
   function wheel(layout: 'compact' | 'wide' | 'staff'): string {
-    const compact = layout !== 'wide';
-    const withStaff = layout === 'staff';
-    const id = withStaff ? 'lw-cof' : 'cof';
-    const staffFrame = COF_R_STAFF + 6;
-    const viewBox = withStaff
-      ? `${COF_CENTER - staffFrame} ${COF_CENTER - staffFrame} ${2 * staffFrame} ${2 * staffFrame}`
-      : compact ? '92 92 516 516' : '-12 20 724 650';
-    const staff = withStaff
-      ? `<g id="${id}Staff">${Array.from({ length: 5 }, (_, i) =>
-        `<path class="ss-line" stroke-width="1.8" d="M0 ${i * 12}h${COF_STAFF_WIDTH}"/>`).join('')}${srClef('treble', 5, 0)}</g>`
-      : '';
-    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + host.t('aria_circle') + '"><defs>' +
-      '<linearGradient id="' + id + 'Split" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
-      '<marker id="' + id + 'AhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
-      '<marker id="' + id + 'AhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
-      (withStaff ? staff : '<path id="cofArcS" d="M' + cofPt(334, 18) + 'A334 334 0 0 1 ' + cofPt(334, 72) + '"/><path id="cofArcF" d="M' + cofPt(334, 288) + 'A334 334 0 0 1 ' + cofPt(334, 342) + '"/>') + '</defs>';
-    if (!compact) {
-      s += '<text class="cof-arc sharp"><textPath href="#cofArcS" startOffset="50%" text-anchor="middle">' + host.t('cof_sharps') + ' ♯</textPath></text>';
-      s += '<text class="cof-arc flat"><textPath href="#cofArcF" startOffset="50%" text-anchor="middle">♭ ' + host.t('cof_flats') + '</textPath></text>';
-    }
-    let maj = '';
-    let min = '';
-    let acc = '';
-    const rMajMid = (COF_R_CNT1 + COF_R_MAJ1) / 2;
-    const rCntMid = (COF_R_MIN1 + COF_R_CNT1) / 2;
-    const rMinMid = (COF_R_MIN0 + COF_R_MIN1) / 2;
-    CIRCLE.forEach((_p, i) => {
-      const d0 = i * 30 - 15;
-      const d1 = i * 30 + 15;
-      const sig = sigList(i);
-      const light = i <= 4 || i >= 10;
-      const fill = i === 6 ? 'fill:url(#' + id + 'Split)' : 'fill:' + COF_COL[i];
-      const txt = light ? '#1a1714' : '#fffaf2';
-      const [mx, my] = cofPt(rMajMid, i * 30);
-      const [cx, cy] = cofPt(rCntMid, i * 30);
-      const [nx, ny] = cofPt(rMinMid, i * 30);
-      const majL = i === 6 ? [name('F#'), name('Gb')] : [name(COF_MAJ[i])];
-      const minL = i === 6 ? [name('D#') + 'm', name('Eb') + 'm'] : [name(COF_MIN[i]) + 'm'];
-      const cnt = i === 0 ? '0' : i < 6 ? i + '♯' : i === 6 ? '6♯ 6♭' : (12 - i) + '♭';
-      maj += '<g class="cof-k" data-i="' + i + '" data-ring="maj" tabindex="0" role="button" aria-pressed="false" aria-label="' + host.t('cof_aria_maj', keyLabel(i, false)) + (sig.n ? ', ' + sig.n + (sig.sharp ? '♯' : '♭') : '') + '">' +
-        '<path class="cof-w" d="' + cofSector(COF_R_CNT1, COF_R_MAJ1, d0, d1) + '" style="' + fill + '"/><path class="cof-w" d="' + cofSector(COF_R_MIN1, COF_R_CNT1, d0, d1) + '" style="' + cofTint(i, 44) + '"/>' +
-        cofText(mx, my, 'cof-maj' + (i === 6 ? ' sm' : ''), majL, 28).replace('<text ', '<text style="fill:' + txt + '" ') +
-        '<text class="cof-cnt" x="' + cx + '" y="' + cy + '">' + cnt + '</text></g>';
-      min += '<g class="cof-k" data-i="' + i + '" data-ring="min" tabindex="0" role="button" aria-pressed="false" aria-label="' + host.t('cof_aria_min', keyLabel(i, true)) + '">' +
-        '<path class="cof-w" d="' + cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
-      if (withStaff) acc += staffSector(i, d0, d1, id);
-      else if (sig.n && !compact) {
-        const items = sig.list.split(', ');
-        const lines: string[] = [];
-        for (let k = 0; k < items.length; k += 3) lines.push(items.slice(k, k + 3).join(' '));
-        const a = i * 30;
-        const sx = Math.sin(a * Math.PI / 180);
-        const side = Math.abs(sx) > 0.35;
-        const [ax, ay] = cofPt(side ? 268 : 280, a);
-        acc += cofText(ax, (+ay + 6).toFixed(2), 'cof-acc', lines, 19).replace('<text ', '<text style="text-anchor:' + (side ? (sx > 0 ? 'start' : 'end') : 'middle') + '" ');
-      }
-    });
-    s += (withStaff ? acc + maj + min : maj + min + acc) +
-      `<path class="cof-ring-rel" id="${id}-rel" d=""/><path class="cof-ring-sel" id="${id}-sel" d=""/>`;
-    if (!withStaff) s += '<g class="cof-now" id="cof-now"></g>';
-    s += '<circle class="cof-hub" cx="350" cy="350" r="89"/>' +
-      '<path class="cof-arrow up" marker-end="url(#' + id + 'AhUp)" d="M' + cofPt(78, -34) + 'A78 78 0 0 1 ' + cofPt(78, 34) + '"/>' +
-      '<path class="cof-arrow dn" marker-end="url(#' + id + 'AhDn)" d="M' + cofPt(78, 214) + 'A78 78 0 0 0 ' + cofPt(78, 146) + '"/>' +
-      '<text class="cof-iv up" x="350" y="311">' + host.t('cof_5th') + '</text><text class="cof-st" x="350" y="327">' + host.t('cof_7st') + '</text>' +
-      '<text class="cof-title" x="350" y="355">' + host.t('ex_tab_circle') + '</text>' +
-      '<text class="cof-iv dn" x="350" y="381">' + host.t('cof_4th') + '</text><text class="cof-st" x="350" y="397">' + host.t('cof_5st') + '</text></svg>';
-    return s;
+    return renderCofWheel(layout, { t: host.t, spellName: host.spellName, lCofN });
   }
 
   function bindKeys(box: Element, onPick: (i: number, minor: boolean) => void): void {
-    box.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
-      const doPick = () => onPick(Number(g.dataset.i), g.dataset.ring === 'min');
-      g.addEventListener('click', doPick);
-      g.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          e.stopPropagation();
-          doPick();
-        }
-      });
-    });
+    cofBindKeys(box, onPick);
   }
 
   function wheelSelect(box: Element, index: number, minor: boolean, picked: boolean): void {
-    const svg = box.querySelector('.cof-svg');
-    if (!svg) return;
-    svg.classList.toggle('has-sel', picked);
-    svg.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
-      const relativePair = picked && Number(g.dataset.i) === index;
-      const on = relativePair && (g.dataset.ring === 'min') === minor;
-      g.classList.toggle('on', on);
-      g.classList.toggle('rel', relativePair && !on);
-      g.setAttribute('aria-pressed', String(on));
-    });
-    const d0 = index * 30 - 15;
-    const d1 = index * 30 + 15;
-    const majD = picked ? cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1) : '';
-    const minD = picked ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : '';
-    svg.querySelector('.cof-ring-sel')?.setAttribute('d', minor ? minD : majD);
-    svg.querySelector('.cof-ring-rel')?.setAttribute('d', minor ? majD : minD);
+    cofWheelSelect(box, index, minor, picked);
   }
 
   function sel(): void {

@@ -45,20 +45,29 @@ import * as router from './router.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
 import {
   createTestSurfaceRegistry,
+  type AppHost,
   type EtudeSurface,
+  type FeatureController,
+  type InputBusListener,
   type IntervalDirection,
+  type PreviewSequenceFrame,
   type ReadDrillCustom,
   type ReadDrillData,
   type ReadDrillLevelStat,
   type ReadDrillNoteStat,
   type ReadDrillPrefs,
   type ReadDrillTotals,
+  type ShowFn,
+  type ShowOptions,
   type StoredLastDrill,
   type StoredLessonReview,
   type StoredPracticeLog,
   type StoredSheetRecord,
   type StoredTrainerData,
   type StoredTrainerSettings,
+  type UiPrefsPatch,
+  type UiPrefsSnapshot,
+  type UiPrefsStore,
   type ViewApplicationState,
   type ViewEventHandler,
   type ViewEventName,
@@ -68,8 +77,7 @@ import { eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeF
 import { createTimingCalibration } from './midi-calibration.js';
 import { BLE_MIDI_CHR, BLE_MIDI_SVC, createBleMidi, type BleMidiDevice } from './ble-midi.js';
 import {
-  COF_COL, COF_FING, COF_MAJ, COF_MIN, COF_SCALE, COF_SOL,
-  createCircleOfFifths, isCofFlavor, isCofMode,
+  cofBindKeys, cofWheelSelect, renderCofWheel,
 } from './circle-of-fifths.js';
 import { createMidiController } from '../infra/midi-controller.js';
 import { pickArturia } from './midi-input-selection.js';
@@ -476,18 +484,11 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     viewState.language = lang;
     queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
     applyI18n();
-    const rr = selectById('refRoot').value, kc = selectById('keyCtx').value, sr = selectById('song-root').value, pk = selectById('pr-key').value, rn = selectById('refName').value; // re-fill selects so "All keys"/"none"/scale names re-localise
-    fillRoots(byId('refRoot'), false);
+    const sr = selectById('song-root').value, pk = selectById('pr-key').value; // re-fill selects so "All keys"/scale names re-localise
     fillRoots(byId('song-root'), false);
     fillRoots(byId('pr-key'), true);
-    fillRefNames();
-    fillKeyCtx();
-    selectById('refRoot').value = String(rr || 0);
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = String(pk || 'all');
-    selectById('keyCtx').value = String(kc || '-1');
-    if (rn)
-        selectById('refName').value = rn;
     const ssc = selectById('tr-sscale');
     if (ssc && ssc._filled) {
         const v = ssc.value;
@@ -509,13 +510,11 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         ACCOMP_PROGS.forEach((p, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = progDisp(p.name); acp.appendChild(o); });
         acp.value = v || '0';
     }
-    renderCircle();
+    localizeLoadedFeatures();
     if (view0() === 'today')
         refreshToday();
     else if (view0() === 'progress')
         renderProgress();
-    else if (view0() === 'explore')
-        updateExplore();
     else if (view0() === 'learn')
         renderLearn();
     else if (view0() === 'read') {
@@ -672,7 +671,19 @@ async function timedAudioReady(context: AudioContext): Promise<boolean> {
 function audioUnlock() { ensureAudio(); const context = audioEngine.context; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
 function audioNoteOn(midi: number, velocity: number|undefined) { audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); }
 function audioNoteOff(midi: number) { audioEngine.noteOff(midi); }
-function stopPreviews() { clearPracticeHintPreview(); clearExplorePreview(); clearIntervalSongPreview(); clearIntervalHintPlay(); clearMelodyDemoPreview(); audioEngine.stopPreviews(); }
+const previewStoppers = new Set<() => void>();
+const previewSequenceHandlers = new Set<(frames: PreviewSequenceFrame[]) => void>();
+function notifyPreviewSequence(frames: PreviewSequenceFrame[]) {
+    for (const handler of previewSequenceHandlers) handler(frames);
+}
+function stopPreviews() {
+    clearPracticeHintPreview();
+    for (const stop of previewStoppers) stop();
+    clearIntervalSongPreview();
+    clearIntervalHintPlay();
+    clearMelodyDemoPreview();
+    audioEngine.stopPreviews();
+}
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); }
 function masterRamp(value: number) { audioEngine.masterRamp(value); }
 function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); }
@@ -698,7 +709,7 @@ function playIvDir(root: number, semitones: number, direction: string, style: 'b
 }
 function playChordMidis(midis: number[], arpeggio: boolean) {
     ensureAudio(); stopPreviews();
-    exploreSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
+    notifyPreviewSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
     const start = audioEngine.context?.currentTime ?? 0;
     if (arpeggio) { midis.forEach((midi, index) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach((midi) => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
     else midis.forEach((midi) => previewNote(midi, start, 1.2));
@@ -707,7 +718,7 @@ function playScaleNotes(rootMidi: number, offsets: readonly number[], ascending:
     ensureAudio(); stopPreviews();
     const start = audioEngine.context?.currentTime ?? 0; let sequence = offsets.concat([12]);
     if (!ascending) sequence = sequence.slice().reverse();
-    exploreSequence(sequence.map((offset, index) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
+    notifyPreviewSequence(sequence.map((offset, index) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
     sequence.forEach((offset, index) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
 }
 const droneVoices = audioEngine.droneVoices;
@@ -1907,9 +1918,13 @@ function buildKeyboard() {
     rdDockPaint();
     if (view0() === 'analysis')
         anKeysPaint(true);
-    cofPaintDock();
+    notifyDockReflow();
     paintPracticeHintKeys();
     paintAccompImproScale();
+}
+const dockReflowListeners = new Set<() => void>();
+function notifyDockReflow() {
+    for (const listener of dockReflowListeners) listener();
 }
 // Chord-member numbers (1 3 5 7 …) shown on keys; `src` maps sounding MIDI notes to labels and is folded into view.
 let kbDegSrc: Map<number, string>|null = null;
@@ -2274,8 +2289,9 @@ function panic() {
         el.classList.remove('pressed');
         if (el.dataset.s === 'active') delete el.dataset.s;
     });
-    if (view0() === 'explore') updateExplore();
+    panicLoadedFeatures();
 }
+const inputBusListeners = new Set<InputBusListener>();
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
     if (calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
@@ -2286,6 +2302,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
     // MIDI still sounds in a dialog. Only calibration and note releases reach their handlers.
     if (kind === 'on' && overlaysOpen())
         return;
+    for (const listener of inputBusListeners) listener({ kind, midi, source, releaseKind });
     // A waiting level piece starts on its first note; the keys played while its first sight is claimed are kept for the recorder.
     if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
         return;
@@ -2300,7 +2317,6 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
         return;
     }
     if (view0() === 'explore') {
-        updateExplore();
         return;
     }
     if (view0() === 'learn' && kind === 'on') {
@@ -4172,7 +4188,193 @@ function setViewLoading(viewId: string, loading: boolean) {
     note.textContent = localize('loading', 'Loading…');
     host.prepend(note);
 }
+const loadedFeatures: Partial<Record<router.AppView, FeatureController>> = {};
+const featureLoadPromises: Partial<Record<router.AppView, Promise<FeatureController>>> = {};
+let activeFeatureAbort: AbortController | null = null;
+let shellPendingSaveMirror = false;
+
+const lazyFeatureLoaders: Partial<Record<router.AppView, () => Promise<FeatureController>>> = {
+    explore: async () => (await import('../features/explore/index.js')).createExploreFeature(appHost),
+};
+
+function localizeLoadedFeatures() {
+    for (const ctrl of Object.values(loadedFeatures)) ctrl?.localize?.();
+}
+
+function panicLoadedFeatures() {
+    for (const ctrl of Object.values(loadedFeatures)) ctrl?.panic?.();
+}
+
+function anyLoadedFeatureBusy() {
+    return Object.values(loadedFeatures).some((ctrl) => ctrl?.isBusy?.() === true);
+}
+
+async function ensureFeature(view: router.AppView): Promise<FeatureController | null> {
+    const existing = loadedFeatures[view];
+    if (existing) return existing;
+    const inflight = featureLoadPromises[view];
+    if (inflight) return inflight;
+    const loader = lazyFeatureLoaders[view];
+    if (!loader) return null;
+    const promise = loader().then((controller) => {
+        controller.mount?.(appHost);
+        loadedFeatures[view] = controller;
+        delete featureLoadPromises[view];
+        return controller;
+    }, (err) => {
+        delete featureLoadPromises[view];
+        throw err;
+    });
+    featureLoadPromises[view] = promise;
+    return promise;
+}
+
+const shellUiPrefs: UiPrefsStore = {
+    get(): UiPrefsSnapshot {
+        return {
+            scoreLook: SCORE.look === 'night' ? 'night' : 'paper',
+            scoreHl: SCORE.hl,
+            scoreLayout: SCORE.layout,
+            scoreFallMode: FALL.mode,
+            scoreLayoutExplicit,
+            anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w },
+        };
+    },
+    set(patch: UiPrefsPatch, options?: { readonly save?: 'soon' | 'now' | 'none' }) {
+        if (patch.scoreLook !== undefined) SCORE.look = patch.scoreLook;
+        if (patch.scoreHl !== undefined) SCORE.hl = patch.scoreHl;
+        if (patch.scoreLayout !== undefined) SCORE.layout = patch.scoreLayout;
+        if (patch.scoreFallMode !== undefined) FALL.mode = patch.scoreFallMode;
+        if (patch.scoreLayoutExplicit !== undefined) scoreLayoutExplicit = patch.scoreLayoutExplicit;
+        if (patch.anSide) {
+            if (patch.anSide.open !== undefined) SIDE.open = patch.anSide.open;
+            if (patch.anSide.tab !== undefined) SIDE.tab = patch.anSide.tab;
+            if (patch.anSide.w !== undefined) SIDE.w = patch.anSide.w;
+        }
+        const mode = options?.save ?? 'soon';
+        if (mode === 'now') saveAll();
+        else if (mode === 'soon') saveSoon();
+    },
+};
+
+const appHost: AppHost = {
+    i18n: {
+        t: (key, ...args) => t(key, ...args),
+        lang: () => lang,
+        spell: (letter, acc, ascii = false) => spelledName(notation, letter, acc, ascii),
+        notation: () => notation,
+        loadLearn: async () => { await loadLearn(lang); },
+        chordDisp,
+        scaleDisp,
+        invName,
+        intervalLabel,
+        noteName: (midi, flat = false) => noteName(midi, flat),
+        pcName: (p, flat = false) => pcName(p, flat),
+        slashLabel,
+        formatChord,
+        fillRoots,
+    },
+    audio: {
+        ensure: () => ensureAudio(),
+        noteOn: (midi, velocity) => audioNoteOn(midi, velocity),
+        noteOff: (midi) => audioNoteOff(midi),
+        previewNote: (midi, when, duration, velocity, options) => previewNote(midi, when, duration, velocity, options),
+        playInterval: (rootMidi, semitones, style = 'both') => playInterval(rootMidi, semitones, style),
+        playChordMidis,
+        playScaleNotes,
+        stopPreviews,
+    },
+    metro: {
+        getBpm: () => metro.bpm,
+        isRunning: () => metro.on,
+        start: (bpm, startAt) => startMetro(bpm, startAt),
+        stop: () => stopMetro(),
+        click: (when, accent) => metroClick(when, accent),
+        startDrone,
+        stopDrone,
+    },
+    input: {
+        subscribe(listener) {
+            inputBusListeners.add(listener);
+            return () => { inputBusListeners.delete(listener); };
+        },
+        heldMidis,
+        heldPcs: () => [...new Set(heldMidis().map((m) => pc(m)))],
+        isMidiLive: midiLive,
+        releaseLiveInput,
+        releaseFocusInput,
+    },
+    dock: {
+        sync: dockSync,
+        setOpen: dockSet,
+        isShown: dockShown,
+        clear: (state) => { if (state) kbClear(state); else kbClearAll(); },
+        mark: (midi, state, anyOctave = false) => kbState(midi, state, anyOctave),
+        setDegrees: kbDegrees,
+        ensureVisible: (midis) => {
+            if (!midis.length) return;
+            const lo = Math.min(...midis), hi = Math.max(...midis);
+            if (lo < view.low || hi > viewHigh()) {
+                view.low = Math.max(21, Math.min(84, Math.floor((lo + hi) / 2 - 18)));
+                buildKeyboard();
+            }
+        },
+        fixedBottomTop,
+        onReflow(listener) {
+            dockReflowListeners.add(listener);
+            return () => { dockReflowListeners.delete(listener); };
+        },
+    },
+    nav: {
+        show: ((...args: Parameters<ShowFn>) => (show as (...a: unknown[]) => void | Promise<void>)(...args)) as ShowFn,
+        activeView: () => (isAppView(_view) ? _view : 'today'),
+        isPendingSaveProtected: () => shellPendingSaveMirror || srtPendingSaveProtected(),
+        setPendingSave: (protectedAttempt: boolean) => { shellPendingSaveMirror = protectedAttempt; },
+    },
+    overlays: {
+        pushModal: pushModalState,
+        popModal: () => popModalState(_modalStack[_modalStack.length - 1] ?? ''),
+        openCount: () => _modalStack.length,
+        focusView: (view) => focusView(view),
+    },
+    store: {
+        data: () => data,
+        saveNow: saveAll,
+        saveSoon,
+        flushSaveSoon,
+        uiPrefs: () => shellUiPrefs,
+    },
+    previews: {
+        registerStopper(stop) {
+            previewStoppers.add(stop);
+            return () => { previewStoppers.delete(stop); };
+        },
+        registerSequenceHandler(handler) {
+            previewSequenceHandlers.add(handler);
+            return () => { previewSequenceHandlers.delete(handler); };
+        },
+        stopAll: stopPreviews,
+    },
+    wake: {
+        ping: wakePing,
+        sync: wakeUi,
+    },
+    coach: {
+        setContext: () => {},
+        refresh: coachRefresh,
+    },
+    reduceMotion: () => reduceMotion(),
+    testSurface: null,
+};
+
 function teardownView(prev: string, next: string) {
+    if (prev !== next && activeFeatureAbort) {
+        activeFeatureAbort.abort();
+        activeFeatureAbort = null;
+    }
+    if (prev !== next && isAppView(prev) && loadedFeatures[prev]) {
+        loadedFeatures[prev]?.leave(isAppView(next) ? next : 'today');
+    }
     if (prev === 'analysis' && next !== 'analysis') {
         cancelScoreGesture?.();
         anCancelOpening();
@@ -4223,7 +4425,16 @@ function teardownView(prev: string, next: string) {
         endSession(false);
     }
 }
-let show = function show(v: string|undefined, moveFocus = true, fromHistory = false, analysisRoute?: AnalysisRoute | null): void | Promise<void> {
+function showImpl(
+    v: string | undefined,
+    moveFocusOrOpts?: boolean | ShowOptions,
+    fromHistoryArg = false,
+    analysisRouteArg?: AnalysisRoute | null,
+): void | Promise<void> {
+    const opts: ShowOptions = typeof moveFocusOrOpts === 'object' && moveFocusOrOpts !== null ? moveFocusOrOpts : {};
+    const moveFocus: boolean = typeof moveFocusOrOpts === 'boolean' ? moveFocusOrOpts : (opts.moveFocus ?? true);
+    const fromHistory: boolean = typeof moveFocusOrOpts === 'object' && moveFocusOrOpts !== null ? (opts.fromHistory ?? false) : fromHistoryArg;
+    const analysisRoute: AnalysisRoute | null | undefined = typeof moveFocusOrOpts === 'object' && moveFocusOrOpts !== null ? opts.analysisRoute : analysisRouteArg;
     const navigation = ++featureNavigation;
     const requestedAnRoute = v === 'analysis'
         ? (analysisRoute ?? (fromHistory || !_routed ? (parseAnalysisHash(location.hash) ?? { kind: 'catalog' }) : anCurrentRoute()))
@@ -4231,7 +4442,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (v === 'analysis' && !analysisModulesReady) {
         if (practiceHintPreview) stopPreviews();
         const prevView = _view;
-        const showPendingView = !(prevView === 'read' && srtPendingSaveProtected());
+        const showPendingView = !(prevView === 'read' && appHost.nav.isPendingSaveProtected());
         if (showPendingView) {
             if (prevView !== 'analysis') teardownView(prevView, 'analysis');
             const wantHash = formatAnalysisHash(requestedAnRoute ?? { kind: 'catalog' });
@@ -4283,9 +4494,9 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     }
     if (v === undefined || !isAppView(v))
         return;
-    document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
+    document.querySelector('#locale-load-error[data-lazy-owner]')?.remove();
     const prev = _view;
-    if (prev === 'read' && v !== 'read' && srtPendingSaveProtected()) {
+    if (prev === 'read' && v !== 'read' && appHost.nav.isPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
             if (location.hash.slice(1) !== prev) {
                 try {
@@ -4343,16 +4554,54 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (dockShown())
         reflowKeys(); // reposition once the dock is laid out
     closeMobileMenu();
+    if (v === 'practice') {
+        if (opts.practiceTopic) prSetTopic(opts.practiceTopic);
+        if (opts.practiceMode) prSetMode(opts.practiceMode);
+        if (opts.practiceKey) prSetKey(opts.practiceKey);
+    }
+    if (v === 'read' && opts.readingKeyId) {
+        const match = srtReadingKeys().find((k) => k.id === opts.readingKeyId);
+        if (match) rdnChoose(rdnBook().level, match.id);
+    }
     if (v === 'today' && !SES.active) {
         byId('today-home').style.display = 'block';
         byId('summary').style.display = 'none';
         refreshToday();
     }
-    if (v === 'explore') {
-        updateExplore();
-        cofPaintDock();
-    }
     let pendingViewLoad: Promise<void> | undefined;
+    if (lazyFeatureLoaders[v]) {
+        const featureParams: Record<string, unknown> = {};
+        if (opts.extab) featureParams.extab = opts.extab;
+        if (opts.openFile) featureParams.openFile = opts.openFile;
+        const enterFeature = (ctrl: FeatureController): Promise<void> | undefined => {
+            activeFeatureAbort?.abort();
+            activeFeatureAbort = new AbortController();
+            const res = ctrl.enter(featureParams, activeFeatureAbort.signal);
+            return res instanceof Promise ? res : undefined;
+        };
+        const loaded = loadedFeatures[v];
+        if (loaded) {
+            setViewLoading('view-' + v, false);
+            pendingViewLoad = enterFeature(loaded);
+        }
+        else {
+            setViewLoading('view-' + v, true);
+            pendingViewLoad = ensureFeature(v).then((ctrl) => {
+                setViewLoading('view-' + v, false);
+                document.querySelector(`#locale-load-error[data-lazy-owner="${v}"]`)?.remove();
+                if (ctrl && navigation === featureNavigation && _view === v) {
+                    return enterFeature(ctrl);
+                }
+            }, () => {
+                setViewLoading('view-' + v, false);
+                if (navigation === featureNavigation && _view === v) {
+                    localeLoadError(async () => { await show(v, opts); });
+                    const toast = document.getElementById('locale-load-error');
+                    if (toast) toast.dataset.lazyOwner = v;
+                }
+            });
+        }
+    }
     if (v === 'analysis') {
         void anLibraryEnsure().catch(() => {});
         const targetRoute = requestedAnRoute ?? { kind: 'catalog' };
@@ -4421,7 +4670,8 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (moveFocus && (!active || active === document.body || !active.isConnected || !active.getClientRects().length))
         focusView(v);
     return pendingViewLoad;
-};
+}
+let show: ShowFn = showImpl;
 let _routed = false;
 window.addEventListener('popstate', (e) => {
     // The destination history entry, not the previously visible overlay, determines the UI.
@@ -4518,382 +4768,20 @@ function refreshToday() {
     byId('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
     renderPlan();
 }
-/* ---------- EXPLORE ---------- */
-interface ExplorePreviewFrame {
-    at: number;
-    notes: number[];
-}
-let explorePreview: number[] = [], exploreTimers: ReturnType<typeof setTimeout>[] = [];
-function clearExplorePreview() { exploreTimers.forEach(clearTimeout); exploreTimers = []; explorePreview = []; if (view0() === 'explore')
-    updateExplore(); }
-function exploreSequence(events: ExplorePreviewFrame[]) {
-    if (view0() !== 'explore')
-        return;
-    clearExplorePreview();
-    if (reduceMotion() && events.length > 2) {
-        const last = events[events.length - 1]; // reduced motion: one steady picture of every note instead of a light running across the keys
-        events = [{ at: 0, notes: [...new Set(events.flatMap((e) => e.notes))].sort((a, b) => a - b) }].concat(last.notes.length ? [] : [last]);
-    }
-    events.forEach((e) => {
-        const paint = () => { explorePreview = e.notes; updateExplore(); };
-        if (e.at === 0)
-            paint();
-        else
-            exploreTimers.push(setTimeout(paint, e.at));
-    });
-}
-// Bass on the left and treble on the right, as on the keyboard. The frame never changes, so nothing moves while you play: each clef shows
-// the exact sounding octave up to EX_LEDGERS ledger lines, and lists any note further away beside an arrow at its edge.
-const EX_LEDGERS = 5;
-interface ExploreStaffPitch {
-    m: number;
-    step: number;
-    acc: string;
-}
-interface ExploreStaffHead {
-    p: ExploreStaffPitch;
-    y: number;
-    lane: number;
-}
-// The frame fills its paper: the drawing scales with the paper's width up to EX_STAFF_ZOOM, or less where the room under it
-// (--ex-staff-max, explore.css) runs out first; any width left over lengthens both staves. It follows the paper, never the notes.
-const EX_STAFF_W = 520, EX_STAFF_H = 234, EX_STAFF_ZOOM = 1.5;
-interface ExploreStaffFrame {
-    w: number;
-    zoom: number;
-}
-let exStaffLast = '';
-function exStaffFrame(wrap: HTMLElement): ExploreStaffFrame | null {
-    // The unrounded width, so the drawing never comes out a fraction wider than its paper and scrolls.
-    const cs = getComputedStyle(wrap), px = (v: string) => parseFloat(v) || 0;
-    const inner = wrap.getBoundingClientRect().width - px(cs.borderLeftWidth) - px(cs.borderRightWidth) - px(cs.paddingLeft) - px(cs.paddingRight);
-    if (!(inner > 0))
-        return null; // not laid out (another view): drawn at the default frame, refitted once it shows
-    const maxH = parseFloat(cs.getPropertyValue('--ex-staff-max')) || Infinity;
-    const zoom = Math.max(0.1, Math.min(EX_STAFF_ZOOM, inner / EX_STAFF_W, maxH / EX_STAFF_H));
-    return { w: Math.max(EX_STAFF_W, Math.floor(inner / zoom + 1e-6)), zoom };
-}
-// Redraws when the paper's width or the room under it changes (a resize, the dock opening or closing).
-function exStaffRefit() {
-    const wrap = maybeById('ex-staff');
-    if (!wrap || view0() !== 'explore')
-        return;
-    const f = exStaffFrame(wrap);
-    if (f && f.w + '|' + f.zoom !== exStaffLast)
-        updateExplore();
-}
-// With a key context its signature is drawn after each clef, notes are spelled in that key (E♯ in F♯ major), and a note shows
-// an accidental, a natural too, only where it differs from the signature.
-const EXPLORE_CHORD_DEGREE: Record<number, number> = {
-    0: 1, 2: 2, 3: 3, 4: 3, 5: 4, 6: 5, 7: 5, 8: 5, 9: 6, 10: 7, 11: 7,
-    13: 2, 14: 2, 15: 2, 17: 4, 18: 4, 21: 6,
-};
-function exploreRootSpell(rootPc: number, symbol: string, keyCtx: ExploreKey | null): theory.SpelledMidi {
-    if (keyCtx) {
-        const fifths = exKeyFifths(keyCtx), sig = ssKeyAcc(fifths);
-        const sp = spellMidi(60 + rootPc, fifths, keyCtx.minor);
-        const sigMatch = (SS_LETSEMI[sp.li] + sig[sp.li] + 12) % 12 === rootPc;
-        const harmonicLeading = keyCtx.minor && ((rootPc - keyCtx.pc + 12) % 12) === 11;
-        if (sigMatch || harmonicLeading)
-            return sp;
-    }
-    const isMinorLike = /^m(?!aj)|^dim/.test(symbol);
-    return spellMidi(60 + rootPc, keyFifths(rootPc, isMinorLike), isMinorLike);
-}
-function exploreChordSpelling(notes: readonly number[], id: NonNullable<ReturnType<typeof identifyChord>>, keyCtx: ExploreKey | null) {
-    const rootSp = exploreRootSpell(id.rootPc, id.chord.symbol, keyCtx);
-    const rootAnchor = (rootSp.oct + 1) * 12 + SS_LETSEMI[rootSp.li] + rootSp.acc;
-    const intervals = id.chord.intervals || id.chord.pcset;
-    const relDegree = new Map<number, number>();
-    intervals.forEach((iv) => {
-        const deg = id.chord.symbol === 'dim7' && iv === 9 ? 7 : (EXPLORE_CHORD_DEGREE[iv] ?? 1);
-        relDegree.set(pc(iv), deg);
-    });
-    const byMidi = new Map<number, theory.SpelledMidi>();
-    notes.forEach((m) => {
-        const rel = pc(m - id.rootPc);
-        const deg = relDegree.get(rel);
-        const raw = deg ? theory.spellDiatonicDegree(rootSp, rootAnchor + rel, deg) : spellMidi(m, exKeyFifths(keyCtx), !!keyCtx?.minor);
-        const oct = Math.floor((m - raw.acc - SS_LETSEMI[raw.li]) / 12) - 1;
-        byMidi.set(m, { li: raw.li, acc: raw.acc, oct });
-    });
-    const bassMidi = Math.min(...notes);
-    return { rootSp, bassSp: byMidi.get(bassMidi) || rootSp, byMidi };
-}
-function exploreMidiText(m: number, flat: boolean, key: ExploreKey | null, spelled?: ReadonlyMap<number, theory.SpelledMidi>): string {
-    const sp = spelled?.get(m) ?? (key ? spellMidi(m, exKeyFifths(key), key.minor) : null);
-    return sp ? spelledName(notation, sp.li, sp.acc, true) + sp.oct : noteName(m, flat);
-}
-function exploreAccToken(sp: theory.SpelledMidi, keyAcc: readonly number[]): string {
-    if (sp.acc === keyAcc[sp.li])
-        return '';
-    if (sp.acc >= 2)
-        return '##';
-    if (sp.acc === 1)
-        return '#';
-    if (sp.acc <= -2)
-        return 'bb';
-    if (sp.acc === -1)
-        return 'b';
-    return 'n';
-}
-function drawExploreStaff(midis: readonly number[], flat: boolean, key: ExploreKey | null = exKeyCtx(), spelled?: ReadonlyMap<number, theory.SpelledMidi>) {
-    const wrap = byId('ex-staff');
-    if (!wrap)
-        return;
-    const frame = exStaffFrame(wrap);
-    exStaffLast = frame ? frame.w + '|' + frame.zoom : '';
-    const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const fifths = exKeyFifths(key), keyAcc = ssKeyAcc(fifths);
-    const pitches: ExploreStaffPitch[] = [...new Set(midis)].map((m) => {
-        const sp = spelled?.get(m) ?? (key ? spellMidi(m, fifths, key.minor) : null);
-        if (sp)
-            return { m, step: ssStepOf(sp.li, sp.oct), acc: exploreAccToken(sp, keyAcc) };
-        const name = names[pc(m)], li = 'CDEFGAB'.indexOf(name[0]), oct = Math.floor(m / 12) - 1;
-        return { m, step: ssStepOf(li, oct), acc: name.slice(1) };
-    }).sort((a, b) => a.step - b.step || a.m - b.m);
-    const W = frame ? frame.w : EX_STAFF_W, H = EX_STAFF_H, top = 94, room = EX_LEDGERS * 12 + 6, half = W / 2;
-    let body = '';
-    // The notes stand where they do on the narrowest frame, plus half of any extra staff length.
-    ([['bass', 16, half - 10], ['treble', half + 10, W - 16]] as const).forEach(([clef, x0, x1]) => {
-        const treble = clef === 'treble', ref = treble ? 30 : 18, x = x0 + 146 + (x1 - x0 - 234) / 2, far: { up: string[]; down: string[] } = { up: [], down: [] };
-        body += `<g class="ex-stave" data-clef="${clef}"><text class="ss-syl" x="${x0 + 24}" y="${top - 24}">${t(treble ? 'si_treble' : 'si_bass')}</text>`;
-        for (let i = 0; i < 5; i++)
-            body += `<line class="ss-line" x1="${x0}" y1="${top + i * 12}" x2="${x1}" y2="${top + i * 12}" stroke-width="1.2"/>`;
-        body += srClef(clef, x0 + 16, top);
-        if (fifths)
-            body += `<g class="ex-keysig">${srKeySigG(clef, fifths, x0 + 46, top).svg}</g>`;
-        // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
-        let prevStep = -Infinity, prevLane = 0;
-        const accLanes: number[] = [], heads: ExploreStaffHead[] = [];
-        pitches.forEach((p) => {
-            const y = top + 48 + (ref - p.step) * 6;
-            if (y < top - room || y > top + 48 + room) {
-                far[y < top ? 'up' : 'down'].push(exploreMidiText(p.m, flat, key, spelled));
-                return;
-            }
-            const lane = p.step - prevStep <= 1 ? 1 - prevLane : 0;
-            prevStep = p.step;
-            prevLane = lane;
-            heads.push({ p, y, lane });
-        });
-        // One set of ledger lines per chord, wide enough for whichever head columns need them.
-        const ledgers = new Map<number, number>();
-        heads.forEach(({ y, lane }) => {
-            for (let ly = top - 12; ly >= y - 1; ly -= 12)
-                ledgers.set(ly, Math.max(ledgers.get(ly) || 0, lane));
-            for (let ly = top + 60; ly <= y + 1; ly += 12)
-                ledgers.set(ly, Math.max(ledgers.get(ly) || 0, lane));
-        });
-        ledgers.forEach((lane, ly) => { body += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9 + lane * 13}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`; });
-        heads.forEach(({ p, y, lane }) => {
-            let accidental = '';
-            if (p.acc) {
-                let a = accLanes.findIndex((last) => Math.abs(last - y) >= 24);
-                if (a < 0)
-                    a = accLanes.length;
-                accLanes[a] = y;
-                const ax = x - 20 - a * 11;
-                accidental = p.acc === '##'
-                    ? ssSharp(ax - 6, y) + ssSharp(ax + 1, y)
-                    : p.acc === 'bb'
-                        ? ssFlat(ax - 5, y) + ssFlat(ax + 1, y)
-                        : (p.acc === '#' ? ssSharp : p.acc === 'n' ? ssNatural : ssFlat)(ax, y);
-            }
-            body += `<g class="ss-n" data-midi="${p.m}" data-clef="${clef}"><title>${exploreMidiText(p.m, flat, key, spelled)}</title>${accidental}${ssNotehead(x + lane * 13, y, 4)}</g>`;
-        });
-        // Listed far notes shrink rather than spill into the other staff; 7px a character overestimates 11px text.
-        ([['up', '↑', 14], ['down', '↓', H - 6]] as const).forEach(([k, arrow, y]) => {
-            if (!far[k].length)
-                return;
-            const s = `${arrow} ${far[k].join(' ')}`, max = x1 - x0 - 16, est = s.length * 7, w = Math.min(est, max), cx = Math.min(Math.max(x, x0 + 8 + w / 2), x1 - 8 - w / 2);
-            body += `<text class="ss-syl ex-far" x="${cx}" y="${y}"${est > max ? ` style="font-size:${(11 * max / est).toFixed(1)}px"` : ''}>${s}</text>`;
-        });
-        body += '</g>';
-    });
-    if (!pitches.length)
-        body += `<text class="ss-syl" x="${W / 2}" y="${top + 88}">${t('ex_staff_empty')}</text>`;
-    const label = t('ex_staff_label') + (midis.length ? ': ' + midis.map((m) => exploreMidiText(m, flat, key, spelled)).join(', ') : '');
-    wrap.setAttribute('aria-label', label);
-    const size = frame ? `width="${(W * frame.zoom).toFixed(2)}" height="${(H * frame.zoom).toFixed(2)}" style="margin:auto"` : `width="${W}" height="${H}" style="width:100%; height:auto; margin:auto"`;
-    wrap.innerHTML = `<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${H}" ${size} xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
-}
-function fillRoots(sel: HTMLElement, withAll: boolean) { sel.innerHTML = ''; if (withAll) {
-    const o = (document).createElement('option');
-    o.value = 'all';
-    o.textContent = t('all_keys');
-    sel.appendChild(o);
-} NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = n; sel.appendChild(o); }); }
-// Key context values: "-1" none, "0"…"11" a major tonic, "m0"…"m11" a minor tonic (the circle's inner ring).
-function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = t('key_major', n); sel.appendChild(o); });
-    for (let p = 0; p < 12; p++) { const o = (document).createElement('option'); o.value = 'm' + p; o.textContent = t('key_minor', cofKeyLabel(CIRCLE.indexOf((p + 3) % 12), true)); sel.appendChild(o); } }
-interface ExploreKey {
-    pc: number;
-    minor: boolean;
-}
-function exKeyCtx(): ExploreKey | null { const v = selectById('keyCtx').value, minor = v.startsWith('m'), pc = parseInt(minor ? v.slice(1) : v, 10); return pc >= 0 && pc < 12 ? { pc, minor } : null; }
-// Sharps (+) or flats (−) in the key signature of the chosen key context, as the rest of the app counts them; 0 without one.
-function exKeyFifths(k: ExploreKey | null = exKeyCtx()) { return k ? keyFifths(k.pc, k.minor) : 0; }
-function fillRefNames() {
-    const rt = selectById('refType').value, sel = byId('refName');
+/* ---------- EXPLORE (lazy feature in src/features/explore/index.ts) ---------- */
+function fillRoots(sel: HTMLElement, withAll: boolean) {
     sel.innerHTML = '';
-    if (rt === 'chord') {
-        CHORDS.forEach((c) => { const o = (document).createElement('option'); o.value = c.symbol; o.textContent = c.symbol + ' · ' + chordDisp(c); sel.appendChild(o); });
+    if (withAll) {
+        const o = document.createElement('option');
+        o.value = 'all';
+        o.textContent = t('all_keys');
+        sel.appendChild(o);
     }
-    else {
-        Object.keys(SCALES).forEach((n) => { const o = (document).createElement('option'); o.value = n; o.textContent = scaleDisp(n); sel.appendChild(o); });
-    }
-}
-function refMidis() { const root = 60 + parseInt(selectById('refRoot').value, 10); if (selectById('refType').value === 'chord') {
-    const c = CHORDS.find((x) => x.symbol === selectById('refName').value);
-    if (!c) return [];
-    return c.intervals.map((i) => root + i);
-} return SCALES[selectById('refName').value].concat([12]).map((i) => root + i); }
-function updateExplore() {
-    if (view0() !== 'explore')
-        return;
-    const notes = (held.size ? heldMidis() : explorePreview).slice().sort((a, b) => a - b);
-    const keyCtx = exKeyCtx(), fifths = exKeyFifths(keyCtx);
-    // Without a chord to name, a key with a signature spells the notes its own way (G♭ in a flat key, F♯ in a sharp one).
-    let nameLabel = '—', roman = '—', spell = notes.length ? (fifths ? fifths < 0 : isFlatKey(pc(notes[0]))) : false;
-    let degrees: Map<number, string> | null = null, chord: ReturnType<typeof identifyChord> = null;
-    let spelledNotes: Map<number, theory.SpelledMidi> | undefined;
-    if (notes.length >= 3) {
-        const id = identifyChord(notes);
-        chord = id;
-        if (id) {
-            const chordSp = exploreChordSpelling(notes, id, keyCtx);
-            spelledNotes = chordSp.byMidi;
-            spell = chordSp.rootSp.acc < 0 || (!chordSp.rootSp.acc && isFlatKey(id.rootPc));
-            nameLabel = slashLabel(id, chordSp.rootSp, chordSp.bassSp) + (id.inversion > 0 ? ' · ' + invName(id.inversion) : '');
-            // Minor reads in natural minor, except on the raised leading tone, whose chord is vii°, not ♯vii°.
-            const minorScale = keyCtx && (id.rootPc - keyCtx.pc + 12) % 12 === 11 ? SCALES['Harmonic minor'] : SCALES['Aeolian (Natural minor)'];
-            roman = (keyCtx ? romanFor(keyCtx.pc, id, keyCtx.minor ? minorScale : undefined) : '') || '—';
-            degrees = chordDegreeMap(notes, id.rootPc, id.chord.pcset);
-        }
-        else
-            nameLabel = '—';
-    }
-    else if (notes.length === 2) {
-        nameLabel = intervalLabel(notes[1] - notes[0]);
-    }
-    else if (notes.length === 1) {
-        if (keyCtx) {
-            const sp = spellMidi(notes[0], fifths, keyCtx.minor);
-            nameLabel = spelledName(notation, sp.li, sp.acc, true);
-        }
-        else {
-            nameLabel = pcName(pc(notes[0]), spell);
-        }
-    }
-    kbDegrees(degrees);
-    byId('ro-notes').textContent = notes.length ? notes.map((m) => exploreMidiText(m, spell, keyCtx, spelledNotes)).join('  ') : '—';
-    byId('ro-name').textContent = nameLabel;
-    byId('ro-roman').textContent = roman;
-    drawExploreStaff(notes, spell, keyCtx, spelledNotes);
-    cofNow(notes, chord);
-    const exKbBtn = maybeById('ex-open-kb');
-    if (exKbBtn) exKbBtn.hidden = dockShown() || midiLive();
-}
-/* ---------- CIRCLE OF FIFTHS (Explore: the key picker beside the staff) ---------- */
-const cofController = createCircleOfFifths({
-    t: (key, ...args) => t(key, ...args),
-    spellName: (letter, acc) => spelledName(notation, letter, acc),
-    chordDisp,
-    formatChord,
-    exKeyCtx,
-    fillRefNames,
-    updateExplore,
-    playChordMidis,
-    playScaleNotes,
-    exploreSequence,
-    pushExploreTimer: (timer) => exploreTimers.push(timer),
-    view0,
-    kbClear,
-    kbState,
-    fixedBottomTop,
-    lCofN,
-});
-const cof = cofController.state;
-const cofSpell = cofController.spell;
-const cofParse = cofController.parse;
-const cofName = cofController.name;
-const cofSpellDegrees = cofController.spellDegrees;
-const cofTonicPc = cofController.tonicPc;
-const cofKeyLabel = cofController.keyLabel;
-const cofSigList = cofController.sigList;
-const cofData = cofController.data;
-const cofPt = cofController.pt;
-const cofSector = cofController.sector;
-const cofTint = cofController.tint;
-const cofText = cofController.text;
-const cofIsCompact = cofController.isCompact;
-const cofWheel = cofController.wheel;
-const cofBindKeys = cofController.bindKeys;
-const cofWheelSelect = cofController.wheelSelect;
-const renderCircle = cofController.render;
-const cofSel = cofController.sel;
-const circleSel = cofController.syncFromKeyCtx;
-const cofPick = cofController.pick;
-const cofRevealFingering = cofController.revealFingering;
-const cofSyncRef = cofController.syncRef;
-const cofPlay = cofController.play;
-const cofInfo = cofController.info;
-const cofChordList = cofController.chordList;
-const cofChords = cofController.chords;
-const cofChordPlay = cofController.chordPlay;
-const cofDiagram = cofController.diagram;
-const cofNow = cofController.now;
-const cofPaintDock = cofController.paintDock;
-// Brings one part of Explore into view. Links written for the old tabs (data-extab="circle") still land here.
-function exTab(part: string | undefined) {
-    const circle = part === 'circle', el = byId(circle ? 'exp-circle' : 'exp-free');
-    requestAnimationFrame(() => {
-        if (view0() !== 'explore')
-            return;
-        el.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
-        const key = circle ? el.querySelector('.cof-k.on') || el.querySelector('.cof-k') : null;
-        if (key instanceof SVGElement)
-            key.focus({ preventScroll: true });
-    });
-}
-function initExploreControls() {
-    const circle = byId('circle');
-    if (!circle)
-        return;
-    // Redraw when the circle crosses the compact width (a window resize, the dock opening, the layout changing columns).
-    if (typeof ResizeObserver === 'function')
-        new ResizeObserver(() => { if (circle.getBoundingClientRect().width > 0 && cofIsCompact(circle) !== cofController.compact) {
-            renderCircle();
-            updateExplore(); // repaints where the held notes sit on the new drawing
-        } }).observe(circle);
-    if (typeof ResizeObserver === 'function')
-        new ResizeObserver(exStaffRefit).observe(byId('ex-staff'));
-    byId('cof-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.mode || !isCofMode(v))
-        return; cof.mode = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    byId('cof-flavor').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.flavor || !isCofFlavor(v))
-        return; cof.flavor = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    byId('cof-play').addEventListener('click', () => { cofSyncRef(); cofPlay(); });
-    byId('cof-chords').addEventListener('click', (e) => { const ms = eventClosest(e, '.cof-chip')?.dataset.midis; if (ms)
-        cofChordPlay(ms.split(' ').map(Number)); });
-    maybeById('ex-open-kb')?.addEventListener('click', () => { dockSet(true); });
-    maybeById('ex-go-scale')?.addEventListener('click', () => {
-        prSetTopic('scale');
-        prSetMode('tech');
-        prSetKey(String(cofTonicPc()));
-        show('practice');
-    });
-    maybeById('ex-go-prog')?.addEventListener('click', () => {
-        prSetTopic('prog');
-        prSetKey(String(cofTonicPc()));
-        show('practice');
-    });
-    maybeById('ex-go-read')?.addEventListener('click', () => {
-        const rawMin = COF_MIN[cof.i];
-        const keyId = cof.minor ? (rawMin === 'D#' ? 'Ebm' : rawMin + 'm') : COF_MAJ[cof.i];
-        const match = srtReadingKeys().find((k) => k.id === keyId);
-        if (match) rdnChoose(rdnBook().level, match.id);
-        show('read');
+    NOTE_SYS[notation].root.forEach((n, i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = n;
+        sel.appendChild(o);
     });
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
@@ -5996,11 +5884,13 @@ function learnClick(e: Event) {
     if (g) {
         e.preventDefault();
         const c = g.dataset.cat;
-        show(g.dataset.go);
-        if (g.dataset.extab)
-            exTab(g.dataset.extab);
+        const extab = g.dataset.extab;
         if (c)
             prSetTopic(c);
+        if (extab)
+            void show(g.dataset.go, { extab });
+        else
+            void show(g.dataset.go);
         return;
     }
     if (eventClosest(e, '[data-lgback]')) {
@@ -6400,7 +6290,11 @@ function lCofTriad(K: ReturnType<typeof lCofKey>, minor?: boolean) {
 }
 function lwCof(el: LearnWidgetEl) {
     const s = lwIsCof(el._s) ? el._s : (el._s = { i: 0 });
-    el.innerHTML = '<p class="lw-hint">' + t('lw_cof_d') + '</p><div class="lw-cof-wrap"><div class="lw-cof-wheel">' + cofWheel('staff') +
+    el.innerHTML = '<p class="lw-hint">' + t('lw_cof_d') + '</p><div class="lw-cof-wrap"><div class="lw-cof-wheel">' + renderCofWheel('staff', {
+        t: (key, ...args) => t(key, ...args),
+        spellName: (letter, acc) => spelledName(notation, letter, acc),
+        lCofN,
+    }) +
         '</div><div class="lw-cof-info" aria-live="polite"></div></div>';
     lwCofInfo(el, s);
     cofBindKeys(el, (i, minor) => {
@@ -15992,7 +15886,7 @@ function anLayoutVars() {
     st.setProperty('--an-sb-h', h(byId('an-status')) + 'px');
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
-    exStaffRefit(); // Explore's staff is sized from the room these leave
+    notifyDockReflow(); // Explore's staff is sized from the room these leave
     syncMobileStartBars();
 }
 function syncMobileStartBars() {
@@ -20194,7 +20088,7 @@ let syncPull = function syncPull() {
         syncRemember(pair, SYNC.known.get(SYNC.id));
     return swap ? 'swap' : needsWrite ? 'merge-save' : 'merge';
 };
-function syncBusy() { return SES.active || sing.active || SR.active || RD.on || accomp.on || trx.on || SCORE.playing; }
+function syncBusy() { return SES.active || sing.active || SR.active || RD.on || accomp.on || trx.on || SCORE.playing || anyLoadedFeatureBusy(); }
 function syncIdle() {
     clearTimeout(SYNC.w);
     if (!Object.keys(SYNC.pend).length)
@@ -20993,21 +20887,15 @@ function openHelp(o: boolean, fromPop = false) {
     setOverlay(byId('helpBox'), o, 'helpClose');
 }
 function applyNotation() {
-    const refR = selectById('refRoot').value, kc = selectById('keyCtx').value, sr = selectById('song-root').value, pk = selectById('pr-key').value;
-    fillRoots(byId('refRoot'), false);
+    const sr = selectById('song-root').value, pk = selectById('pr-key').value;
     fillRoots(byId('song-root'), false);
     fillRoots(byId('pr-key'), true);
-    fillKeyCtx();
-    selectById('refRoot').value = String(refR || 0);
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = pk || 'all';
     renderPracticeSetup();
-    selectById('keyCtx').value = kc || '-1';
-    renderCircle();
+    localizeLoadedFeatures();
     buildKeyboard();
     repaintHeld();
-    if (view0() === 'explore')
-        updateExplore();
     if (view0() === 'practice')
         updateAccompChain();
     if (view0() === 'read' && SR.piece) {
@@ -21538,16 +21426,8 @@ function initControls() {
     byId('si-playit').addEventListener('click', ssPlayIt);
     byId('si-drone').addEventListener('change', ssDrone);
     byId('si-bpm').addEventListener('input', (e) => { byId('si-bpmLbl').textContent = wiringField(e).value; sing.bpm = +wiringField(e).value; });
-    // explore
+    // explore (wired lazily on mount in src/features/explore/index.ts)
     anInitControls();
-    byId('refType').addEventListener('change', () => { fillRefNames(); const m = selectById('refType').value; if (isCofMode(m))
-        cof.mode = m; cofInfo(); cofPaintDock(); });
-    byId('refPlay').addEventListener('click', () => { if (selectById('refType').value === 'chord')
-        playChordMidis(refMidis(), true);
-    else
-        playScaleNotes(60 + parseInt(selectById('refRoot').value, 10), SCALES[selectById('refName').value], true); });
-    byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600)); });
-    byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
     byId('song-root').addEventListener('change', () => { if (intervalSongPreview) stopPreviews(); renderSongs(); });
     byId('pr-songs').addEventListener('toggle', (event) => {
@@ -21774,18 +21654,13 @@ await loadAll();
 await bootLocale();
 if (viewFromHash(location.hash) === 'analysis') await ensureAnalysisModules().catch(() => {});
 applyTheme();
-fillRoots(byId('refRoot'), false);
 fillRoots(byId('song-root'), false);
 fillRoots(byId('pr-key'), true);
-fillRefNames();
-fillKeyCtx();
 chooseView();
 buildKeyboard();
 initPointer();
 initControls();
-initExploreControls();
 reflectSettingsUI();
-renderCircle();
 applyI18n();
 anLocalize();
 await show(viewFromHash(location.hash), false);
@@ -22029,38 +21904,12 @@ const __etudeGetters: Record<string, () => unknown> = {
   "chordEarOptions": () => chordEarOptions,
   "chordFormula": () => chordFormula,
   "chordTargetPcs": () => chordTargetPcs,
-  "circleSel": () => circleSel,
   "clampPersistedNumber": () => clampPersistedNumber,
   "clampTypeOctave": () => clampTypeOctave,
-  "clearExplorePreview": () => clearExplorePreview,
   "closeMobileMenu": () => closeMobileMenu,
   "coachHTML": () => coachHTML,
   "coachList": () => coachList,
   "coachRefresh": () => coachRefresh,
-  "cofData": () => cofData,
-  "cofDiagram": () => cofDiagram,
-  "cofInfo": () => cofInfo,
-  "cofKeyLabel": () => cofKeyLabel,
-  "cofName": () => cofName,
-  "cofNow": () => cofNow,
-  "cofPaintDock": () => cofPaintDock,
-  "cofParse": () => cofParse,
-  "cofPick": () => cofPick,
-  "cofPlay": () => cofPlay,
-  "cofPt": () => cofPt,
-  "cofRevealFingering": () => cofRevealFingering,
-  "cofSector": () => cofSector,
-  "cofSel": () => cofSel,
-  "cofSigList": () => cofSigList,
-  "cofSpell": () => cofSpell,
-  "cofSpellDegrees": () => cofSpellDegrees,
-  "cofSyncRef": () => cofSyncRef,
-  "cofText": () => cofText,
-  "cofTint": () => cofTint,
-  "cofTonicPc": () => cofTonicPc,
-  "cofIsCompact": () => cofIsCompact,
-  "exKeyCtx": () => exKeyCtx,
-  "exKeyFifths": () => exKeyFifths,
   "comp": () => audioEngine.compressor,
   "connectMidi": () => connectMidi,
   "currentStreak": () => currentStreak,
@@ -22075,7 +21924,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "dockShown": () => dockShown,
   "dockSync": () => dockSync,
   "dockWanted": () => dockWanted,
-  "drawExploreStaff": () => drawExploreStaff,
   "droneVoices": () => droneVoices,
   "dueItems": () => dueItems,
   "countEarAnswer": () => countEarAnswer,
@@ -22104,10 +21952,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "endSession": () => endSession,
   "ensureAudio": () => ensureAudio,
   "evalTimer": () => evalTimer,
-  "exTab": () => exTab,
-  "explorePreview": () => explorePreview,
-  "exploreSequence": () => exploreSequence,
-  "exploreTimers": () => exploreTimers,
   "fallBurst": () => fallBurst,
   "fallData": () => fallData,
   "fallDraw": () => fallDraw,
@@ -22131,8 +21975,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "fallSelect": () => fallSelect,
   "fallTime": () => fallTime,
   "feelDisp": () => feelDisp,
-  "fillKeyCtx": () => fillKeyCtx,
-  "fillRefNames": () => fillRefNames,
   "fillRoots": () => fillRoots,
   "focusView": () => focusView,
   "foldToView": () => foldToView,
@@ -22152,7 +21994,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "identifyChord": () => identifyChord,
   "inField": () => inField,
   "initControls": () => initControls,
-  "initExploreControls": () => initExploreControls,
   "initPointer": () => initPointer,
   "intervalLabel": () => intervalLabel,
   "invName": () => invName,
@@ -22459,7 +22300,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "rdTap": () => rdTap,
   "rdTarget": () => rdTarget,
   "rdU": () => rdU,
-  "refMidis": () => refMidis,
   "reflectSettingsUI": () => reflectSettingsUI,
   "reflowKeys": () => reflowKeys,
   "refreshDeviceList": () => refreshDeviceList,
@@ -22468,7 +22308,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "releaseLiveInput": () => releaseLiveInput,
   "releaseTypingKeys": () => releaseTypingKeys,
   "renderAccompany": () => renderAccompany,
-  "renderCircle": () => renderCircle,
   "renderLearn": () => renderLearn,
   "renderModeNav": () => renderModeNav,
   "renderPlan": () => renderPlan,
@@ -22761,7 +22600,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "trxStop": () => trxStop,
   "typeOctave": () => typeOctave,
   "updateAccompChain": () => updateAccompChain,
-  "updateExplore": () => updateExplore,
   "view0": () => view0,
   "viewHigh": () => viewHigh,
   "voiceActive": () => voiceActive,
@@ -22806,18 +22644,11 @@ const __etudeGetters: Record<string, () => unknown> = {
   "CLEF_F": () => CLEF_F,
   "CLEF_G": () => CLEF_G,
   "CLEF_SCALE": () => CLEF_SCALE,
-  "COF_COL": () => COF_COL,
-  "COF_FING": () => COF_FING,
-  "COF_MAJ": () => COF_MAJ,
-  "COF_MIN": () => COF_MIN,
-  "COF_SCALE": () => COF_SCALE,
-  "COF_SOL": () => COF_SOL,
   "COMPOUND": () => COMPOUND,
   "DOCK": () => DOCK,
   "EK_CHORD_GAP": () => EK_CHORD_GAP,
   "EK_MEL_SCALES": () => EK_MEL_SCALES,
   "EK_TRIES": () => EK_TRIES,
-  "EX_LEDGERS": () => EX_LEDGERS,
   "FALL": () => FALL,
   "FALL_BLACK": () => FALL_BLACK,
   "FALL_COL": () => FALL_COL,
@@ -22931,7 +22762,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anDomQ": () => scoreFeature?.harmony.anDomQ,
   "blackEl": () => blackEl,
   "coachText": () => coachText,
-  "cof": () => cof,
   "held": () => held,
   "heldOrder": () => heldOrder,
   "inputOwners": () => inputOwners,
@@ -23009,7 +22839,7 @@ __etudeRegistry.defineValue("isBackupPayload", isBackupPayload);
 __etudeRegistry.defineGetter("srtRecorder", () => srtRecorder);
 __etudeRegistry.defineGetter("srNoteStart", () => srNoteStart);
 const { wireFeatureTestSurfaces } = await import('../app/test-surface-wiring.js');
-await wireFeatureTestSurfaces(__etudeRegistry);
+await wireFeatureTestSurfaces(__etudeRegistry, ensureFeature);
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
 }
