@@ -73,7 +73,7 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - [x] **Faza 0:** contracte în `src/domain/views.ts`, `src/app/test-surface-wiring.ts` (dynamic `import()`), reguli de straturi în `eslint.config.mjs`, smoke test de producție fără `--test-surface` în `deploy.spec.mjs`.
   - [x] **Faza 1:** [x] PR 1A `src/core/sync-merge.ts`, [x] PR 1B `src/infra/pwa-lifecycle.ts`, [x] PR 1C `src/infra/midi-controller.ts`.
   - [x] **Faza 2:** Pilot #1 `src/features/explore/` (lazy).
-  - [ ] **Faza 3:** [x] PR 3A `src/features/voice/`, [ ] PR 3B `src/features/learn/`, [ ] PR 3C `accompaniment` + `song-book`.
+  - [ ] **Faza 3:** [x] PR 3A `src/features/voice/`, [x] PR 3B `src/features/learn/`, [ ] PR 3C `accompaniment` + `song-book`.
   - [ ] **Faza 4:** `src/features/score-library/` + `src/features/score-player/` (lazy pe `#analysis`).
   - [ ] **Faza 5:** `src/core/srs.ts`, `src/features/practice/`, `src/app/coaching.ts`, `today`, `progress`.
   - [ ] **Faza 6:** `src/features/read/` + `src/core/pitch-match.ts` (păstrând `ledger`/`flow` + oglinda `pendingSave` eager).
