@@ -71,7 +71,7 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - Merge realizat cu succes în `main` (`35d51c0`), teste și build-uri validate 100% pe Windows și Linux.
 - [ ] **Descompunere treptată `views-runtime.ts` ([2026-11-27-views-runtime-decomposition.md](./docs/plans/2026-11-27-views-runtime-decomposition.md)):**
   - [x] **Faza 0:** contracte în `src/domain/views.ts`, `src/app/test-surface-wiring.ts` (dynamic `import()`), reguli de straturi în `eslint.config.mjs`, smoke test de producție fără `--test-surface` în `deploy.spec.mjs`.
-  - [ ] **Faza 1:** `src/core/sync-merge.ts`, `src/infra/pwa-lifecycle.ts`, `src/infra/midi-controller.ts`.
+  - [ ] **Faza 1:** [x] PR 1A `src/core/sync-merge.ts`, [ ] PR 1B `src/infra/pwa-lifecycle.ts`, [ ] PR 1C `src/infra/midi-controller.ts`.
   - [ ] **Faza 2:** Pilot #1 `src/features/explore/` (lazy).
   - [ ] **Faza 3:** Pilot #2 `src/features/voice/`, `src/features/learn/`, `accompaniment` + `song-book`.
   - [ ] **Faza 4:** `src/features/score-library/` + `src/features/score-player/` (lazy pe `#analysis`).

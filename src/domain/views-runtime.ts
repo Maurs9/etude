@@ -4,6 +4,12 @@ import { LESSONS, LEARN_UNITS } from '../locales/catalog.js';
 import type { LearnPayload, UIPayload } from '../locales/payload-types.js';
 import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnSummaryTranslations, LearnText, LearnUnit, LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
 import * as storage from './storage.js';
+import {
+  SRS_INTERVALS, SYNC_ADD, SYNC_MAX, SYNC_NONE, localDayNumber,
+  syncCloneData, syncData, syncHasBase, syncInto, syncIsObject,
+  syncNewCollisions, syncPick, syncSame, syncSrs, syncSrsPair,
+  type SyncNoBase,
+} from '../core/sync-merge.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
 import type { PracticeHintDiagram, PracticeHintNote, PracticeHintStep } from './practice-hints.js';
@@ -580,7 +586,7 @@ function intervalLabel(semi: number) {
 }
 function chordFormula(c: { intervals: readonly number[]; }) { return formatChordFormula(c.intervals); }
 function scaleFormula(offs: readonly number[]) { return formatScaleFormula(offs); }
-const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
+const todayN = () => localDayNumber();
 /* ---------- AUDIO ENGINE ---------- */
 // Web Audio construction and voice ownership live in the typed audio domain.
 const PIANO_KEYS = [21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96, 99, 102, 105, 108];
@@ -3140,7 +3146,7 @@ function restoreTrainerData(saved: storage.PttV3Payload['data']): StoredTrainerD
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
 function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = storage.restoreSrsEntry(null)); }
-const IVL = [0, 1, 2, 4, 9, 21, 45, 90];
+const IVL = SRS_INTERVALS;
 function reviewItem(id: string, correct: boolean) {
     const it = srsOf(id);
     it.reps++;
@@ -20449,18 +20455,11 @@ interface SyncState {
     t: number | ReturnType<typeof setTimeout>;
     w: number | ReturnType<typeof setTimeout>;
 }
-interface SyncNoBase { readonly syncNoBase?: undefined }
-const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE: SyncNoBase = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
-// reading.book.pieces.<id>: tries add up, the best score and the stars keep the higher side; the rest of reading.book is last-writer.
-const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|reading\.book\.pieces\..+\.tries|learnRev\..+\.n)$/;
-const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|practiceLog\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv|best)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn)|reading\.book\.pieces\..+\.(best|stars))$/;
+const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_ID = /^[a-z0-9_-]{1,48}$/i;
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
 function syncIsLang(v: unknown): v is RuntimeLanguage { return isRuntimeLanguage(v); }
-// Every non-null object, arrays included, reads as string keys holding JSON values.
-function syncIsObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object'; }
-function syncHasBase<T extends object>(x: T | SyncNoBase): x is T { return x !== SYNC_NONE; }
 const syncParseJson = storage.parseJson;
 type SyncPrefEntry = readonly [get: () => string, set: (v: unknown) => void | Promise<void>, later?: 1];
 const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (v: unknown) => { if (syncOneOf(SYNC_THEMES, v)) {
@@ -20513,114 +20512,11 @@ function syncRemember(id: string, p: unknown) {
 }
 function syncCurrent(raw: string) { const p = parsePttV3(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
 function syncPair(a: string, b: string) { return 'merge:' + [a, b].sort().join('+'); }
-// A JSON round trip of a record is again a record, so the fallback never runs.
-function syncCloneData(d: Record<string, unknown>) { const copy = syncParseJson(JSON.stringify(d)); return isRecord(copy) ? copy : {}; }
 function syncInitial() {
     const p = { v: 3, gen: SYNC.gen, data: syncCloneData(data) };
     SYNC.id = 'init';
     SYNC.raw = null;
     syncRemember(SYNC.id, p);
-}
-function syncSame(a: unknown, b: unknown): boolean {
-    if (a === b)
-        return true;
-    if (!a || !b || !syncIsObject(a) || !syncIsObject(b))
-        return false;
-    const k = Object.keys(a);
-    const right = b;
-    return k.length === Object.keys(right).length && k.every((x) => Object.prototype.hasOwnProperty.call(right, x) && syncSame(a[x], right[x]));
-}
-function syncSrsPair(b: unknown, l: unknown, r: unknown) {
-    if (b === SYNC_NONE || !isRecord(l) || !isRecord(r))
-        return null;
-    const base = isRecord(b) ? b : { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 };
-    const left = l, right = r;
-    const reps = (x: Record<string,unknown>) => Math.max(0, Math.floor(Number(x.reps) || 0)), lapses = (x: Record<string,unknown>) => Math.max(0, Math.floor(Number(x.lapses) || 0));
-    const br = reps(base), bl = lapses(base), lr = reps(left), rr = reps(right), wrong = (x: Record<string,unknown>) => lapses(x) === bl ? false : lapses(x) === bl + 1 ? true : null, lw = wrong(left), rw = wrong(right);
-    if (lr !== br + 1 || rr !== br + 1 || lw === null || rw === null)
-        return null;
-    return { base: { ...base, box: Math.max(0, Math.min(7, Math.round(Number(base.box) || 0))), ease: Math.max(1.6, Math.min(2.9, Number(base.ease) || 2.3)), reps: br, lapses: bl }, baseReps: br, wrong: [lw, rw], day: Math.max(Number(base.last) || 0, Number(left.last) || 0, Number(right.last) || 0) || todayN() };
-}
-interface SyncSrsCard { box: number; ease: number; reps: number; lapses: number; due?: number; last?: number }
-function syncSrs(b: unknown, l: unknown, r: unknown) {
-    const pair = syncSrsPair(b, l, r);
-    if (!pair) {
-        if (!isRecord(l) || !isRecord(r))
-            return isRecord(l) ? l : r;
-        const left = l, right = r;
-        return (Number(right.reps) || 0) > (Number(left.reps) || 0) || (Number(right.reps) || 0) === (Number(left.reps) || 0) && (Number(right.last) || 0) > (Number(left.last) || 0) ? right : left;
-    }
-    const out: SyncSrsCard = { ...pair.base };
-    pair.wrong.sort((a, b) => Number(b) - Number(a)).forEach((wrong) => { out.reps++; if (!wrong) {
-        out.box = Math.min(7, out.box + 1);
-        out.ease = Math.min(2.9, out.ease + .05);
-    }
-    else {
-        out.box = 1;
-        out.lapses++;
-        out.ease = Math.max(1.6, out.ease - .2);
-    } const days = IVL[out.box] !== undefined ? IVL[out.box] : 120; out.due = pair.day + Math.max(0, Math.round(days * (out.ease / 2.3))); out.last = pair.day; });
-    return out;
-}
-function syncNewCollisions(b: Record<string, unknown> | SyncNoBase, l: unknown, r: unknown) {
-    if (!syncHasBase(b) || !isRecord(l) || !isRecord(r))
-        return [];
-    const bs: Record<string, unknown> = isRecord(b.srs) ? b.srs : {}, ls: Record<string, unknown> = isRecord(l.srs) ? l.srs : {}, rs: Record<string, unknown> = isRecord(r.srs) ? r.srs : {};
-    return [...new Set([...Object.keys(ls), ...Object.keys(rs)])].flatMap((k) => { const pair = syncSrsPair(bs[k], ls[k], rs[k]); return pair && pair.baseReps === 0 ? [pair.day] : []; });
-}
-function syncPick(b: unknown, l: unknown, r: unknown, p: string) {
-    if (l === undefined || r === undefined)
-        return l === undefined ? r : l; // one tab deleted what the other changed: keep the data
-    if (p.startsWith('srs.'))
-        return syncSrs(b, l, r);
-    if (p === 'lastDrill')
-        return (Number(syncIsObject(r) ? r.day : undefined) || 0) > (Number(syncIsObject(l) ? l.day : undefined) || 0) ? r : l;
-    if (typeof l === 'number' && typeof r === 'number') {
-        if (SYNC_ADD.test(p))
-            return b === SYNC_NONE ? Math.max(l, r) : Math.max(0, l + r - (typeof b === 'number' ? b : 0));
-        if (SYNC_MAX.test(p))
-            return Math.max(l, r);
-    }
-    if (typeof l === 'boolean' && typeof r === 'boolean' && SYNC_MAX.test(p))
-        return l || r;
-    return l;
-}
-function syncInto(l: Record<string,unknown>, b: unknown, r: Record<string,unknown>, p: string) {
-    new Set([...Object.keys(l), ...Object.keys(r)]).forEach((k) => {
-        if (!storage.isSafeRecordKey(k)) return;
-        const q = p ? p + '.' + k : k, none = b === SYNC_NONE, srs = /^srs\./.test(q);
-        const bk = none ? b : isRecord(b) && Object.hasOwn(b, k) ? b[k] : undefined;
-        const lv = Object.hasOwn(l, k) ? l[k] : undefined, rv = Object.hasOwn(r, k) ? r[k] : undefined;
-        if (!none && syncSame(rv, bk))
-            return; // the other tab left it alone
-        if (isRecord(lv) && isRecord(rv) && !/^srs\.|^lastDrill$/.test(q)) {
-            syncInto(lv, bk, rv, q);
-            return;
-        } // field by field, keeping this tab's objects
-        const v = !none && syncSame(lv, bk) ? rv : // only the other tab changed it
-            syncSame(lv, rv) && !SYNC_ADD.test(q) && !srs ? lv : syncPick(bk, lv, rv, q); // both did
-        if (v === undefined)
-            delete l[k];
-        else
-            l[k] = v;
-    });
-}
-// todayCount/newToday count the day in todayDay (earToday the day in earDay): only the later day's counts survive, and same-day counts add up.
-function syncData(b: Record<string, unknown> | SyncNoBase, l: Record<string, unknown>, r: Record<string, unknown>) {
-    const day: Record<string, number> = {}, left = l, right = r, repeatedNew = syncNewCollisions(b, l, r);
-    [['todayDay', 'todayCount', 'newToday'], ['earDay', 'earToday']].forEach(([dk, ...ks]) => {
-        if (left[dk] === undefined && right[dk] === undefined)
-            return;
-        const d = Math.max(Number(left[dk]) || 0, Number(right[dk]) || 0), on = (x: unknown): x is Record<string, unknown> => x !== SYNC_NONE && isRecord(x) && (Number(x[dk]) || 0) === d;
-        day[dk] = d;
-        ks.forEach((k) => { const n = (x: unknown) => on(x) ? (Number(x[k]) || 0) : 0; day[k] = b === SYNC_NONE ? Math.max(n(l), n(r)) : Math.max(0, n(l) + n(r) - n(b)); });
-    });
-    if (repeatedNew.length && day.todayDay !== undefined)
-        day.newToday = Math.max(0, (Number(day.newToday) || 0) - repeatedNew.filter((d) => d === day.todayDay).length);
-    day.streak = Math.max(0, ...[l, r].filter((x) => (Number(x.todayDay) || 0) === day.todayDay).map((x) => Number(x.streak) || 0));
-    day.lastActive = Math.max(Number(l.lastActive) || 0, Number(r.lastActive) || 0);
-    syncInto(l, b, r, '');
-    Object.assign(l, day);
 }
 function syncPref(f: SyncPrefName, v: string) { const p = SYNC.pend[f]; return p && p.from === v ? p.v : v; } // another tab's choice that is still waiting here is what gets saved
 // Folds in what another tab stored since SYNC.raw. Returns '' (nothing new), 'merge', 'merge-save' (the merged state must
