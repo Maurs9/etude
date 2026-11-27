@@ -136,13 +136,16 @@ Open [http://localhost:5173/etude.html](http://localhost:5173/etude.html). Servi
 The test suite uses **Node.js**, **Vitest**, **Playwright** (using installed Google Chrome by default), and **Python 3**.
 
 ```sh
-npm run typecheck    # Strict TypeScript + suppression guard
-npm run lint         # ESLint
-npm run test:unit    # Vitest unit & architecture invariant tests (tests/unit/)
-npm run test:i18n    # Multi-language pack tests (i18n/tests/)
-npm test             # Playwright E2E against built dist/etude/ + @sw tests
-npm run deps:check   # Check npm devDependencies + vendor versions
-npm run osmd:check   # Verify OSMD bundle contract and check for updates
+npm run typecheck      # Strict TypeScript + suppression guard
+npm run lint           # ESLint
+npm run test:unit      # Vitest unit & architecture invariant tests (tests/unit/)
+npm run test:i18n      # Multi-language pack tests (i18n/tests/)
+npm test               # Playwright E2E against built dist/etude/ + @sw tests
+npm run deps:check     # Check npm devDependencies + vendor versions
+npm run update:deps    # Update devDependencies in safe groups with rollback
+npm run osmd:check     # Verify OSMD bundle contract and check for updates
+npm run update:osmd    # Upgrade vendored OSMD bundle with EngravingRules diff & rollback
+npm run perf:baseline  # Measure production performance baseline against dist/etude/
 ```
 
 To run Playwright against the Vite dev server (including standalone specs):

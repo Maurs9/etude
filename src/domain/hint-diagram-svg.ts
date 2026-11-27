@@ -1,5 +1,8 @@
+import { hintSvg } from './hint-keyboard.js';
 import { ssAccGlyph, ssFlat, ssStepOf } from './score-types.js';
 import { pitchClass, type SpelledMidi } from './theory.js';
+
+export { hintSvg };
 
 type HintKind = 'chord' | 'scale';
 
@@ -9,15 +12,6 @@ interface KeyboardTone {
 }
 
 const whitePitch = new Set([0, 2, 4, 5, 7, 9, 11]);
-const svgNamespace = 'http://www.w3.org/2000/svg';
-
-export function hintSvg(className: string, viewBox: string): SVGSVGElement {
-  const svg = document.createElementNS(svgNamespace, 'svg');
-  svg.setAttribute('class', className);
-  svg.setAttribute('viewBox', viewBox);
-  svg.setAttribute('role', 'img');
-  return svg;
-}
 
 export function hintKeyboardLayout(midis: readonly number[]) {
   let low = Math.min(...midis);
