@@ -242,14 +242,20 @@ export interface ShowOptions {
   readonly analysisRoute?: AnalysisRoute | null;
   /** Opens a file directly in `#analysis` (used by Voice → Pieces `trxOpenInPieces`). */
   readonly openFile?: File;
+  /** Opens a built-in piece directly in `#analysis` (used by Learn `[data-an]`). */
+  readonly pieceId?: string;
   /** Scrolls/focuses a sub-section in `#explore` (e.g. `'circle'`). */
   readonly extab?: string;
+  /** Opens a specific lesson ID in `#learn`. */
+  readonly learnLessonId?: string;
   /** Pre-selects Practice topic/mode/key when navigating into `#practice`. */
   readonly practiceTopic?: string;
   readonly practiceMode?: PracticeModePref;
   readonly practiceKey?: string;
   /** Pre-selects a Reading key when navigating into `#read`. */
   readonly readingKeyId?: string;
+  /** Opens a specific Reading Drill level ID in `#read`. */
+  readonly readingDrillId?: string;
 }
 
 /**
@@ -318,6 +324,7 @@ export interface AudioHostFacade {
   ensure(): AudioContext | null;
   context(): AudioContext | null;
   requireContext(): AudioContext;
+  preparePiano(): Promise<boolean>;
   timedReady(context: AudioContext): Promise<boolean>;
   scheduleClick(when: number, accent: boolean, phraseBucket?: boolean): void;
   stopPhraseClicks(): void;
@@ -327,6 +334,7 @@ export interface AudioHostFacade {
   playInterval(rootMidi: number, semitones: number, style?: 'both' | 'harmonic' | 'melodic'): void;
   playChordMidis(midis: number[], arpeggio: boolean): void;
   playScaleNotes(rootMidi: number, offsets: readonly number[], ascending: boolean): void;
+  playProg(rootPc: number, prog: ProgressionTemplate): void;
   stopPreviews(): void;
 }
 
@@ -368,6 +376,8 @@ export interface FeatureController {
   isBusy?(): boolean;
   panic?(): void;
   localize?(): void;
+  onStorageSync?(): void;
+  onProgressReset?(): void;
   onEscape?(): boolean;
   registerTestSurface?(registry: TestSurfaceRegistry): void;
 }
@@ -375,10 +385,12 @@ export interface FeatureController {
 export interface AppHost {
   readonly i18n: {
     readonly t: TranslateFn;
+    readonly localize: (key: string, fallback: string) => string;
     readonly lang: () => InterfaceLanguage;
     readonly spell: SpellNoteFn;
     readonly notation: () => NotationSystem;
     readonly loadLearn: () => Promise<void>;
+    readonly stepLabel: (step: number) => string;
     readonly chordDisp: (chord: ChordTemplate | string | undefined) => string;
     readonly scaleDisp: (name: string) => string;
     readonly invName: (inversion: number) => string;
@@ -403,12 +415,14 @@ export interface AppHost {
     readonly isPendingSaveProtected: () => boolean;
     /** Updates the shell's eager mirror read synchronously by `show()` before `read` loads. */
     readonly setPendingSave: (protectedAttempt: boolean) => void;
+    readonly nextReadDrillForUnits: (unitIds: readonly string[]) => { readonly id: string; readonly name: string } | null;
   };
   readonly overlays: {
     readonly pushModal: (id: string) => void;
     readonly popModal: () => void;
     readonly openCount: () => number;
     readonly focusView: (view: AppView) => void;
+    readonly showLoadError: (retry: () => Promise<unknown>, target?: HTMLElement) => void;
   };
   readonly store: {
     /** Documented pragmatic exception: returns live `StoredTrainerData`; disk writes always go through shell `syncWrite`/`storeApplyBackup`. */

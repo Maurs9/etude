@@ -1,8 +1,8 @@
 import { loadUI, loadLearn } from '../locales/loader.js';
 import { installLibraryCopy, libraryText } from '../locales/library-runtime.js';
-import { LESSONS, LEARN_UNITS } from '../locales/catalog.js';
-import type { LearnPayload, UIPayload } from '../locales/payload-types.js';
-import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnSummaryTranslations, LearnText, LearnUnit, LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
+import { LESSONS } from '../locales/catalog.js';
+import type { UIPayload } from '../locales/payload-types.js';
+import type { LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
 import * as storage from './storage.js';
 import {
   SRS_INTERVALS, SYNC_ADD, SYNC_MAX, SYNC_NONE, localDayNumber,
@@ -10,6 +10,14 @@ import {
   syncNewCollisions, syncPick, syncSame, syncSrs, syncSrsPair,
   type SyncNoBase,
 } from '../core/sync-merge.js';
+import {
+  learnData as coreLearnData,
+  learnDueDays as coreLearnDueDays,
+  learnDueList as coreLearnDueList,
+  learnGap as coreLearnGap,
+  learnUnitDone as coreLearnUnitDone,
+  learnUnitOf as coreLearnUnitOf,
+} from '../core/learn-progress.js';
 import * as safety from './data-safety.js';
 import { createPwaLifecycle, WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
 import * as theory from './theory.js';
@@ -26,11 +34,11 @@ import * as audio from './audio.js';
 import type { IntervalSongDirection, IntervalSongNote } from './interval-songs.js';
 import type * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
-import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
+import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from './score-symbols.js';
 import type { ExpressiveNotePlan } from './score-expression.js';
-import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
+import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
 import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srSpellName, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
 import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidiChange, ScoreMidiNote, ScoreMidiTime } from './score-midi.js';
@@ -74,9 +82,6 @@ import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, useLatencyOffsets, withInputTime } from './midi-timing.js';
 import { createTimingCalibration } from './midi-calibration.js';
 import { BLE_MIDI_CHR, BLE_MIDI_SVC, createBleMidi, type BleMidiDevice } from './ble-midi.js';
-import {
-  cofBindKeys, cofWheelSelect, renderCofWheel,
-} from './circle-of-fifths.js';
 import { createMidiController } from '../infra/midi-controller.js';
 import { pickArturia } from './midi-input-selection.js';
 import '../styles/calibration.css';
@@ -270,30 +275,10 @@ let STRINGS: LocaleStrings = {};
 let I18N_MUSIC: MusicTranslations = { intervals: {}, scales: {}, chords: {}, categories: {}, inversions: {}, feels: {}, songs: {} };
 let STEP_LABELS: StepLabels = {};
 let LOCALE_TAGS: Record<string, string> = {};
-let LQZ: LearnPayload['LQZ'] = {};
-let LSUM: LearnPayload['LSUM'] = {};
-const LSUM_I18N: LearnSummaryTranslations = {};
-let GLOSS: LearnPayload['GLOSS'] = [];
-let learnPayload: LearnPayload | null = null;
-let learnLanguage: RuntimeLanguage | null = null;
 let localeRequest = 0;
-let learnRequest = 0;
-let learnLoading: Promise<void> | null = null;
-let LSTAVES: Record<string, LStaffSpec> = {};
-let learnStaffReady = false;
-async function loadLearnStaves() {
-    if (learnStaffReady) return;
-    ({ LSTAVES } = await import('./learn-staves.js'));
-    learnStaffReady = true;
-}
 function installUI(payload: UIPayload) {
     ({ STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } = payload);
     installLibraryCopy(payload.LIBRARY);
-}
-function installLearn(language: RuntimeLanguage, payload: LearnPayload) {
-    learnPayload = payload;
-    learnLanguage = language;
-    ({ LQZ, LSUM, GLOSS } = payload);
 }
 function localize(key: string, fallback: string): string {
     return (STRINGS[lang] || STRINGS.en) ? t(key) : fallback;
@@ -449,7 +434,7 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     try {
         const payload = await loadUI(l);
         if (request !== localeRequest) return;
-        const learn = view0() === 'learn' ? await loadLearn(l) : null;
+        if (view0() === 'learn') await loadLearn(l);
         if (request !== localeRequest) return;
         if (synchronized) {
             if (!pending || SYNC.pend.lang !== pending || pending.v !== l) return;
@@ -459,7 +444,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         }
         document.getElementById('locale-load-error')?.remove();
         installUI(payload);
-        if (learn) installLearn(l, learn);
     }
     catch {
         const current = () => request === localeRequest && (!synchronized || !!pending && SYNC.pend.lang === pending);
@@ -473,7 +457,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         }
         return;
     }
-    if (lang !== l) learnRequest++;
     lang = l;
     viewState.language = lang;
     queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
@@ -502,8 +485,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         refreshToday();
     else if (view0() === 'progress')
         renderProgress();
-    else if (view0() === 'learn')
-        renderLearn();
     else if (view0() === 'read') {
         if (SR.piece) {
             srMeta();
@@ -1349,11 +1330,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
         pracInput(kind, midi, source);
         return;
     }
-    if (view0() === 'explore' || view0() === 'sing') {
-        return;
-    }
-    if (view0() === 'learn' && kind === 'on') {
-        learnInput();
+    if (view0() === 'explore' || view0() === 'sing' || view0() === 'learn') {
         return;
     }
     if (view0() === 'read' && kind === 'on' && WARM.on && WARM.phase === 'play') {
@@ -3223,6 +3200,7 @@ let shellPendingSaveMirror = false;
 const lazyFeatureLoaders: Partial<Record<router.AppView, () => Promise<FeatureController>>> = {
     explore: async () => (await import('../features/explore/index.js')).createExploreFeature(appHost),
     sing: async () => (await import('../features/voice/index.js')).createVoiceFeature(appHost),
+    learn: async () => (await import('../features/learn/index.js')).createLearnFeature(appHost),
 };
 
 function localizeLoadedFeatures() {
@@ -3288,6 +3266,7 @@ const shellUiPrefs: UiPrefsStore = {
 const appHost: AppHost = {
     i18n: {
         t: (key, ...args) => t(key, ...args),
+        localize,
         lang: () => lang,
         spell: (letter, acc, ascii = false) => spelledName(notation, letter, acc, ascii),
         notation: () => notation,
@@ -3301,9 +3280,14 @@ const appHost: AppHost = {
         slashLabel,
         formatChord,
         fillRoots,
+        stepLabel: (s) => {
+            const d = STEP_LABELS[lang] || { 2: 'T', 1: 'S', 3: 'T+S' };
+            return d[s] || (s === 2 ? d[2] : s === 1 ? d[1] : d[3]);
+        },
     },
     audio: {
         ensure: () => ensureAudio(),
+        preparePiano: () => preparePiano(),
         context: () => audioEngine.context,
         requireContext: requireAudioContext,
         timedReady: timedAudioReady,
@@ -3317,6 +3301,7 @@ const appHost: AppHost = {
         playInterval: (rootMidi, semitones, style = 'both') => playInterval(rootMidi, semitones, style),
         playChordMidis,
         playScaleNotes,
+        playProg,
         stopPreviews,
     },
     metro: {
@@ -3369,12 +3354,19 @@ const appHost: AppHost = {
         activeView: () => (isAppView(_view) ? _view : 'today'),
         isPendingSaveProtected: () => shellPendingSaveMirror || srtPendingSaveProtected(),
         setPendingSave: (protectedAttempt: boolean) => { shellPendingSaveMirror = protectedAttempt; },
+        nextReadDrillForUnits: (rdUnits) => {
+            if (!rdUnits || !rdUnits.length) return null;
+            const all = RD_UNITS.filter((x) => rdUnits.includes(x.u)).flatMap((x) => x.lv);
+            const lv = all.find((L) => (rdData().lv[L.id]?.s || 0) < 1) || all[all.length - 1] || null;
+            return lv ? { id: lv.id, name: rdLvName(lv) } : null;
+        },
     },
     overlays: {
         pushModal: pushModalState,
         popModal: () => popModalState(_modalStack[_modalStack.length - 1] ?? ''),
         openCount: () => _modalStack.length,
         focusView: (view) => focusView(view),
+        showLoadError: localeLoadError,
     },
     store: {
         data: () => data,
@@ -3435,7 +3427,6 @@ function teardownView(prev: string, next: string) {
         anSheet(false, true);
         pcStageSet(false, true);
     }
-    if (prev === 'learn' && next !== 'learn') learnHalt();
     if (prev === 'read' && next !== 'read')
         rdnLeaveView();
     if (prev !== next) {
@@ -3505,7 +3496,9 @@ function showImpl(
         return ensureAnalysisModules().then(() => {
             setViewLoading('view-analysis', false);
             if (navigation === featureNavigation) {
-                if (opts.openFile) return show(v, { moveFocus, fromHistory, analysisRoute: requestedAnRoute, openFile: opts.openFile });
+                if (opts.openFile || opts.pieceId) {
+                    return show(v, { moveFocus, fromHistory, analysisRoute: requestedAnRoute, openFile: opts.openFile, pieceId: opts.pieceId });
+                }
                 return show(v, moveFocus, fromHistory, requestedAnRoute);
             }
         }).catch(() => {
@@ -3608,6 +3601,7 @@ function showImpl(
         const featureParams: Record<string, unknown> = {};
         if (opts.extab) featureParams.extab = opts.extab;
         if (opts.openFile) featureParams.openFile = opts.openFile;
+        if (opts.learnLessonId) featureParams.learnLessonId = opts.learnLessonId;
         if (hum) {
             featureParams.voiceAct = 'hum';
             featureParams.wasOnSing = prev === 'sing';
@@ -3647,6 +3641,11 @@ function showImpl(
         if (opts.openFile) {
             pendingViewLoad = anOpenFile(opts.openFile).then(() => undefined);
         }
+        else if (opts.pieceId) {
+            anListContext = null;
+            anFromListDepth = 0;
+            pendingViewLoad = anLoadExample(opts.pieceId).then(() => undefined);
+        }
         else if (targetRoute.kind === 'catalog') {
             anSetScreen('catalog');
             anCatalogStatus('');
@@ -3670,10 +3669,14 @@ function showImpl(
             pcRender();
         }
     }
-    if (v === 'learn')
-        renderLearn();
-    if (v === 'read')
+    if (v === 'read') {
         renderRead();
+        if (opts.readingDrillId) {
+            rdTab('drills');
+            const drillLevel = RD_LV[opts.readingDrillId];
+            if (drillLevel) rdOpen(drillLevel);
+        }
+    }
     if (v === 'progress') {
         if (progressView) {
             setViewLoading('view-progress', false);
@@ -4208,155 +4211,18 @@ function syncPracticeHintsPanel() {
     }
 }
 /* ============================================================================
-   LEARN — bilingual theory handbook. Every demo button routes through the
-   existing audio engine and lights the target keys on the dock.
+   LEARN SHELL BRIDGE — core progress helpers (src/core/learn-progress.ts)
+   and thin navigation wrappers; full Learn UI lives lazily in src/features/learn/.
    ============================================================================ */
-/* ---- Learn V4: new chapters (bilingual). Units, cheat sheets, quizzes & staves follow below. ---- */
-/* ---------- LEARN v4: units, progress, review, quizzes, staves, widgets, glossary ---------- */
-const LT = (a: LearnText) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : a;
-const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation', 'dyn', 'modes', 'how'];
-const LEARN_GAPS = [3, 7, 16, 35, 90];
-/** A quiz question while it is being answered. */
-interface LearnQuizRunQuestion extends LearnQuizSpec {
-    opts?: { index: number; ok: boolean }[];
-    got: number[];
-    gotMidis: number[];
-    ans: boolean;
-    ok: boolean;
-    pick?: number;
-}
-interface LearnQuizRun { id: string; qs: LearnQuizRunQuestion[]; i: number; score: number; done: boolean; rev?: boolean }
-let learnSel = 0, LGEN = 0, LQ: LearnQuizRun|null = null, learnGloss = false;
 function learnTitle(L: Lesson) { return L[lang]?.t || L.en.t; }
-/** Spaced review of one finished lesson. */
-interface LearnReview { last: number; n: number; best?: number; rv?: number }
-/** The Learn fields of the saved progress that `learnData()` guarantees. */
-interface LearnProgressStore {
-    learnDone: Record<string, number>;
-    learnRev: Record<string, LearnReview>;
-    learnUnlock: Record<string, number>;
-    learnSelId?: string;
-    learnSel?: number;
-}
-function hasLearnProgress(d: StoredTrainerData): d is StoredTrainerData & LearnProgressStore { return !!d.learnDone && !!d.learnRev && !!d.learnUnlock; }
-function learnData(): LearnProgressStore {
-    const d = data;
-    if (!d.learnDone || typeof d.learnDone !== 'object')
-        d.learnDone = {};
-    if (!d.learnRev || typeof d.learnRev !== 'object') {
-        const rev: Record<string, LearnReview> = {}, done = d.learnDone;
-        d.learnRev = rev;
-        Object.keys(done).forEach((id) => { rev[id] = { last: done[id], n: 0 }; });
-    }
-    // learnUnlock is no longer read: every unit is open. The field stays so saves from older versions load and merge unchanged.
-    if (!d.learnUnlock || typeof d.learnUnlock !== 'object')
-        d.learnUnlock = {};
-    if (!hasLearnProgress(d))
-        throw new Error('Étude: Learn progress could not be initialised');
-    return d;
-}
-function learnUnitOf(id: string) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
-function learnUnitDone(i: number) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
-function learnGap(id: string) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
-function learnDueDays(id: string) {
-    const D = learnData();
-    if (!D.learnDone[id])
-        return null;
-    const r = D.learnRev[id] || { last: D.learnDone[id], n: 0 };
-    const age = todayN() - (r.last | 0);
-    return age >= learnGap(id) ? age : null;
-}
-function learnDueList() { return LESSONS.filter((L) => learnDueDays(L.id) != null).sort((a, b) => (learnDueDays(b.id) ?? 0) - (learnDueDays(a.id) ?? 0)); }
-function learnComplete(L: Lesson, score: number|null) {
-    const D = learnData(), tn = todayN(), was = D.learnDone[L.id], due = learnDueDays(L.id) != null;
-    const r = D.learnRev[L.id] || (D.learnRev[L.id] = { last: tn, n: 0 });
-    if (score != null)
-        r.best = Math.max(r.best || 0, score);
-    if (!was) {
-        D.learnDone[L.id] = tn;
-        r.last = tn;
-        r.n = 0;
-    }
-    else if (due) {
-        r.n = (r.n | 0) + 1;
-        r.last = tn;
-        r.rv = tn;
-    }
-    saveAll();
-    return { first: !was, review: !!was && due };
-}
-function learnMark(read: boolean) {
-    const L = LESSONS[learnSel], D = learnData();
-    if (read)
-        learnComplete(L, null);
-    else {
-        delete D.learnDone[L.id];
-        delete D.learnRev[L.id];
-    }
-    saveAll();
-}
-function learnInitSel() {
-    if (renderLearn._init)
-        return;
-    renderLearn._init = true;
-    const D = learnData();
-    let id = D.learnSelId;
-    if (!id && D.learnSel !== undefined && Number.isInteger(D.learnSel))
-        id = LEARN_OLD_ORDER[D.learnSel];
-    const i = LESSONS.findIndex((L) => L.id === id);
-    learnSel = i >= 0 ? i : 0;
-}
-function learnGo(i: number) {
-    learnSel = Math.max(0, Math.min(LESSONS.length - 1, i));
-    learnData().learnSelId = LESSONS[learnSel].id;
-    data.learnSel = learnSel;
-    renderLearn._init = true;
-    learnGloss = false;
-    LQ = null;
-    saveAll();
-    renderLearn();
-    const g = (document).querySelector('#view-learn .learn-grid');
-    if (g && g.getBoundingClientRect().top < 70)
-        g.scrollIntoView({ block: 'start' });
-    const h = byId('learnBody').querySelector('h3');
-    if (h) {
-        h.setAttribute('tabindex', '-1');
-        h.focus({ preventScroll: true });
-    }
-}
-function learnGoId(id: string) { const i = LESSONS.findIndex((L) => L.id === id); if (i >= 0) {
-    if (view0() !== 'learn') {
-        learnSel = i;
-        learnData().learnSelId = id;
-        renderLearn._init = true;
-        learnGloss = false;
-        LQ = null;
-        show('learn');
-    }
-    else
-        learnGo(i);
-} }
-function learnSay(msg: string|null) { const l = maybeById('learnLive'); if (!l)
-    return; l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 30); }
-function learnHalt() {
-    LGEN++;
-    stopPreviews();
-    kbClear('target');
-    lmStop();
-    queryAllHtml(document, '#learnBody [data-s="now"]').forEach((e) => delete e.dataset.s);
-    (document).querySelectorAll('#learnBody .lbars .on, #learnBody .lbeat .on').forEach((e) => e.classList.remove('on'));
-    (document).querySelectorAll('#learnBody [data-lplay][aria-pressed="true"]').forEach((b) => { b.setAttribute('aria-pressed', 'false'); b.textContent = t('lu_play_ex'); });
-}
-function learnTimer(fn: () => void, ms: number) { const g = LGEN; setTimeout(() => { if (g !== LGEN || view0() !== 'learn')
-    return; fn(); }, ms); }
-let learnLightTimer: ReturnType<typeof setTimeout> | undefined;
-function learnLight(ms: number[], dur: number) {
-    const g = LGEN;
-    kbClear('target');
-    ms.forEach((m) => kbState(m, 'target', true));
-    clearTimeout(learnLightTimer);
-    learnLightTimer = setTimeout(() => { if (g === LGEN)
-        kbClear('target'); }, dur);
+function learnData() { return coreLearnData(data); }
+function learnUnitOf(id: string) { return coreLearnUnitOf(id); }
+function learnUnitDone(i: number) { return coreLearnUnitDone(data, i); }
+function learnGap(id: string) { return coreLearnGap(data, id); }
+function learnDueDays(id: string) { return coreLearnDueDays(data, id, todayN()); }
+function learnDueList() { return coreLearnDueList(data, todayN()); }
+function learnGoId(id: string) {
+    if (LESSONS.some((L) => L.id === id)) void show('learn', { learnLessonId: id });
 }
 function learnPlanItems(tn: number) {
     const D = learnData(), ld = D.learnDone;
@@ -4375,1162 +4241,6 @@ function learnPlanItems(tn: number) {
     else if (Object.keys(D.learnRev).some((k) => D.learnRev[k].rv === tn))
         out.push({ id: 'learnrev', done: true, t: t('plan_lrev'), d: t('plan_lrev_done'), go: () => show('learn') });
     return out;
-}
-/* quiz: o = options (first listed = correct unless a is given); hear = demo spec; pcs = play these pitch classes (any octave, any order); seq = play these pitch classes in order */
-/* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
-/* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
-const LSR: Record<string, SrRenderResult> = {};
-function lStaffSvg(key: string) {
-    const S = LSTAVES[key];
-    const P = Object.assign({ noNames: true }, S.p);
-    const r = srRender(P);
-    LSR[key] = r;
-    const lhTop = P.rh ? 150 : 46, botY = (P.lh ? lhTop : 46) + 48, dynY = 124, rnY = botY + 24;
-    const top = (h: string) => h === 'lh' ? lhTop : 46;
-    const bx = (b: number) => { const pts = r.beatX; for (let i = 0; i < pts.length - 1; i++) {
-        if (b >= pts[i].b - 1e-3 && b <= pts[i + 1].b + 1e-3) {
-            const f = (b - pts[i].b) / Math.max(1e-3, pts[i + 1].b - pts[i].b);
-            return pts[i].x + Math.min(1, Math.max(0, f)) * (pts[i + 1].x - pts[i].x);
-        }
-    } return pts[pts.length - 1].x; };
-    const nAt = (b: number, h: SrHand|undefined) => { const c = r.notes.filter((n) => Math.abs(n.beat - b) < 0.02 && (!h || n.hand === h)); return c.length ? c.reduce((a, n) => n.y < a.y ? n : a) : null; };
-    const many = (b: number) => r.notes.filter((n) => Math.abs(n.beat - b) < 0.02).length > 1;
-    const T = (x: number, y: number, s: string, c: string, anc?: string) => '<text class="lm ' + (c || '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' + (anc ? ' text-anchor="' + anc + '"' : '') + '>' + s + '</text>';
-    let out = '', needH = 0;
-    (S.marks || []).forEach((mk) => {
-        const k = mk[0], b = mk[1];
-        if (k === 'dyn')
-            out += T(bx(b) - 6, dynY, mk[2], 'lm-dyn');
-        else if (k === 'cr' || k === 'dim') {
-            const x1 = bx(b), x2 = bx(mk[2]), y = dynY - 5;
-            out += '<path class="lm-ln" d="' + (k === 'cr' ? 'M' + x2 + ',' + (y - 5) + ' L' + x1 + ',' + y + ' L' + x2 + ',' + (y + 5) : 'M' + x1 + ',' + (y - 5) + ' L' + x2 + ',' + y + ' L' + x1 + ',' + (y + 5)) + '"/>';
-        }
-        else if (k === 'acc' || k === 'stac' || k === 'ten') {
-            const n = nAt(b, mk[2]);
-            if (!n)
-                return;
-            const up = !many(b) && n.y > top(n.hand) + 24, y = up ? n.y + 15 : n.y - 15, x = n.x;
-            out += k === 'acc' ? '<path class="lm-ln" d="M' + (x - 5) + ',' + (y - 4) + ' L' + (x + 5) + ',' + y + ' L' + (x - 5) + ',' + (y + 4) + '"/>' : k === 'stac' ? '<circle class="lm-f" cx="' + x + '" cy="' + y + '" r="2"/>' : '<path class="lm-ln" d="M' + (x - 5) + ',' + y + ' L' + (x + 5) + ',' + y + '"/>';
-        }
-        else if (k === 'fer') {
-            const n = nAt(b, mk[2]);
-            if (!n)
-                return;
-            const y = Math.min(n.y - 16, top(n.hand) - 8), x = n.x;
-            out += '<path class="lm-ln" d="M' + (x - 8) + ',' + y + ' A8,8 0 0 1 ' + (x + 8) + ',' + y + '"/><circle class="lm-f" cx="' + x + '" cy="' + (y - 2) + '" r="1.8"/>';
-        }
-        else if (k === 'tr') {
-            const n = nAt(b, mk[2]);
-            if (n)
-                out += T(n.x - 5, Math.min(n.y - 16, top(n.hand) - 8), 'tr', 'lm-it');
-        }
-        else if (k === 'fing') {
-            const n = nAt(b, mk[3]);
-            if (n)
-                out += T(n.x, top(n.hand) - 8, mk[2], 'lm-sm', 'middle');
-        }
-        else if (k === 'slur' || k === 'tie') {
-            const n1 = nAt(b, mk[3]), n2 = nAt(mk[2], mk[3]);
-            if (!n1 || !n2)
-                return;
-            const mid = top(n1.hand) + 24, below = n1.y > mid && n2.y > mid, s = below ? 1 : -1, x1 = n1.x + (k === 'tie' ? 6 : 0), x2 = n2.x - (k === 'tie' ? 6 : 0), y1 = n1.y + s * (k === 'tie' ? 8 : 11), y2 = n2.y + s * (k === 'tie' ? 8 : 11), cy = (below ? Math.max(y1, y2) : Math.min(y1, y2)) + s * (k === 'tie' ? 8 : 14);
-            out += '<path class="lm-sl" d="M' + x1 + ',' + y1 + ' C' + (x1 + (x2 - x1) * 0.25) + ',' + cy + ' ' + (x1 + (x2 - x1) * 0.75) + ',' + cy + ' ' + x2 + ',' + y2 + '"/>';
-        }
-        else if (k === 'tri') {
-            const x1 = bx(b) - 4, x2 = bx(mk[2]) + 4, y = 34;
-            out += '<path class="lm-ln" d="M' + x1 + ',' + (y + 4) + ' L' + x1 + ',' + y + ' L' + (x2 + x1) / 2 + ',' + y + ' M' + (x2 + x1) / 2 + ',' + y + ' L' + x2 + ',' + y + ' L' + x2 + ',' + (y + 4) + '"/>' + T((x1 + x2) / 2, y - 3, '3', 'lm-it', 'middle');
-        }
-        else if (k === 'txt')
-            out += T(bx(b) - 6, 18, LT(mk[2]), 'lm-tx');
-        else if (k === 'rn') {
-            out += T(bx(b), P.lh ? rnY : dynY, mk[2], 'lm-rn', 'middle');
-            if (P.lh)
-                needH = Math.max(needH, rnY + 12);
-        }
-        else if (k === 'ped') {
-            const y = P.lh ? botY + 22 : dynY;
-            out += T(bx(b) - 8, y, 'Ped.', 'lm-it') + T(bx(mk[2]) + 4, y, '✱', 'lm-sm');
-            if (P.lh)
-                needH = Math.max(needH, y + 10);
-        }
-        else if (k === 'rs' || k === 're') {
-            const end = k === 're' && b >= r.total - 1e-3, xb = end ? bx(r.total) : bx(b) - (b < 1e-3 ? 20 : 22), dir = k === 'rs' ? 1 : -1;
-            out += '<rect class="lm-f" x="' + (xb - (k === 'rs' ? 0 : 3)) + '" y="46" width="3" height="' + (botY - 46) + '"/><line class="lm-ln" x1="' + (xb + dir * 6) + '" y1="46" x2="' + (xb + dir * 6) + '" y2="' + botY + '"/>';
-            [46].concat(P.rh && P.lh ? [150] : []).forEach((st) => { out += '<circle class="lm-f" cx="' + (xb + dir * 11) + '" cy="' + (st + 18) + '" r="2.2"/><circle class="lm-f" cx="' + (xb + dir * 11) + '" cy="' + (st + 30) + '" r="2.2"/>'; });
-        }
-    });
-    let svg = r.svg;
-    if (needH)
-        svg = svg.replace(/viewBox="0 0 ([\d.]+) ([\d.]+)" width="([\d.]+)" height="([\d.]+)"/, (m: string, w: string, h: string) => { const H = Math.max(+h, needH); return 'viewBox="0 0 ' + w + ' ' + H + '" width="' + w + '" height="' + H + '"'; });
-    svg = svg.replace(/<g class="ss-n" data-nid="(\d+)"([^>]*)>/g, (tag: string, id: string) => {
-        const n = r.notes[+id];
-        if (!n) return tag;
-        const label = t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1);
-        return tag.slice(0, -1) + ' tabindex="0" role="button" aria-label="' + rdEsc(label) + '">';
-    });
-    svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + rdEsc(t('lstaff_caption_' + key)) + '"');
-    return lStaffFit(svg.replace('</svg>', out + '</svg>'), r.W);
-}
-/** Gives a Learn staff its drawn width as --sw, so layout.css can let it grow to a wide lesson panel. */
-function lStaffFit(svg: string, w: number) {
-    return svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" style="--sw:' + w + 'px"');
-}
-function lStaffHTML(key: string) {
-    const S = LSTAVES[key];
-    if (!S)
-        return '';
-    return '<figure class="lstaff" data-lstaff="' + key + '"><div class="ss-wrap lstaff-svg">' + lStaffSvg(key) + '</div><figcaption><button type="button" class="btn ghost sm" data-lplay="' + key + '" aria-pressed="false">' + t('lu_play_ex') + '</button><span>' + xmlEsc(t('lstaff_caption_' + key)) + ' <em class="lstaff-hint">' + t('lu_staff_hint') + '</em></span></figcaption></figure>';
-}
-const LVEL: Record<string, number> = { pp: 40, p: 55, mp: 70, mf: 84, f: 100, ff: 112 };
-type LDynMark = ['dyn', number, string];
-function lVel(S: LStaffSpec, b: number) {
-    const M = S.marks || [];
-    let base = 80, bb = -1;
-    M.forEach((m) => { if (m[0] === 'dyn' && LVEL[m[2]] && m[1] <= b + 1e-3 && m[1] >= bb) {
-        base = LVEL[m[2]];
-        bb = m[1];
-    } });
-    M.forEach((m) => { if ((m[0] === 'cr' || m[0] === 'dim') && b >= m[1] && b <= m[2]) {
-        const end = m[2];
-        const nx = M.filter((x): x is LDynMark => x[0] === 'dyn' && !!LVEL[x[2]] && x[1] >= end - 0.5).sort((a, c) => a[1] - c[1])[0];
-        if (nx)
-            base = base + (LVEL[nx[2]] - base) * (b - m[1]) / Math.max(0.5, nx[1] - m[1]);
-    } });
-    if (M.some((m) => m[0] === 'dyn' && m[2] === 'sfz' && Math.abs(m[1] - b) < 0.02))
-        base = 118;
-    if (M.some((m) => m[0] === 'acc' && Math.abs(m[1] - b) < 0.02))
-        base = Math.min(124, base + 24);
-    return Math.round(base);
-}
-/** The audio clock, for scheduling; falls back to wall time when audio context is unavailable. */
-function learnCtxTime(): number {
-    return audioEngine.context ? audioEngine.context.currentTime : performance.now() / 1000;
-}
-type LTieMark = ['slur' | 'tie', number, number, SrHand?];
-async function lStaffPlay(key: string, btn: HTMLElement) {
-    const was = btn.getAttribute('aria-pressed') === 'true';
-    learnHalt();
-    if (was)
-        return;
-    ensureAudio();
-    if (!await preparePiano())
-        return;
-    if (view0() !== 'learn')
-        return;
-    const g = LGEN;
-    btn.setAttribute('aria-pressed', 'true');
-    btn.textContent = t('lu_stop');
-    const S = LSTAVES[key], r = LSR[key], spb = 60 / (S.bpm || 90), fig = btn.closest('.lstaff');
-    if (!fig)
-        throw new TypeError('Étude: play button outside its staff');
-    const svg = fig.querySelector('svg'), wrap = fig.querySelector('.lstaff-svg');
-    if (!svg || !wrap)
-        throw new TypeError('Étude: staff figure is incomplete');
-    const M = S.marks || [], has = (k: string, b: number) => M.some((m) => m[0] === k && Math.abs(m[1] - b) < 0.02), ties = M.filter((m): m is LTieMark => m[0] === 'tie');
-    const cap = S.p.ts[1] === 8 ? S.p.ts[0] * 0.5 : S.p.ts[0], pk = S.p.pickup || 0, step = S.p.ts[1] === 8 ? 1.5 : 1;
-    const t0 = learnCtxTime() + 0.15;
-    let off = 0;
-    const segs: [number, number][] = S.seq || [[0, r.total]];
-    segs.forEach(([a, z]) => {
-        r.notes.filter((n) => n.beat >= a - 1e-3 && n.beat < z - 1e-3).forEach((n) => {
-            if (ties.some((m) => Math.abs(m[2] - n.beat) < 0.02 && r.notes.some((o) => o.midi === n.midi && Math.abs(o.beat - m[1]) < 0.02)))
-                return;
-            let dur = n.dur;
-            const tie = ties.find((m) => Math.abs(m[1] - n.beat) < 0.02);
-            if (tie) {
-                const o = r.notes.find((x) => x.midi === n.midi && Math.abs(x.beat - tie[2]) < 0.02);
-                if (o)
-                    dur += o.dur;
-            }
-            if (has('fer', n.beat))
-                dur *= 1.8;
-            const snd = has('stac', n.beat) ? dur * 0.4 : dur * 0.95, at = off + n.beat - a, vel = lVel(S, n.beat);
-            if (has('tr', n.beat)) {
-                const up = [4, 11].includes(pc(n.midi)) ? 1 : 2, k = Math.max(2, Math.floor(dur / 0.125));
-                for (let i = 0; i < k; i++)
-                    previewNote(n.midi + (i % 2 ? up : 0), t0 + (at + i * dur / k) * spb, dur / k * spb, vel);
-            }
-            else
-                previewNote(n.midi, t0 + at * spb, snd * spb, vel);
-            const found = svg.querySelector('.ss-n[data-nid="' + n.nid + '"]'), el = found instanceof SVGElement ? found : null;
-            learnTimer(() => { if (el)
-                el.dataset.s = 'now'; kbState(n.midi, 'target', true); if (wrap.scrollWidth > wrap.clientWidth + 4)
-                wrap.scrollLeft = Math.max(0, n.x - wrap.clientWidth * 0.4); }, at * spb * 1000 + 150);
-            learnTimer(() => { if (el)
-                delete el.dataset.s; kbState(n.midi, null, true); }, (at + dur) * spb * 1000 + 120);
-        });
-        if (S.click) {
-            for (let b = Math.ceil((a - pk) / step - 1e-3) * step + pk; b < z - 1e-3; b += step)
-                metroClick(t0 + (off + b - a) * spb, Math.abs(((b - pk) % cap + cap) % cap) < 1e-3);
-        }
-        off += z - a;
-    });
-    learnTimer(() => { if (g !== LGEN)
-        return; btn.setAttribute('aria-pressed', 'false'); btn.textContent = t('lu_play_ex'); kbClear('target'); }, off * spb * 1000 + 700);
-}
-async function lStaffNote(gEl: HTMLElement | SVGElement) {
-    const fig = gEl.closest('.lstaff');
-    if (!(fig instanceof HTMLElement))
-        return;
-    const key = fig.dataset.lstaff ?? '', n = LSR[key] && LSR[key].notes[Number(gEl.dataset.nid)];
-    if (!n)
-        return;
-    learnHalt();
-    ensureAudio();
-    if (!await preparePiano())
-        return;
-    previewNote(n.midi, learnCtxTime() + 0.02, 0.9, 92);
-    gEl.dataset.s = 'now';
-    learnLight([n.midi], 1100);
-    const g = LGEN;
-    setTimeout(() => { if (g === LGEN)
-        delete gEl.dataset.s; }, 700);
-    learnSay(noteName(n.midi, (LSTAVES[key].p.keyN || 0) < 0));
-}
-function lqLabel(spec: LearnQuizSpec, index: number) {
-    const option = spec.o?.[index];
-    return spec.i18n?.[lang]?.o?.[index] ?? (option === undefined ? '' : LT(option));
-}
-function lqFeedback(q: LearnQuizRunQuestion, spec: LearnQuizSpec) {
-    const why = spec.i18n?.[lang]?.why ?? (spec.why ? LT(spec.why) : '');
-    const right = q.opts ? q.opts.find(option => option.ok) : undefined;
-    const message = !q.opts
-        ? (q.ok ? t('lu_q_ok') : t('lu_q_no', lqMidis(q).map(m => pcName(pc(m), false)).join(' – ')))
-        : (q.ok || !right ? t('lu_q_ok') : t('lu_q_no', lqLabel(spec, right.index)));
-    return why ? message + ' ' + why : message;
-}
-function lqStart(L: Lesson) {
-    const qs = (LQZ[L.id] || []).map(q => {
-        const opts = q.o && shuffle(q.o.map((_, index) => ({ index, ok: index === (q.a || 0) })));
-        return { ...q, opts, got: [], gotMidis: [], ans: false, ok: false };
-    });
-    LQ = { id: L.id, qs, i: 0, score: 0, done: false };
-    lqRender();
-}
-function lqNeed(n: number) { return Math.max(1, Math.round(n * 0.7)); }
-function lqMidis(q: LearnQuizSpec) { const ps = q.pcs || q.seq; if (!ps)
-    throw new TypeError('Étude: quiz question has nothing to play'); return q.exactMidi ? q.exactMidi.slice() : ps.map((p) => 60 + p); }
-function lqRender() {
-    const box = maybeById('lq');
-    if (!box)
-        return;
-    const L = LESSONS[learnSel], qz = LQZ[L.id] || [], D = learnData(), done = !!D.learnDone[L.id], rv: Partial<LearnReview> = D.learnRev[L.id] || {};
-    const lastDay = typeof rv.last === 'number' && Number.isFinite(rv.last) ? (rv.last | 0) : 0;
-    const bestScore = typeof rv.best === 'number' && Number.isFinite(rv.best) ? rv.best : null;
-    let h = '<h4 id="lq-h">✎ ' + rdEsc(t('lu_quiz')) + '</h4>';
-    if (!LQ || LQ.id !== L.id) {
-        h += '<p class="lq-d">' + rdEsc(t('lu_quiz_d', qz.length, lqNeed(qz.length))) + '</p>';
-        if (done)
-            h += '<p class="lq-st">' + (learnDueDays(L.id) != null ? '<span class="lq-due">↻ ' + rdEsc(t('lu_due_now')) + '</span>' : '<span class="read-ok">' + rdEsc(t('lu_complete_rev', Math.max(0, learnGap(L.id) - (todayN() - lastDay)))) + '</span>') + (bestScore != null ? ' · ' + rdEsc(t('lu_q_score', bestScore)) : '') + '</p>';
-        h += '<div class="lq-act"><button type="button" class="btn primary" data-lq="start">' + rdEsc(t('lu_q_start')) + '</button>' + (done ? '' : '<button type="button" class="btn ghost sm" data-ln="mark">' + rdEsc(t('lu_mark_manual')) + '</button>') + '</div>';
-    }
-    else if (LQ.done) {
-        const n = LQ.qs.length, need = lqNeed(n), pass = LQ.score >= need, sc = LQ.score + '/' + n;
-        h += '<p class="lq-res" data-r="' + (pass ? 'good' : 'bad') + '">' + (pass ? (LQ.rev ? t('lu_q_review', sc, learnGap(L.id)) : t('lu_q_pass', sc)) : t('lu_q_fail', sc, need)) + '</p>';
-        h += '<div class="lq-act"><button type="button" class="btn ghost sm" data-lq="start">' + t('lu_q_retry') + '</button>' + (pass && learnSel < LESSONS.length - 1 ? '<button type="button" class="btn primary" data-ln="next">' + t('learn_next') + '</button>' : '') + '</div>';
-    }
-    else {
-        const q = LQ.qs[LQ.i], spec = qz[LQ.i] ?? q, ps = q.pcs || q.seq, loc = spec.i18n?.[lang];
-        h += '<p class="lq-n">' + t('lu_q_n', LQ.i + 1, LQ.qs.length) + '</p><p class="lq-q" id="lq-q">' + (loc?.q || LT(spec.q)) + '</p>';
-        if (q.hear)
-            h += '<p><button type="button" class="btn ghost sm demo" data-demo="' + q.hear + '">' + t('lu_q_hear') + '</button></p>';
-        if (ps) {
-            const tot = ps.length;
-            h += '<p class="lq-play">🎹 ' + t('lu_q_play') + '</p><p class="lq-got" aria-hidden="true">' + Array.from({ length: tot }, (_, i) => '<i' + (i < q.got.length ? ' class="on"' : '') + '></i>').join('') + ' <span>' + t('lu_q_got', q.got.length, tot) + '</span></p>';
-            if (!q.ans)
-                h += '<div class="lq-act"><button type="button" class="btn ghost sm" data-lq="show">' + t('lu_q_show') + '</button></div>';
-        }
-        else if (!q.opts)
-            throw new TypeError('Étude: quiz question has no options');
-        else
-            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o, i) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(spec, o.index) + '</button>').join('') + '</div>';
-        if (q.ans) {
-            h += '<p class="lq-fb" data-r="' + (q.ok ? 'good' : 'bad') + '">' + lqFeedback(q, spec) + '</p><div class="lq-act"><button type="button" class="btn primary" data-lq="next">' + t(LQ.i < LQ.qs.length - 1 ? 'lu_q_next' : 'lu_q_finish') + '</button></div>';
-        }
-    }
-    box.innerHTML = h;
-}
-function learnReveal(el: Element) {
-    const r = el.getBoundingClientRect(), lim = fixedBottomTop() - 16;
-    if (r.bottom > lim)
-        scrollBy(0, r.bottom - lim);
-    else if (r.top < 80)
-        scrollBy(0, r.top - 80);
-}
-function lqFocus(sel: string) { const lq = maybeById('lq'), el = lq && lq.querySelector(sel); if (el instanceof HTMLElement) {
-    el.focus({ preventScroll: true });
-    learnReveal(el);
-} }
-function lqAnswer(ok: boolean) {
-    if (!LQ) return;
-    const q = LQ.qs[LQ.i];
-    q.ans = true;
-    q.ok = ok;
-    if (ok) LQ.score++;
-    lqRender();
-    learnSay(lqFeedback(q, LQZ[LQ.id]?.[LQ.i] ?? q));
-    lqFocus('[data-lq="next"]');
-}
-function lqPick(i: number) {
-    const q = LQ && LQ.qs[LQ.i], option = q?.opts?.[i];
-    if (!q || q.ans || !option) return;
-    q.pick = i;
-    lqAnswer(option.ok);
-}
-function lqNext() {
-    if (!LQ)
-        return;
-    if (LQ.i < LQ.qs.length - 1) {
-        LQ.i++;
-        kbClear('target');
-        lqRender();
-        lqFocus('.lq-o,[data-lq="show"],.lq-q');
-        return;
-    }
-    LQ.done = true;
-    kbClear('target');
-    const L = LESSONS[learnSel], n = LQ.qs.length, pass = LQ.score >= lqNeed(n);
-    if (pass) {
-        const r = learnComplete(L, Math.round(100 * LQ.score / n));
-        LQ.rev = r.review;
-        learnSide();
-        learnNavRender();
-    }
-    lqRender();
-    learnSay(byId('lq').querySelector('.lq-res')?.textContent || '');
-    lqFocus('.lq-act button');
-}
-function lqShow() {
-    const q = LQ && LQ.qs[LQ.i];
-    if (!q || q.ans)
-        return;
-    const ms = lqMidis(q);
-    learnLight(ms, 4000);
-    ensureAudio();
-    preparePiano().then((ok) => { if (ok)
-        ms.forEach((m, i) => previewNote(m, learnCtxTime() + 0.05 + (q.seq ? i * 0.45 : 0), 0.9, 90)); });
-    lqAnswer(false);
-}
-function learnInput() {
-    const m: number | undefined = heldOrder[heldOrder.length - 1];
-    if (m == null || !LQ || LQ.done)
-        return;
-    const q = LQ.qs[LQ.i];
-    if (!q || q.ans || !(q.pcs || q.seq))
-        return;
-    const p = pc(m), tot = (q.exactMidi || q.pcs || q.seq || []).length;
-    if (q.exactMidi) {
-        if (q.exactMidi.includes(m)) {
-            if (!q.gotMidis.includes(m)) {
-                q.gotMidis.push(m);
-                q.got.push(p);
-            }
-        }
-        else {
-            q.got = [];
-            q.gotMidis = [];
-            lqRender();
-            learnSay(t('lu_q_wrongnote', noteName(m, false)));
-            return;
-        }
-    }
-    else if (q.pcs) {
-        if (q.pcs.includes(p)) {
-            if (!q.got.includes(p))
-                q.got.push(p);
-        }
-        else {
-            q.got = [];
-            q.gotMidis = [];
-            lqRender();
-            learnSay(t('lu_q_wrongnote', pcName(p, false)));
-            return;
-        }
-    }
-    else {
-        const seq = q.seq || [], idx = q.got.length;
-        const stepOk = !q.stepDiff || idx === 0 || m - q.gotMidis[idx - 1] === q.stepDiff[idx - 1];
-        if (seq[idx] === p && stepOk) {
-            q.got.push(p);
-            q.gotMidis.push(m);
-        }
-        else {
-            if (seq[0] === p) {
-                q.got = [p];
-                q.gotMidis = [m];
-            }
-            else {
-                q.got = [];
-                q.gotMidis = [];
-            }
-            lqRender();
-            learnSay(t('lu_q_wrongnote', q.stepDiff ? noteName(m, false) : pcName(p, false)));
-            return;
-        }
-    }
-    if (q.got.length >= tot)
-        lqAnswer(true);
-    else {
-        lqRender();
-        learnSay(t('lu_q_got', q.got.length, tot));
-    }
-}
-// The unit's first level without a star; every level is open, so with all of them starred it is the last one.
-function learnRdLevel(u: LearnUnit): ReadDrillLevel | null {
-    const all = RD_UNITS.filter((x) => u.rd.includes(x.u)).flatMap((x) => x.lv);
-    return all.find((L) => (rdData().lv[L.id]?.s || 0) < 1) || all[all.length - 1] || null;
-}
-function learnSide() {
-    const toc = byId('learnToc');
-    if (!toc)
-        return;
-    const D = learnData(), done = D.learnDone, nDone = LESSONS.filter((L) => done[L.id]).length;
-    byId('learnMeta').textContent = t('learn_read_n', nDone, LESSONS.length);
-    byId('learnProg').style.width = Math.round(100 * nDone / LESSONS.length) + '%';
-    let h = '', opt = '';
-    LEARN_UNITS.forEach((u, ui) => {
-        const nm = (u[lang] || u.en);
-        h += '<div class="lu-h"><span aria-hidden="true">' + u.icon + '</span><span class="lu-nm">' + nm + '</span><span class="lu-c">' + t('lu_done_n', learnUnitDone(ui), u.ls.length) + '</span></div>';
-        opt += '<optgroup label="' + nm + '">';
-        u.ls.forEach((id) => {
-            const i = LESSONS.findIndex((L) => L.id === id);
-            if (i < 0)
-                return;
-            const L = LESSONS[i], due = learnDueDays(id) != null;
-            h += '<button type="button" data-li="' + i + '" aria-current="' + (i === learnSel && !learnGloss) + '"><span class="ic" aria-hidden="true">' + L.icon + '</span>' + learnTitle(L) +
-                (due ? '<span class="due" role="img" aria-label="' + t('lu_due') + '">↻</span>' : done[id] ? '<span class="done" role="img" aria-label="' + t('learn_done_aria') + '">✓</span>' : '') + '</button>';
-            opt += '<option value="' + i + '"' + (i === learnSel ? ' selected' : '') + '>' + learnTitle(L) + (done[id] ? ' ✓' : '') + '</option>';
-        });
-        opt += '</optgroup>';
-    });
-    toc.innerHTML = h;
-    byId('learnExtra').innerHTML = '<label class="learn-pick"><span>' + t('lu_pick') + '</span><select id="learnPick">' + opt + '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + t('lu_gloss') + '</button>';
-}
-function learnNavRender() {
-    const nav = byId('learnBody').querySelector('.learn-nav');
-    if (!nav)
-        return;
-    const L = LESSONS[learnSel], D = learnData(), isRead = !!D.learnDone[L.id], last = learnSel === LESSONS.length - 1;
-    nav.innerHTML = '<button type="button" class="btn ghost sm" data-ln="prev"' + (learnSel === 0 ? ' disabled' : '') + '>' + t('learn_prev') + '</button>' +
-        '<div class="mid">' + (isRead ? '<span class="read-ok">✓ ' + t('lu_complete') + '</span><button type="button" class="btn ghost sm" data-ln="unmark">' + t('learn_unmark') + '</button>' : '') + '</div>' +
-        '<button type="button" class="btn ghost sm" data-ln="next"' + (last ? ' disabled' : '') + '>' + t('learn_next') + '</button>';
-}
-let learnWired = false;
-function learnWire() {
-    if (learnWired)
-        return;
-    learnWired = true;
-    const side = (document).querySelector('#view-learn .learn-side'), toc = byId('learnToc');
-    const ex = (document).createElement('div');
-    ex.id = 'learnExtra';
-    ex.className = 'learn-extra';
-    toc.after(ex);
-    const live = (document).createElement('div');
-    live.id = 'learnLive';
-    live.className = 'visually-hidden';
-    live.setAttribute('aria-live', 'polite');
-    side?.appendChild(live);
-    toc.addEventListener('click', (e) => { const b = eventClosest(e, '[data-li]'); if (b)
-        learnGo(Number(b.dataset.li)); });
-    ex.addEventListener('change', (e) => { const pick = e.target; if (pick instanceof HTMLSelectElement && pick.id === 'learnPick')
-        learnGo(+pick.value); });
-    ex.addEventListener('click', (e) => { if (eventClosest(e, '#learnGlossBtn')) {
-        learnGloss = !learnGloss;
-        LQ = null;
-        renderLearn();
-        const s = maybeById('lg-q');
-        if (s)
-            s.focus();
-    } });
-    const body = byId('learnBody');
-    body.addEventListener('keydown', (e) => { const tg = eventElement(e), g = tg && tg.closest('.lstaff .ss-n'); if (g instanceof SVGElement && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault();
-        lStaffNote(g);
-    } });
-    body.addEventListener('input', (e) => { const tg = eventElement(e); if (tg && tg.id === 'lg-q')
-        lgFilter();
-    else
-        lwInput(e); });
-    body.addEventListener('change', (e) => lwInput(e));
-}
-function learnBodyHTML(L: Lesson) { return learnPayload?.LESSONS[L.id]?.b ?? ''; }
-let renderLearn: { (fromLoad?: boolean): void; _init?: boolean } = function renderLearn(fromLoad = false) {
-    const body = byId('learnBody');
-    if (!body || !byId('learnToc'))
-        return;
-    if (learnLanguage !== lang || !learnStaffReady) {
-        learnWire();
-        learnInitSel();
-        learnSide();
-        learnHalt();
-        body.replaceChildren();
-        const loading = document.createElement('p');
-        loading.className = 'view-loading';
-        loading.setAttribute('role', 'status');
-        loading.setAttribute('aria-live', 'polite');
-        loading.dataset.lazyLoading = '';
-        loading.textContent = localize('loading', 'Loading…');
-        body.append(loading);
-        const requestedLanguage = lang, request = ++learnRequest;
-        learnLoading = Promise.all([loadLearn(requestedLanguage), loadLearnStaves()]).then(([payload]) => {
-            if (request !== learnRequest || requestedLanguage !== lang || view0() !== 'learn') return;
-            installLearn(requestedLanguage, payload);
-            renderLearn(true);
-        }).catch(() => {
-            if (request !== learnRequest || requestedLanguage !== lang || view0() !== 'learn') return;
-            body.querySelector('[data-lazy-loading]')?.remove();
-            localeLoadError(async () => { renderLearn(); await learnLoading; }, body);
-        });
-        return;
-    }
-    learnWire();
-    learnInitSel();
-    // Loading already halted the previous lesson. Do not clear newer keyboard input on completion.
-    if (!fromLoad)
-        learnHalt();
-    learnSide();
-    if (learnGloss) {
-        body.innerHTML = lgHTML();
-        lgFilter();
-        return;
-    }
-    const L = LESSONS[learnSel], ui = learnUnitOf(L.id), u = LEARN_UNITS[ui], rl = u ? learnRdLevel(u) : null;
-    let h = '<div class="lu-bar"><span class="lu-unit"><span aria-hidden="true">' + (u ? u.icon : '') + '</span> ' + t('lu_unit', ui + 1, LEARN_UNITS.length) + ' · <b>' + (u ? (u[lang] || u.en) : '') + '</b></span>' +
-        (rl ? '<button type="button" class="btn ghost sm" data-rd="' + rl.id + '" aria-label="' + t('lu_practise_aria') + ': ' + rdLvName(rl) + '">' + t('lu_practise', rdLvName(rl)) + ' →</button>' : '') + '</div><h3>' + learnTitle(L) + '</h3>';
-    h += '<div class="learn-content">' + learnBodyHTML(L) + '</div>';
-    const sum: LearnSummaryRow[] | undefined = LSUM[L.id];
-    if (sum)
-        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r, ri) => { const sRow = LSUM_I18N[lang]?.[L.id]?.[ri] ?? [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
-    if (LQZ[L.id])
-        h += '<section class="lq" id="lq" aria-labelledby="lq-h"></section>';
-    h += '<div class="learn-nav"></div>';
-    body.innerHTML = h;
-    queryAllHtml(body, '[data-staff]').forEach((el) => { el.outerHTML = lStaffHTML(el.dataset.staff ?? ''); });
-    queryAllHtml(body, '[data-widget]').forEach((el) => lwMount(el));
-    body.querySelectorAll('[data-bars]').forEach((el) => { el.outerHTML = lBarsHTML(); });
-    body.querySelectorAll('[data-an]').forEach((el) => { if (!el.textContent.trim())
-        el.textContent = t('lu_an_btn'); });
-    if (LQ && LQ.id !== L.id)
-        LQ = null;
-    lqRender();
-    learnNavRender();
-    const cur = byId('learnToc').querySelector('[aria-current="true"]');
-    const toc = byId('learnToc');
-    if (cur && toc.scrollHeight > toc.clientHeight)
-        cur.scrollIntoView({ block: 'nearest' });
-};
-function learnClick(e: Event) {
-    const g = eventClosest(e, '[data-go]');
-    if (g) {
-        e.preventDefault();
-        const c = g.dataset.cat;
-        const extab = g.dataset.extab;
-        if (c)
-            prSetTopic(c);
-        if (extab)
-            void show(g.dataset.go, { extab });
-        else
-            void show(g.dataset.go);
-        return;
-    }
-    if (eventClosest(e, '[data-lgback]')) {
-        learnGloss = false;
-        renderLearn();
-        return;
-    }
-    const lg = eventClosest(e, '[data-lgo]');
-    if (lg) {
-        e.preventDefault();
-        learnGloss = false;
-        learnGoId(lg.dataset.lgo ?? '');
-        return;
-    }
-    const li = eventClosest(e, '[data-li]');
-    if (li) {
-        learnGo(Number(li.dataset.li));
-        return;
-    }
-    const ln = eventClosest(e, '[data-ln]');
-    if (ln) {
-        const a = ln.dataset.ln, L = LESSONS[learnSel];
-        if (a === 'prev')
-            learnGo(learnSel - 1);
-        else if (a === 'next')
-            learnGo(learnSel + 1);
-        else if (a === 'mark') {
-            learnMark(true);
-            learnSide();
-            lqRender();
-            learnNavRender();
-            learnSay(t('lu_complete'));
-        }
-        else if (a === 'unmark') {
-            learnMark(false);
-            LQ = null;
-            learnSide();
-            lqRender();
-            learnNavRender();
-        }
-        return;
-    }
-    const lq = eventClosest(e, '[data-lq]');
-    if (lq) {
-        const a = lq.dataset.lq;
-        if (a === 'start') {
-            lqStart(LESSONS[learnSel]);
-            lqFocus('.lq-o,[data-lq="show"],.lq-q');
-        }
-        else if (a === 'next')
-            lqNext();
-        else if (a === 'show')
-            lqShow();
-        return;
-    }
-    const lo = eventClosest(e, '[data-lqo]');
-    if (lo) {
-        lqPick(Number(lo.dataset.lqo));
-        return;
-    }
-    const lp = eventClosest(e, '[data-lplay]');
-    if (lp) {
-        lStaffPlay(lp.dataset.lplay ?? '', lp);
-        return;
-    }
-    const snFrom = eventElement(e), sn = snFrom && snFrom.closest('.lstaff .ss-n');
-    if (sn instanceof SVGElement) {
-        lStaffNote(sn);
-        return;
-    }
-    const rd = eventClosest(e, '[data-rd]');
-    if (rd) {
-        const L = RD_LV[rd.dataset.rd ?? ''];
-        show('read');
-        rdTab('drills');
-        if (L)
-            rdOpen(L);
-        return;
-    }
-    const an = eventClosest(e, '[data-an]');
-    if (an) {
-        void pcOpen(an.dataset.an ?? '');
-        return;
-    }
-    const w = eventClosest(e, '[data-w]');
-    if (w) {
-        lwClick(w);
-        return;
-    }
-    const d = eventClosest(e, '.demo');
-    if (d)
-        runDemo(d.dataset.demo, d);
-}
-function lSeqLight(chords: number[][], stepMs: number, holdMs: number) {
-    chords.forEach((ms, i) => learnTimer(() => { kbClear('target'); ms.forEach((m) => kbState(m, 'target', true)); }, i * stepMs));
-    learnTimer(() => kbClear('target'), (chords.length - 1) * stepMs + (holdMs || stepMs));
-}
-const LBLUES = theory.TWELVE_BAR_BLUES_ROOTS;
-function lBarsHTML() {
-    const rn: Record<number, string> = { 0: 'I7', 5: 'IV7', 7: 'V7' };
-    return '<div class="lbars" role="list" aria-label="' + t('lw_blues') + '">' + LBLUES.map((d, i) => '<span role="listitem" data-bar="' + i + '"><b>' + rn[d] + '</b><small>' + pcName(d, d === 5) + '7</small></span>').join('') + '</div>';
-}
-async function runDemo(spec: string|undefined, btn: HTMLElement) {
-    ensureAudio();
-    learnHalt();
-    const g = LGEN;
-    if (spec === undefined)
-        throw new TypeError('Étude: demo button without data-demo');
-    const p = spec.split(':'), kind = p[0];
-    if (kind !== 'beat' && !await preparePiano())
-        return;
-    if (g !== LGEN || view0() !== 'learn')
-        return;
-    const T0 = learnCtxTime() + 0.06;
-    if (kind === 'n') {
-        const m = +p[1];
-        previewNote(m, T0, 0.9, 96);
-        learnLight([m], 1300);
-    }
-    else if (kind === 'run') {
-        const ms = p[1].split('.').map(Number);
-        ms.forEach((m, i) => previewNote(m, T0 + i * 0.4, 0.38, 92));
-        lSeqLight(ms.map((m) => [m]), 400, 700);
-    }
-    else if (kind === 'ms') {
-        const ms = p[1].split('.').map(Number);
-        playChordMidis(ms, true);
-        learnLight(ms, ms.length * 160 + 1500);
-    }
-    else if (kind === 'iv') {
-        const root = +p[1], semi = +p[2];
-        playInterval(root, semi, 'both');
-        learnLight([root, root + semi], 2300);
-    }
-    else if (kind === 'ch') {
-        const c = CHORDS.find((x) => x.symbol === p.slice(2).join(':'));
-        if (c) {
-            const ms = c.intervals.map((i) => +p[1] + i);
-            playChordMidis(ms, true);
-            learnLight(ms, ms.length * 160 + 1500);
-        }
-    }
-    else if (kind === 'sc') {
-        const nm = p.slice(2).join(':'), o = SCALES[nm];
-        if (o) {
-            const root = +p[1];
-            playScaleNotes(root, o, true);
-            lSeqLight(o.concat([12]).map((x) => [root + x]), 270, 600);
-        }
-    }
-    else if (kind === 'pr') {
-        const nm = p.slice(2).join(':'), prog = PROGS.find((x) => x.name === nm) || ACCOMP_PROGS.find((x) => x.name === nm);
-        if (prog) {
-            const rp = +p[1];
-            playProg(rp, prog);
-            lSeqLight(prog.chords.map((ch) => { const r = 60 + ((rp + ch[0]) % 12), tp = progChordTpl(ch[1]); return tp ? tp.intervals.map((i) => r + i) : [r]; }), 900, 900);
-        }
-    }
-    else if (kind === 'blues') {
-        const rp = +p[1] || 0, spb = 0.3, bars = byId('learnBody').querySelectorAll('.lbars [data-bar]');
-        const chs = LBLUES.map((d) => { const r = (rp + d) % 12, root = 60 + r - (r > 7 ? 12 : 0); return { bass: 36 + r, ms: [root, root + 4, root + 7, root + 10] }; });
-        chs.forEach((c, i) => {
-            const b0 = T0 + i * 4 * spb;
-            previewNote(c.bass, b0, spb * 1.9, 84);
-            previewNote(c.bass + 7, b0 + 2 * spb, spb * 1.9, 76);
-            [0, 1.5, 2, 3.5].forEach((k, j) => c.ms.slice(1).forEach((m) => previewNote(m, b0 + k * spb, j % 2 ? spb * 0.45 : spb * 0.9, j % 2 ? 66 : 80)));
-        });
-        previewNote(36 + rp, T0 + 48 * spb, 1.4, 84);
-        [60, 64, 67, 70].forEach((m) => previewNote(m + rp, T0 + 48 * spb, 1.4, 80));
-        lSeqLight(chs.map((c) => [c.bass].concat(c.ms)), 4 * spb * 1000, 1600);
-        chs.forEach((c, i) => learnTimer(() => { bars.forEach((b, j) => b.classList.toggle('on', j === i)); }, i * 4 * spb * 1000));
-        learnTimer(() => bars.forEach((b) => b.classList.remove('on')), 48 * spb * 1000 + 1500);
-    }
-    else if (kind === 'vc') {
-        const chs = p[1].split('|').map((s) => s.split('.').map(Number));
-        chs.forEach((ms, i) => ms.forEach((m) => previewNote(m, T0 + i * 1.1, 1.05, m < 55 ? 80 : 88)));
-        lSeqLight(chs, 1100, 1200);
-    }
-    else if (kind === 'acc') {
-        const P = ACCOMP_PATTERNS[p[1]];
-        if (!P)
-            return;
-        const spb = P.beats === 3 ? 0.45 : 0.55, ev: AccompanimentEvent[] = [];
-        LACC_CH.forEach((c, i) => P.gen(ev, i * P.beats, c));
-        previewNote(48, T0 + 4 * P.beats * spb, 1.6, 80);
-        [60, 64, 67].forEach((m) => previewNote(m, T0 + 4 * P.beats * spb, 1.6, 80));
-        ev.forEach((e) => previewNote(e.midi, T0 + e.beat * spb, Math.max(0.12, e.durB * spb * 0.95), e.hand === 'L' ? 78 : 86));
-        lSeqLight(LACC_CH.map((c) => [c.bass].concat(c.right)).concat([[48, 60, 64, 67]]), P.beats * spb * 1000, 1600);
-    }
-    else if (kind === 'beat')
-        demoBeat(p[1], btn);
-}
-function lDots(btn: HTMLElement, n: number, strong: (i: number) => number) {
-    const row = btn && btn.closest('.demo-row');
-    if (!row)
-        return [];
-    let bd = row.nextElementSibling;
-    if (!bd || !bd.classList.contains('lbeat')) {
-        bd = (document).createElement('div');
-        bd.className = 'lbeat';
-        bd.setAttribute('aria-hidden', 'true');
-        row.after(bd);
-    }
-    bd.innerHTML = Array.from({ length: n }, (_, i) => '<span' + (strong(i) === 2 ? ' class="s"' : strong(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join('');
-    return [...bd.children];
-}
-function demoBeat(kind: string, btn: HTMLElement) {
-    const t0 = learnCtxTime() + 0.1;
-    let n: number, step: number, total: number, lvl: (i: number) => number, lab: string;
-    if (kind === '68') {
-        n = 6;
-        step = 0.21;
-        total = 12;
-        lvl = (i: number) => i === 0 ? 2 : i === 3 ? 1 : 0;
-        lab = '6/8';
-    }
-    else if (kind === '3t') {
-        n = 12;
-        step = 60 / 80 / 3;
-        total = 24;
-        lvl = (i: number) => i === 0 ? 2 : i % 3 === 0 ? 1 : 0;
-        lab = '4/4 ×3';
-    }
-    else {
-        n = +kind || 4;
-        step = 60 / 96;
-        total = n * 2;
-        lvl = (i: number) => i === 0 ? 2 : 0;
-        lab = n + '/4';
-    }
-    const dots = lDots(btn, n, lvl);
-    for (let i = 0; i < total; i++) {
-        const k = i % n;
-        metroClick(t0 + i * step, lvl(k) === 2 || (kind === '3t' && lvl(k) === 1));
-        if (kind === '3t' && k % 3 === 0)
-            previewNote(72, t0 + i * step, step * 2.6, 70);
-        learnTimer(() => dots.forEach((d, j) => d.classList.toggle('on', j === k)), (i * step + 0.1) * 1000);
-    }
-    learnTimer(() => dots.forEach((d) => d.classList.remove('on')), (total * step + 0.4) * 1000);
-    learnSay(t('lu_beat_say', lab));
-}
-/** Settings of each Learn widget, kept on its element as `_s`. */
-interface LwScaleState { root: number; st: number[] }
-interface LwChordState { root: number; q: string; inv: number; bass: number }
-interface LwCofState { i: number; enh?: boolean; minor?: boolean }
-interface LwMetroState { bpm: number; meter: string }
-type LwState = LwScaleState | LwChordState | LwCofState | LwMetroState;
-/** A mounted `[data-widget]` element. */
-type LearnWidgetEl = HTMLElement & { _s?: LwState };
-const lwIsScale = (s: LwState | undefined): s is LwScaleState => !!s && 'st' in s;
-const lwIsChord = (s: LwState | undefined): s is LwChordState => !!s && 'q' in s;
-const lwIsCof = (s: LwState | undefined): s is LwCofState => !!s && 'i' in s;
-const lwIsMetro = (s: LwState | undefined): s is LwMetroState => !!s && 'bpm' in s;
-function lwStateError(el: LearnWidgetEl): TypeError { return new TypeError('Étude: widget ' + el.dataset.widget + ' has no settings'); }
-function lwScaleState(el: LearnWidgetEl): LwScaleState { const s = el._s; if (!lwIsScale(s))
-    throw lwStateError(el); return s; }
-function lwChordState(el: LearnWidgetEl): LwChordState { const s = el._s; if (!lwIsChord(s))
-    throw lwStateError(el); return s; }
-function lwCofState(el: LearnWidgetEl): LwCofState { const s = el._s; if (!lwIsCof(s))
-    throw lwStateError(el); return s; }
-function lwMetroState(el: LearnWidgetEl): LwMetroState { const s = el._s; if (!lwIsMetro(s))
-    throw lwStateError(el); return s; }
-/** A part a widget rendered into itself, e.g. its start button. */
-function lwPart(el: Element, sel: string): Element { const f = el.querySelector(sel); if (!f)
-    throw new TypeError('Étude: widget part missing: ' + sel); return f; }
-/** The running Learn metronome widget, if any. */
-interface LearnMetronome { el: LearnWidgetEl | null; timer: ReturnType<typeof setInterval> | 0; next: number; i: number }
-const LM: LearnMetronome = { el: null, timer: 0, next: 0, i: 0 };
-const LTEMPO: [number, string][] = [[60, 'Largo'], [76, 'Adagio'], [108, 'Andante'], [120, 'Moderato'], [168, 'Allegro'], [999, 'Presto']];
-function lmTerm(b: number) { const x = LTEMPO.find((y) => b < y[0]); if (!x)
-    throw new RangeError('Étude: tempo out of range'); return x[1]; }
-function lmMeter(m: string) { return m === '6/8' ? { n: 6, div: 3, lvl: (i: number) => i === 0 ? 2 : i === 3 ? 1 : 0 } : { n: +m[0], div: 1, lvl: (i: number) => i === 0 ? 2 : 0 }; }
-function lmStop() {
-    if (LM.timer) {
-        clearInterval(LM.timer);
-        LM.timer = 0;
-    }
-    const el = LM.el;
-    LM.el = null;
-    if (!el)
-        return;
-    const b = el.querySelector('[data-w="mstart"]');
-    if (b) {
-        b.setAttribute('aria-pressed', 'false');
-        b.textContent = '▶ ' + t('lw_start');
-    }
-    el.querySelectorAll('.lbeat .on').forEach((d) => d.classList.remove('on'));
-}
-function lmDots(el: LearnWidgetEl) { const s = lwMetroState(el), M = lmMeter(s.meter); lwPart(el, '.lbeat').innerHTML = Array.from({ length: M.n }, (_, i) => '<span' + (M.lvl(i) === 2 ? ' class="s"' : M.lvl(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join(''); }
-function lmStart(el: LearnWidgetEl) {
-    ensureAudio();
-    LM.el = el;
-    LM.next = learnCtxTime() + 0.1;
-    LM.i = 0;
-    const b = lwPart(el, '[data-w="mstart"]');
-    b.setAttribute('aria-pressed', 'true');
-    b.textContent = '■ ' + t('lw_stop');
-    LM.timer = setInterval(() => {
-        if (!LM.el || !document.body.contains(el) || view0() !== 'learn') {
-            lmStop();
-            return;
-        }
-        const s = lwMetroState(el), M = lmMeter(s.meter), dt = 60 / s.bpm / M.div, dots = el.querySelectorAll('.lbeat span');
-        while (LM.next < learnCtxTime() + 0.12) {
-            const k = LM.i % M.n, lv = M.lvl(k);
-            metroClick(LM.next, lv > 0);
-            setTimeout(() => { if (LM.el === el)
-                dots.forEach((d, j) => d.classList.toggle('on', j === k)); }, Math.max(0, (LM.next - learnCtxTime()) * 1000));
-            LM.i++;
-            LM.next += dt;
-        }
-    }, 25);
-}
-function lwMetro(el: LearnWidgetEl) {
-    const s = lwIsMetro(el._s) ? el._s : (el._s = { bpm: 90, meter: '4/4' });
-    el.innerHTML = '<h4>⏱ ' + t('lw_metro') + '</h4><div class="lw-row"><label class="lw-range"><span>' + t('lw_tempo') + '</span><input type="range" min="40" max="208" step="1" value="' + s.bpm + '" data-wi="bpm" aria-valuetext="' + t('lw_bpm', s.bpm) + ', ' + lmTerm(s.bpm) + '"></label>' +
-        '<output class="lw-bpm" aria-live="polite"><b>' + s.bpm + '</b> BPM · <i>' + lmTerm(s.bpm) + '</i></output></div>' +
-        '<div class="lw-row"><label><span>' + t('lw_meter') + '</span><select data-wi="meter">' + ['2/4', '3/4', '4/4', '6/8'].map((m) => '<option' + (m === s.meter ? ' selected' : '') + '>' + m + '</option>').join('') + '</select></label>' +
-        '<button type="button" class="btn primary sm" data-w="mstart" aria-pressed="false">▶ ' + t('lw_start') + '</button></div><div class="lbeat lbeat-lg" aria-hidden="true"></div>';
-    lmDots(el);
-}
-const LLET = 'CDEFGAB', LNAT = [0, 2, 4, 5, 7, 9, 11];
-const LSPF = [[0, 0], [1, -1], [1, 0], [2, -1], [2, 0], [3, 0], [3, 1], [4, 0], [5, -1], [5, 0], [6, -1], [6, 0]], LSPS = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [3, 0], [3, 1], [4, 0], [4, 1], [5, 0], [5, 1], [6, 0]];
-function lSp(li: number, acc: number) { return spelledName(notation, li, acc); }
-function lPitch(li: number, acc: number, midi: number) { return LLET[li] + (acc > 0 ? '#' : acc < 0 ? 'b' : '') + (Math.floor((midi - acc) / 12) - 1); }
-function lStaffSmall(piece: { rh: SrToken[]; lh?: SrToken[]; keyN?: number }, label: string) {
-    const r = srRender(Object.assign({ ts: [4, 4], keyN: 0, noNames: true, noTs: true, compact: true }, piece));
-    return '<div class="ss-wrap lw-staff">' + lStaffFit(r.svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="img" aria-label="' + label.replace(/"/g, '&quot;') + '"'), r.W) + '</div>';
-}
-function lSel(wi: string, opts: (string|number)[][], cur: string|number, lab: string) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
-const LW_PRESETS = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor', 'Dorian', 'Major pentatonic', 'Minor pentatonic', 'Blues'];
-function lwStepLab(s: number) { const d = STEP_LABELS[lang] || { 2: 'T', 1: 'S', 3: 'T+S' }; return d[s] || (s === 2 ? d[2] : s === 1 ? d[1] : d[3]); }
-function lwScale(el: LearnWidgetEl) {
-    const s = lwIsScale(el._s) ? el._s : (el._s = { root: 0, st: [2, 2, 1] }), cum = [0];
-    s.st.forEach((x) => cum.push(cum[cum.length - 1] + x));
-    const tot = cum[cum.length - 1], flat = [5, 10, 3, 8, 1].includes(s.root), offs = tot === 12 ? cum.slice(0, -1) : cum;
-    const nm = tot === 12 ? Object.keys(SCALES).find((k) => SCALES[k].join() === offs.join()) : null;
-    el.innerHTML = '<h4>🪜 ' + t('lw_scale') + '</h4><div class="lw-row">' + lSel('root', LSPF.map((x, i) => [i, lSp(x[0], x[1])]), s.root, t('lw_root')) +
-        lSel('preset', [['', t('lw_presets') + '…']].concat(LW_PRESETS.map((k) => [k, scaleDisp(k)])), '', t('lw_presets')) + '</div>' +
-        '<div class="lw-row" role="group" aria-label="' + t('lw_steps') + '">' + [['w', t('lw_w')], ['h', t('lw_h')], ['wh', t('lw_wh')]].map((b) => '<button type="button" class="btn sm" data-w="' + b[0] + '"' + (tot >= 12 ? ' disabled' : '') + '>+ ' + b[1] + '</button>').join('') +
-        '<button type="button" class="btn ghost sm" data-w="undo"' + (s.st.length ? '' : ' disabled') + '>↶ ' + t('lw_undo') + '</button><button type="button" class="btn ghost sm" data-w="clear">' + t('lw_clear') + '</button>' +
-        '<button type="button" class="btn primary sm" data-w="splay">▶ ' + t('lw_play') + '</button></div>' +
-        '<div class="lw-steps" aria-label="' + t('lw_steps') + '">' + (s.st.length ? s.st.map((x) => '<span class="lw-st s' + x + '">' + lwStepLab(x) + '</span>').join('') : '<span class="lw-st">—</span>') + '</div>' +
-        '<div class="lw-notes">' + cum.map((o, i) => '<span class="lw-chip' + (i === 0 || o === 12 ? ' t' : '') + '">' + pcName(s.root + o, flat) + '</span>').join('') + '</div>' +
-        '<p class="lw-out" aria-live="polite">' + t('lw_total', tot) + ' · ' + (tot === 12 ? (nm ? t('lw_name', '<b>' + scaleDisp(nm) + '</b>') : t('lw_complete') + ' ' + t('lw_name_none')) : t('lw_name_none')) + '</p>';
-}
-const LW_Q = ['maj', 'm', 'dim', 'aug', 'sus2', 'sus4', '7', 'maj7', 'm7', 'm7♭5', 'dim7', '6', 'add9'];
-const LW_STEP: Record<number, number> = { 0: 0, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 11: 6, 14: 1 };
-function lwChordData(s: LwChordState) {
-    const c = CHORDS.find((x) => x.symbol === s.q), rs = LSPF[s.root], base = 60 + s.root - (s.root > 6 ? 12 : 0);
-    if (!c)
-        throw new TypeError('Étude: unknown chord quality ' + s.q);
-    let tones = c.intervals.map((iv) => {
-        let li = (rs[0] + (s.q === 'dim7' && iv === 9 ? 6 : LW_STEP[iv] || 0)) % 7, pcT = (s.root + iv) % 12, acc = ((pcT - LNAT[li]) % 12 + 18) % 12 - 6;
-        if (Math.abs(acc) > 1) {
-            li = LSPS[pcT][0];
-            acc = LSPS[pcT][1];
-        }
-        return { li, acc, midi: base + iv, iv };
-    });
-    const inv = Math.min(s.inv, tones.length - 1);
-    for (let k = 0; k < inv; k++)
-        tones[k].midi += 12;
-    tones.sort((a, b) => a.midi - b.midi);
-    let b: { li: number; acc: number; midi: number } = tones[0];
-    if (s.bass >= 0 && s.bass !== b.midi % 12) {
-        const sp = (tones.find((x) => x.midi % 12 === s.bass)) || { li: LSPF[s.bass][0], acc: LSPF[s.bass][1] };
-        b = { li: sp.li, acc: sp.acc, midi: 0 };
-    }
-    const bpc = s.bass >= 0 ? s.bass : tones[0].midi % 12;
-    let bm = 36 + bpc;
-    if (bm < 40)
-        bm += 12;
-    const root = tones.find((x) => x.iv === 0);
-    if (!root)
-        throw new TypeError('Étude: chord has no root');
-    const sym = lSp(root.li, root.acc) + (s.q === 'maj' ? '' : s.q), slash = bpc !== s.root;
-    return { c, tones, inv, bass: { li: b.li, acc: b.acc, midi: bm }, symbol: sym + (slash ? '/' + lSp(b.li, b.acc) : '') };
-}
-function lwChord(el: LearnWidgetEl) {
-    const s = lwIsChord(el._s) ? el._s : (el._s = { root: 0, q: 'maj', inv: 0, bass: -1 }), D = lwChordData(s);
-    el.innerHTML = '<h4>🧱 ' + t('lw_chord') + '</h4><div class="lw-row">' + lSel('root', LSPF.map((x, i) => [i, lSp(x[0], x[1])]), s.root, t('lw_root')) +
-        lSel('q', LW_Q.map((q) => { const c = CHORDS.find((x) => x.symbol === q); return [q, (q === 'maj' ? '—' : q) + ' · ' + chordDisp(c)]; }), s.q, t('lw_quality')) +
-        lSel('inv', Array.from({ length: D.tones.length }, (_, i) => [i, t('lw_inv' + i)]), D.inv, t('lw_inv')) +
-        lSel('bass', [[-1, t('lw_none')]].concat(LSPF.map((x, i) => [i, lSp(x[0], x[1])])), s.bass, t('lw_bass')) + '</div>' +
-        '<dl class="lw-dl"><div><dt>' + t('lw_symbol') + '</dt><dd><b>' + D.symbol + '</b></dd></div><div><dt>' + t('lw_formula') + '</dt><dd>' + D.c.intervals.map((i) => CHORD_DEG[i] || i).join(' – ') + '</dd></div>' +
-        '<div><dt>' + t('lw_notes') + '</dt><dd>' + D.tones.map((x) => lSp(x.li, x.acc)).join(' – ') + '</dd></div></dl>' +
-        lStaffSmall({ rh: [[D.tones.map((x) => lPitch(x.li, x.acc, x.midi)), 4]], lh: [[lPitch(D.bass.li, D.bass.acc, D.bass.midi), 4]] }, D.symbol) +
-        '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cplay">▶ ' + t('lw_play') + '</button></div>';
-}
-function lCofN(i: number, enh?: boolean) { return enh && i === 5 ? -7 : enh && i === 6 ? -6 : enh && i === 7 ? 7 : i <= 6 ? i : i - 12; }
-function lCofKey(i: number, enh?: boolean) { const n = lCofN(i, enh), ka = ssKeyAcc(n), li = n >= 0 ? (4 * n) % 7 : (3 * -n) % 7, mli = (li + 5) % 7; return { n, li, acc: ka[li], mli, macc: ka[mli], ka }; }
-function lCofTriad(K: ReturnType<typeof lCofKey>, minor?: boolean) {
-    const rLi = minor ? K.mli : K.li, oct = rLi >= 5 ? -12 : 0;
-    const tones = [0, 2, 4].map((d) => { const li = (rLi + d) % 7, acc = K.ka[li], midi = 60 + LNAT[li] + acc + (li < rLi ? 12 : 0) + oct; return { pitch: lPitch(li, acc, midi), midi }; });
-    return { pitches: tones.map((x) => x.pitch), midis: tones.map((x) => x.midi) };
-}
-function lwCof(el: LearnWidgetEl) {
-    const s = lwIsCof(el._s) ? el._s : (el._s = { i: 0 });
-    el.innerHTML = '<p class="lw-hint">' + t('lw_cof_d') + '</p><div class="lw-cof-wrap"><div class="lw-cof-wheel">' + renderCofWheel('staff', {
-        t: (key, ...args) => t(key, ...args),
-        spellName: (letter, acc) => spelledName(notation, letter, acc),
-        lCofN,
-    }) +
-        '</div><div class="lw-cof-info" aria-live="polite"></div></div>';
-    lwCofInfo(el, s);
-    cofBindKeys(el, (i, minor) => {
-        if (i !== s.i)
-            s.enh = false;
-        s.i = i;
-        s.minor = minor;
-        lwCofInfo(el, s);
-        void lwCofPlay(s);
-    });
-}
-function lwCofInfo(el: LearnWidgetEl, s: LwCofState) {
-    cofWheelSelect(el, s.i, !!s.minor, true);
-    const hasEnh = s.i >= 5 && s.i <= 7, enh = hasEnh && !!s.enh, minor = !!s.minor;
-    const K = lCofKey(s.i, enh), altK = hasEnh ? lCofKey(s.i, !enh) : null;
-    const cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
-    const tri = lCofTriad(K, minor);
-    const sig = cnt ? t(K.n > 0 ? 'lw_sig_s' : 'lw_sig_f', cnt, ord.join(' ')) : t('lw_sig0');
-    const name = minor ? lSp(K.mli, K.macc) : lSp(K.li, K.acc), key = t(minor ? 'key_minor' : 'key_major', name);
-    const relName = minor ? lSp(K.li, K.acc) : lSp(K.mli, K.macc), relKey = t(minor ? 'key_major' : 'key_minor', relName);
-    const relHtml = minor ? t('cof_rel_maj', '<b>' + relKey + '</b>') : t('lw_rel', '<b>' + relKey + '</b>');
-    const togBtns = '<button type="button" class="btn ghost sm" data-w="cofmin">' + relKey + '</button>' +
-        (altK ? '<button type="button" class="btn ghost sm" data-w="cofenh">' + lSp(minor ? altK.mli : altK.li, minor ? altK.macc : altK.acc) + ' (' + Math.abs(altK.n) + (altK.n > 0 ? '♯' : '♭') + ')</button>' : '');
-    lwPart(el, '.lw-cof-info').innerHTML = '<p><b>' + key + '</b></p><p>' + sig + '</p><p>' + relHtml + '</p>' +
-        lStaffSmall({ rh: [[tri.pitches, 4]], keyN: K.n }, key + '. ' + sig) + '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button>' + togBtns + '</div>';
-}
-async function lwCofPlay(s: LwCofState) {
-    const tri = lCofTriad(lCofKey(s.i, s.enh), s.minor);
-    learnHalt();
-    ensureAudio();
-    if (!await preparePiano())
-        return;
-    playChordMidis(tri.midis, true);
-    learnLight(tri.midis, 2200);
-}
-const LW_R: Record<string, ((el: LearnWidgetEl) => void) | undefined> = { scale: lwScale, chord: lwChord, cof: lwCof, metro: lwMetro };
-function lwMount(el: LearnWidgetEl) { el.classList.add('lw'); const f = LW_R[el.dataset.widget ?? '']; if (f)
-    f(el); }
-function lwRefocus(el: LearnWidgetEl, sel: string) { (LW_R[el.dataset.widget ?? ''] || (() => { }))(el); const f = queryHtml(el, sel); const g = f && !('disabled' in f && f.disabled) ? f : queryHtml(el, '[data-w="splay"],[data-w="clear"]'); if (g) {
-    g.focus({ preventScroll: true });
-    learnReveal(g);
-} }
-function lwInput(e: Event) {
-    const x = e.target;
-    if (!(x instanceof HTMLInputElement || x instanceof HTMLSelectElement))
-        return;
-    const wi = x.dataset.wi, box = x.closest('[data-widget]'), el: LearnWidgetEl | null = box instanceof HTMLElement ? box : null;
-    if (!wi || !el)
-        return;
-    if (wi === 'bpm') {
-        const s = lwMetroState(el);
-        s.bpm = +x.value;
-        x.setAttribute('aria-valuetext', t('lw_bpm', s.bpm) + ', ' + lmTerm(s.bpm));
-        lwPart(el, '.lw-bpm').innerHTML = '<b>' + s.bpm + '</b> BPM · <i>' + lmTerm(s.bpm) + '</i>';
-        return;
-    }
-    if (e.type !== 'change')
-        return;
-    if (wi === 'meter') {
-        lwMetroState(el).meter = x.value;
-        LM.i = 0;
-        lmDots(el);
-        return;
-    }
-    if (wi === 'preset') {
-        if (!x.value)
-            return;
-        const o = SCALES[x.value].concat([12]);
-        lwScaleState(el).st = o.slice(1).map((v, i) => v - o[i]);
-    }
-    else if (wi === 'root') {
-        const s = el._s;
-        if (!lwIsScale(s) && !lwIsChord(s))
-            throw lwStateError(el);
-        s.root = +x.value;
-    }
-    else if (wi === 'q') {
-        const s = lwChordState(el);
-        s.q = x.value;
-        s.inv = 0;
-    }
-    else if (wi === 'inv') {
-        lwChordState(el).inv = +x.value;
-    }
-    else if (wi === 'bass') {
-        lwChordState(el).bass = +x.value;
-    }
-    lwRefocus(el, '[data-wi="' + wi + '"]');
-    if (el.dataset.widget === 'chord')
-        lwChordPlay(el);
-    else if (wi === 'preset')
-        lwScalePlay(el);
-}
-async function lwScalePlay(el: LearnWidgetEl) {
-    const s = lwScaleState(el), cum = [0];
-    s.st.forEach((x) => cum.push(cum[cum.length - 1] + x));
-    learnHalt();
-    ensureAudio();
-    if (!await preparePiano())
-        return;
-    const r = 60 + s.root - (s.root > 6 ? 12 : 0), T0 = learnCtxTime() + 0.05;
-    cum.forEach((o, i) => previewNote(r + o, T0 + i * 0.3, 0.3, 90));
-    lSeqLight(cum.map((o) => [r + o]), 300, 600);
-    const nm = el.querySelector('.lw-out');
-    if (nm)
-        learnSay(nm.textContent);
-}
-async function lwChordPlay(el: LearnWidgetEl) {
-    const D = lwChordData(lwChordState(el)), ms = [D.bass.midi].concat(D.tones.map((x) => x.midi));
-    learnHalt();
-    ensureAudio();
-    if (!await preparePiano())
-        return;
-    const T0 = learnCtxTime() + 0.05;
-    ms.forEach((m, i) => previewNote(m, T0 + i * 0.14, 0.4, 86));
-    ms.forEach((m) => previewNote(m, T0 + ms.length * 0.14 + 0.1, 1.3, 84));
-    learnLight(ms, ms.length * 140 + 1600);
-    learnSay(D.symbol);
-}
-async function lwClick(w: HTMLElement) {
-    const box = w.closest('[data-widget]'), el: LearnWidgetEl | null = box instanceof HTMLElement ? box : null;
-    if (!el)
-        return;
-    const a = w.dataset.w;
-    if (a === 'mstart') {
-        if (LM.el === el)
-            lmStop();
-        else {
-            learnHalt();
-            lmStart(el);
-        }
-        return;
-    }
-    if (a === 'splay')
-        return lwScalePlay(el);
-    if (a === 'cplay')
-        return lwChordPlay(el);
-    if (a === 'cofplay' || a === 'cofmin' || a === 'cofenh') {
-        const s = lwCofState(el);
-        if (a !== 'cofplay') {
-            if (a === 'cofmin')
-                s.minor = !s.minor;
-            else
-                s.enh = !s.enh;
-            lwCofInfo(el, s);
-            queryHtml(el, '[data-w="' + a + '"]')?.focus({ preventScroll: true });
-        }
-        return lwCofPlay(s);
-    }
-    if (a === 'w' || a === 'h' || a === 'wh') {
-        const s = lwScaleState(el), st = ({ w: 2, h: 1, wh: 3 })[a], tot = s.st.reduce((x, y) => x + y, 0);
-        if (tot + st > 12) {
-            learnSay(t('lw_over'));
-            return;
-        }
-        s.st.push(st);
-        lwRefocus(el, '[data-w="' + a + '"]');
-        const m = 60 + s.root - (s.root > 6 ? 12 : 0) + tot + st;
-        ensureAudio();
-        if (await preparePiano()) {
-            previewNote(m, learnCtxTime() + 0.02, 0.5, 90);
-            learnLight([m], 700);
-        }
-        if (tot + st === 12)
-            learnSay(lwPart(el, '.lw-out').textContent);
-        return;
-    }
-    if (a === 'undo') {
-        lwScaleState(el).st.pop();
-        lwRefocus(el, '[data-w="undo"]');
-        return;
-    }
-    if (a === 'clear') {
-        lwScaleState(el).st = [];
-        lwRefocus(el, '[data-w="clear"]');
-    }
-}
-function lgNorm(s: string) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
-function lgHTML() {
-    const k = (GLOSS[0] && GLOSS[0][lang]) ? lang : 'en', list = GLOSS.slice().sort((a, b) => ((a[k] ? a[k][0] : a.en[0])).localeCompare(b[k] ? b[k][0] : b.en[0], lang));
-    return '<h3 tabindex="-1">📖 ' + t('lg_title') + '</h3><label class="lg-search"><span>' + t('lg_search') + '</span><input type="search" id="lg-q" placeholder="' + t('lg_ph') + '" autocomplete="off"></label>' +
-        '<p class="lg-n" id="lg-n" aria-live="polite"></p><dl class="lg-list">' + list.map((g) => {
-        const L = LESSONS.find((x) => x.id === g.l);
-        const cur = g[k] || g.en;
-        return '<div class="lg-it" data-k="' + lgNorm(cur[0] + ' ' + cur[1] + ' ' + g.searchEnglish).replace(/"/g, '') + '"><dt>' + cur[0] + '</dt><dd>' + cur[1] + (L ? ' <a href="#" data-lgo="' + L.id + '">' + L.icon + ' ' + learnTitle(L) + '</a>' : '') + '</dd></div>';
-    }).join('') + '</dl>' +
-        '<div class="learn-nav"><button type="button" class="btn ghost sm" data-lgback="1">' + t('lg_close') + '</button></div>';
-}
-function lgFilter() {
-    const qEl = maybeById('lg-q'), q = qEl instanceof HTMLInputElement ? qEl : null, v = q ? lgNorm(q.value.trim()) : '';
-    let n = 0;
-    queryAllHtml(document, '#learnBody .lg-it').forEach((it) => { const on = !v || (it.dataset.k ?? '').includes(v); it.hidden = !on; if (on)
-        n++; });
-    const o = maybeById('lg-n');
-    if (o)
-        o.textContent = n ? t('lg_n', n) : t('lg_none', q ? q.value.trim() : '');
 }
 /* ============================================================================
    READ & PLAY — the sight-reading engine. Grand staff engraver (reuses the ss glyphs)
@@ -19171,18 +17881,7 @@ function syncRefresh() {
         rdnRenderHome(false);
     else if (view0() === 'analysis')
         pcRender();
-    else if (view0() === 'learn' && learnWired) {
-        const active = document.activeElement;
-        const lesson = active instanceof HTMLElement ? active.dataset.li : undefined;
-        const nav = active instanceof HTMLElement ? active.dataset.ln : undefined;
-        const id = active?.id;
-        learnSide();
-        learnNavRender();
-        const next = lesson ? queryHtml(byId('learnToc'), `[data-li="${lesson}"]`)
-            : nav ? queryHtml(byId('learnBody'), `[data-ln="${nav}"]`)
-            : id === 'learnPick' || id === 'learnGlossBtn' ? maybeById(id) : null;
-        next?.focus({ preventScroll: true });
-    }
+    for (const ctrl of Object.values(loadedFeatures)) ctrl?.onStorageSync?.();
 }
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
@@ -19454,8 +18153,7 @@ async function storeReset() {
             return;
         }
         storeSaved();
-        renderLearn._init = false;
-        learnSel = 0;
+        for (const ctrl of Object.values(loadedFeatures)) ctrl?.onProgressReset?.();
         renderProgress();
         refreshToday();
     }
@@ -20105,8 +18803,6 @@ function initControls() {
     byId('helpClose').addEventListener('click', () => openHelp(false));
     byId('drawer').addEventListener('keydown', trapFocus);
     byId('helpBox').addEventListener('keydown', trapFocus);
-    // learn: demo buttons + cross-links
-    byId('learnBody').addEventListener('click', (e) => learnClick(e));
     // theme
     byId('set-theme').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_THEMES, v))
         return; theme = v; applyTheme(); saveAll(); });
@@ -20678,14 +19374,11 @@ const __etude: EtudeSurface = {};
 const __etudeGetters: Record<string, () => unknown> = {
   "ensureAnalysisModules": () => ensureAnalysisModules,
   "LESSONS": () => LESSONS,
-  "learnReady": () => learnLoading ?? Promise.resolve(),
   "scoreLibraryStore": () => scoreLibraryStore,
   "anInspectDifficulty": () => anInspectDifficulty,
   "rdnRecord": () => rdnRecord,
   "anLibraryFlush": () => anLibraryFlush,
-  "LGEN": () => LGEN,
   "LP": () => LP,
-  "LQ": () => LQ,
   "_modalAfterBack": () => _modalAfterBack,
   "_modalBackPending": () => _modalBackPending,
   "_noiseBuf": () => _noiseBuf,
@@ -20894,7 +19587,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "connectMidi": () => connectMidi,
   "currentStreak": () => currentStreak,
   "data": () => data,
-  "demoBeat": () => demoBeat,
   "dispSym": () => dispSym,
   "dockKeepEnd": () => dockKeepEnd,
   "dockLabels": () => dockLabels,
@@ -20993,85 +19685,24 @@ const __etudeGetters: Record<string, () => unknown> = {
   "keyAt": () => keyAt,
   "keyFifths": () => keyFifths,
   "keyFromFifths": () => keyFromFifths,
-  "lBarsHTML": () => lBarsHTML,
-  "lCofKey": () => lCofKey,
-  "lDots": () => lDots,
-  "lPitch": () => lPitch,
-  "lSel": () => lSel,
-  "lSeqLight": () => lSeqLight,
-  "lSp": () => lSp,
-  "lStaffHTML": () => lStaffHTML,
-  "lStaffNote": () => lStaffNote,
-  "lStaffPlay": () => lStaffPlay,
-  "lStaffSmall": () => lStaffSmall,
-  "lStaffSvg": () => lStaffSvg,
-  "lVel": () => lVel,
   "labelMode": () => labelMode,
   "labelSettingsControl": () => labelSettingsControl,
   "labelSettingsControls": () => labelSettingsControls,
   "lang": () => lang,
-  "learnBodyHTML": () => learnBodyHTML,
-  "learnClick": () => learnClick,
-  "learnComplete": () => learnComplete,
   "learnData": () => learnData,
   "learnDueDays": () => learnDueDays,
   "learnDueList": () => learnDueList,
   "learnGap": () => learnGap,
-  "learnGloss": () => learnGloss,
-  "learnGo": () => learnGo,
   "learnGoId": () => learnGoId,
-  "learnHalt": () => learnHalt,
-  "learnInitSel": () => learnInitSel,
-  "learnInput": () => learnInput,
-  "learnLight": () => learnLight,
-  "learnMark": () => learnMark,
-  "learnNavRender": () => learnNavRender,
   "learnPlanItems": () => learnPlanItems,
-  "learnRdLevel": () => learnRdLevel,
-  "learnReveal": () => learnReveal,
-  "learnSay": () => learnSay,
-  "learnSel": () => learnSel,
-  "learnSide": () => learnSide,
-  "learnTimer": () => learnTimer,
   "learnTitle": () => learnTitle,
   "learnUnitDone": () => learnUnitDone,
   "learnUnitOf": () => learnUnitOf,
-  "learnWire": () => learnWire,
   "lfo": () => lfo,
   "lfoGain": () => audioEngine.lfoGain,
-  "lgFilter": () => lgFilter,
-  "lgHTML": () => lgHTML,
-  "lgNorm": () => lgNorm,
   "listInputs": () => listInputs,
-  "lmDots": () => lmDots,
-  "lmMeter": () => lmMeter,
-  "lmStart": () => lmStart,
-  "lmStop": () => lmStop,
-  "lmTerm": () => lmTerm,
   "loadAll": () => loadAll,
   "localSynth": () => audioEngine.localSynth,
-  "lqAnswer": () => lqAnswer,
-  "lqFocus": () => lqFocus,
-  "lqLabel": () => lqLabel,
-  "lqMidis": () => lqMidis,
-  "lqNeed": () => lqNeed,
-  "lqNext": () => lqNext,
-  "lqPick": () => lqPick,
-  "lqRender": () => lqRender,
-  "lqShow": () => lqShow,
-  "lqStart": () => lqStart,
-  "lwChord": () => lwChord,
-  "lwChordData": () => lwChordData,
-  "lwChordPlay": () => lwChordPlay,
-  "lwClick": () => lwClick,
-  "lwCof": () => lwCof,
-  "lwInput": () => lwInput,
-  "lwMetro": () => lwMetro,
-  "lwMount": () => lwMount,
-  "lwRefocus": () => lwRefocus,
-  "lwScale": () => lwScale,
-  "lwScalePlay": () => lwScalePlay,
-  "lwStepLab": () => lwStepLab,
   "makeIR": () => makeIR,
   "makePianoVoice": () => makePianoVoice,
   "makeQuestion": () => makeQuestion,
@@ -21288,7 +19919,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "releaseLiveInput": () => releaseLiveInput,
   "releaseTypingKeys": () => releaseTypingKeys,
   "renderAccompany": () => renderAccompany,
-  "renderLearn": () => renderLearn,
   "renderModeNav": () => renderModeNav,
   "renderPlan": () => renderPlan,
   "renderPracticeLast": () => renderPracticeLast,
@@ -21303,7 +19933,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "reverbWet": () => audioEngine.reverbWet,
   "reviewItem": () => reviewItem,
   "romanFor": () => romanFor,
-  "runDemo": () => runDemo,
   "sampledPianoVoice": () => sampledPianoVoice,
   "saveAll": () => saveAll,
   "saveSoon": () => saveSoon,
@@ -21570,27 +20199,8 @@ const __etudeGetters: Record<string, () => unknown> = {
   "IVL": () => IVL,
   "KEYMAP": () => KEYMAP,
   "KEY_MAJ_FIFTHS": () => KEY_MAJ_FIFTHS,
-  "LACC_CH": () => LACC_CH,
-  "LBLUES": () => LBLUES,
-  "LDUR": () => LDUR,
-  "LEARN_GAPS": () => LEARN_GAPS,
-  "LEARN_OLD_ORDER": () => LEARN_OLD_ORDER,
   "LETTERS": () => LETTERS,
   "LETTER_PC": () => LETTER_PC,
-  "LLET": () => LLET,
-  "LM": () => LM,
-  "LNAT": () => LNAT,
-  "LSPF": () => LSPF,
-  "LSPS": () => LSPS,
-  "LSR": () => LSR,
-  "LSTAVES": () => LSTAVES,
-  "LT": () => LT,
-  "LTEMPO": () => LTEMPO,
-  "LVEL": () => LVEL,
-  "LW_PRESETS": () => LW_PRESETS,
-  "LW_Q": () => LW_Q,
-  "LW_R": () => LW_R,
-  "LW_STEP": () => LW_STEP,
   "MAJOR": () => MAJOR,
   "NOTE_SYS": () => NOTE_SYS,
   "PC_FLAT": () => PC_FLAT,
@@ -21702,7 +20312,6 @@ __etudeRegistry.defineMutable("syncPull", () => syncPull, (value) => { syncPull 
 __etudeRegistry.defineMutable("actx", () => audioEngine.context, (value) => { audioEngine.context = value; });
 __etudeRegistry.defineMutable("localSynth", () => audioEngine.localSynth, (value) => { audioEngine.localSynth = value; });
 __etudeRegistry.defineMutable("notation", () => notation, (value) => { notation = value; });
-__etudeRegistry.defineMutable("renderLearn", () => renderLearn, (value) => { renderLearn = value; });
 __etudeRegistry.defineMutable("show", () => show, (value) => { show = value; });
 __etudeRegistry.defineMutable("theme", () => theme, (value) => { theme = value; });
 __etudeRegistry.defineValue("srtEvaluate", srtEvaluate);
