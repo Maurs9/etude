@@ -1,3 +1,4 @@
+import { samePitch } from '../core/pitch-match.js';
 export type InstantFeedbackGrade = 'good' | 'near' | 'bad';
 
 export interface InstantFeedbackExpectedNote {
@@ -30,13 +31,6 @@ export interface InstantFeedbackTracker {
   sweepMissed(nowMs: number, graceMs?: number): readonly number[];
 }
 
-function pitchClass(midi: number): number {
-  return ((midi % 12) + 12) % 12;
-}
-
-function samePitch(a: number, b: number, anyOctave: boolean): boolean {
-  return anyOctave ? pitchClass(a) === pitchClass(b) : a === b;
-}
 
 function noteWindow(
   note: InstantFeedbackExpectedNote,

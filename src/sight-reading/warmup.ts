@@ -4,6 +4,7 @@ import { srtDegreePitch, srtLevel, srtMeterTicks, srtReadingKey, type LevelPiece
 import { srtGenerateLevelPiece, srtHashText } from './melody.js';
 import type { SightReadingHand } from './model.js';
 import type { LevelScore, LevelScoreToken } from './score.js';
+import { pitchKey } from '../core/pitch-match.js';
 
 /** How long a flash card stays visible. */
 export const SRT_FLASH_MS = 2000;
@@ -103,7 +104,7 @@ export function srtWarmupPlan(levelId: number, keyId: string, name: string): rea
 
 /** True when the notes played match a flash card: the same notes in the same order, in any octave when allowed. */
 export function srtFlashMatches(card: FlashCard, played: readonly (readonly number[])[], anyOctave = false): boolean {
-  const fold = (midi: number): number => (anyOctave ? ((midi % 12) + 12) % 12 : midi);
+  const fold = (midi: number): number => pitchKey(midi, anyOctave);
   const same = (a: readonly number[], b: readonly number[]): boolean => {
     const left = a.map(fold).sort((x, y) => x - y);
     const right = b.map(fold).sort((x, y) => x - y);
