@@ -425,6 +425,53 @@ test.describe('Read player', () => {
     await expect(page.locator('#rdn-home')).toBeVisible();
   });
 
+  test('Step by step accepts a chord only when its keys are struck together and held', async ({ app }) => {
+    const page = await openHome(app, withBook({ level: 5 }));
+    expect(await openTwoHandPiece(page)).toBeGreaterThan(0);
+    await page.locator('#rd-mode button[data-v="learn"]').click();
+    await page.locator('#rd-go').click();
+    const chord = await page.evaluate(() => {
+      const api = window.__etude;
+      const index = api.SR.steps.findIndex(step => new Set(step.notes.map(note => note.midi)).size === 2);
+      for (const step of api.SR.steps.slice(0, Math.max(0, index))) {
+        const keys = [...new Set(step.notes.map(note => note.midi))];
+        keys.forEach(key => api.midiIn(0x90, key, 90, 'midi', 1000));
+        keys.forEach(key => api.midiIn(0x80, key, 0, 'midi', 1020));
+      }
+      return { index, current: api.SR.stepIdx, keys: api.SR.steps[index]?.notes.map(note => note.midi) };
+    });
+    expect(chord.index).toBeGreaterThanOrEqual(0);
+    expect(chord.current).toBe(chord.index);
+    const verdict = page.locator('#rd-verdict');
+    await expect(verdict).toContainText('Play the highlighted keys together.');
+
+    const attempts = await page.evaluate(({ keys: notes }) => {
+      const api = window.__etude;
+      const [a, b] = [...new Set(notes)];
+      const send = (status, note, value, at) => api.midiIn(status, note, value, 'midi', at);
+      send(0xb0, 64, 127, 2000);
+      send(0x90, a, 90, 2010);
+      send(0x80, a, 0, 2040);
+      send(0x90, b, 90, 2080);
+      const sequential = api.SR.stepIdx;
+      send(0x80, b, 0, 2090);
+      send(0xb0, 64, 0, 2100);
+      send(0x90, a, 90, 2200);
+      send(0x90, b, 90, 2351);
+      const tooFarApart = api.SR.stepIdx;
+      send(0x80, a, 0, 2360);
+      send(0x80, b, 0, 2360);
+      send(0x90, a, 90, 2500);
+      send(0x90, b, 90, 2650);
+      const together = api.SR.stepIdx;
+      send(0x80, a, 0, 2670);
+      send(0x80, b, 0, 2670);
+      return { sequential, tooFarApart, together, mistakes: api.SR.mistakes };
+    }, chord);
+    expect(attempts).toEqual({ sequential: chord.index, tooFarApart: chord.index, together: chord.index + 1, mistakes: 0 });
+    await expect(verdict).toContainText(String(chord.index + 1) + ' / ');
+  });
+
   test('a finished Step-by-step run shows the result card, with dashes for what it does not measure', async ({ app, page }) => {
     await openHome(app);
     await page.locator('#rdn-book-go').click();

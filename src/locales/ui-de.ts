@@ -1959,6 +1959,7 @@ const payload: UIPayload = {
       "rd_count": "Einzähler…",
       "rd_play": "Spielen!",
       "rd_learn_go": "Spiele die markierte Note — die Tasten unten zeigen das Ziel.",
+      "rd_learn_chord": "Drücke die markierten Tasten gleichzeitig.",
       "rd_perfect": "Perfekt — ein fehlerfreier Durchlauf! ✦",
       "rd_done_learn": "Fertig — %s Fehler. Spiele es noch einmal für einen sauberen Durchgang.",
       "rd_score": "Ergebnis: %s%",

@@ -26,7 +26,7 @@ import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { createAccompanimentController } from '../features/practice/accompaniment.js';
 import { createSongBookController } from '../features/practice/song-book.js';
-import { evaluateWaitChord } from './wait-chord.js';
+import { evaluateWaitChord, WAIT_CHORD_WINDOW } from './wait-chord.js';
 import type { gradePracticeSustain as gradePracticeSustainFn, practiceAccuracy as pracAccFn, practicePercent as practicePercentFn, practiceSustainReference as practiceSustainReferenceFn, TimedSustain } from './practice-scoring.js';
 import type { classifyUnmatchedKeyPress as classifyUnmatchedKeyPressFn, extractSustainMistakes as extractSustainMistakesFn, groupPracticeMistakes as groupPracticeMistakesFn, practicePassageBounds as practicePassageBoundsFn, MeasureMistakeGroup, PracticeMistakeEvent } from './practice-mistakes.js';
 import type { createCursorCurves as createCursorCurvesFn, cursorCurveAt as cursorCurveAtFn } from './score-cursor.js';
@@ -1082,6 +1082,7 @@ function releaseLiveInput() {
     held.forEach((m) => audioNoteOff(m));
     sustained.forEach((m) => audioNoteOff(m));
     held.clear();
+    SR.stepAttacks.clear();
     heldOrder.length = 0;
     sustained.clear();
     inputOwners.clear();
@@ -1154,6 +1155,8 @@ function panic() {
 const inputBusListeners = new Set<InputBusListener>();
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
+    if (kind === 'off')
+        SR.stepAttacks.delete(midi);
     if (calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
         if (kind === 'on')
             calTap();
@@ -1195,9 +1198,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
         return;
     }
     if (view0() === 'read' && SR.active && kind === 'on') {
-        const m = heldOrder[heldOrder.length - 1];
-        if (m != null)
-            srKeyInput(m);
+        srKeyInput(midi);
         return;
     }
     if (SES.active) {
@@ -3980,7 +3981,7 @@ interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 interface SrSlip { k: string; n: SrStaffNote; m: number }
 interface SrState {
     piece: SrPiece | null; hands: string; modeSel: string; names: boolean; anyOctave: boolean; instantFeedback: boolean; active: boolean; assessOn: boolean;
-    notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
+    notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; stepAttacks: Map<number, number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
     gen?: SrPiece | null; listening?: boolean;
@@ -3991,7 +3992,7 @@ interface SrState {
     lvPiece?: GeneratedPiece | null;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, instantFeedback: false, active: false, assessOn: false,
-    notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
+    notes: [], steps: [], stepIdx: 0, stepAttacks: new Map(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
     srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null,
@@ -4175,7 +4176,7 @@ function srPaintAll() {
     const stepNids = st ? new Set(st.notes.map((n: { nid: number; }) => n.nid)) : null;
     entry.notes.forEach(({ g, title, sym: visible }, id) => {
         const r = SR.results[id];
-        if (stepNids && stepNids.has(id) && !SR.hit.has(id))
+        if (stepNids?.has(id))
             g.dataset.s = 'now';
         else if (r)
             g.dataset.s = r;
@@ -4357,8 +4358,7 @@ function srTargets() {
         return;
     const st = SR.steps[SR.stepIdx];
     if (st)
-        st.notes.forEach((n: { nid: number; midi: number; }) => { if (!SR.hit.has(n.nid))
-            kbState(n.midi, 'target', true); });
+        st.notes.forEach(n => kbState(n.midi, 'target', true));
 }
 function srClick(t: number, acc: boolean) {
     const click = audioEngine.scheduleClick(t, acc);
@@ -4463,6 +4463,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     }
     const preservePendingResult = srtPendingSaveProtected();
     SR.active = false;
+    SR.stepAttacks.clear();
     stageSync();
     rdnNavUi();
     SR.assessOn = false;
@@ -4490,7 +4491,6 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
         SR.results = {};
         SR.wrongExtra = 0;
         SR.stepIdx = 0;
-        SR.hit.clear();
         SR.next = null;
         srPaintAll();
     }
@@ -4514,7 +4514,13 @@ function srPlayGap(fromBeat: number, toBeat: number) {
         return;
     SR.notes.filter((n) => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach((n) => previewNote(n.midi, ctx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
 }
-function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
+function srCount(start = false) {
+    const v = byId('rd-verdict'), step = SR.steps[SR.stepIdx];
+    const chord = step?.notes.some(n => n.midi !== step.notes[0].midi);
+    const count = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : '');
+    v.className = 'verdict neutral';
+    v.textContent = chord ? count + ' · ' + t('rd_learn_chord') : start ? t('rd_learn_go') : count;
+}
 function srLearnStart() {
     rdnResultHide();
     SR.active = true;
@@ -4524,7 +4530,6 @@ function srLearnStart() {
     rdWarmButtonsSync();
     SR.results = {};
     SR.stepIdx = 0;
-    SR.hit.clear();
     SR.mistakes = 0;
     SR.errs = {};
     SR.slipKey = null;
@@ -4533,9 +4538,7 @@ function srLearnStart() {
     srPaintAll();
     srTargets();
     srScrollStep();
-    const v = byId('rd-verdict');
-    v.className = 'verdict neutral';
-    v.textContent = t('rd_learn_go');
+    srCount(true);
     byId('rd-go').textContent = t('rd_stop');
 }
 function srLearnFinish() {
@@ -5477,41 +5480,44 @@ function srRenderAssessResult() {
     v.textContent = text;
 }
 function srKeyInput(m: number) {
-    if (!SR.active)
+    const st = SR.steps[SR.stepIdx];
+    if (!SR.active || SR.modeSel !== 'learn' || !st)
         return;
-    if (SR.modeSel === 'learn') {
-        const st = SR.steps[SR.stepIdx];
-        if (!st)
-            return;
-        const need = st.notes.find((n: { nid: number; midi: number; }) => !SR.hit.has(n.nid) && (SR.anyOctave ? pc(n.midi) === pc(m) : n.midi === m));
-        if (need) {
-            SR.hit.add(need.nid);
-            SR.results[need.nid] = 'good';
-            if (st.notes.every((n: { nid: number; }) => SR.hit.has(n.nid))) {
-                const next = SR.steps[SR.stepIdx + 1];
-                srPlayGap(st.beat, next ? next.beat : 1e9);
-                SR.stepIdx++;
-                SR.hit.clear();
-                if (SR.stepIdx >= SR.steps.length) {
-                    srPaintAll();
-                    srLearnFinish();
-                    return;
-                }
-                srCount();
-            }
-            srPaintAll();
-            srTargets();
-            srScrollStep();
-        }
-        else {
-            SR.mistakes++;
-            srSlipNote(st, m);
-            kbState(m, 'bad', true);
-            SR.timers.push(setTimeout(() => { const el = keyEl.get(foldToView(m)); if (el && el.dataset.s === 'bad')
-                kbState(m, null, true); srTargets(); }, 320));
-            srCount();
-        }
+    const need = new Set(st.notes.map(n => n.midi));
+    if (!need.has(m) && (!SR.anyOctave || !st.notes.some(n => pc(n.midi) === pc(m)))) {
+        SR.mistakes++;
+        srSlipNote(st, m);
+        kbState(m, 'bad', true);
+        SR.timers.push(setTimeout(() => { const el = keyEl.get(foldToView(m)); if (el && el.dataset.s === 'bad')
+            kbState(m, null, true); srTargets(); }, 320));
+        srCount();
+        return;
     }
+    if (need.size > 1) {
+        const attacks = SR.stepAttacks;
+        attacks.set(m, inputTime() / 1000);
+        const latest = Math.max(...attacks.values());
+        // Remove stale attacks before matching so an old exact key cannot mask a fresh octave substitute.
+        for (const [key, time] of attacks)
+            if (latest - time > WAIT_CHORD_WINDOW + 1e-9)
+                attacks.delete(key);
+        // Other sounding notes from the preceding step can stay held.
+        if (!evaluateWaitChord(need, attacks, held, new Set(), held, SR.anyOctave).complete)
+            return;
+    }
+    st.notes.forEach(n => { SR.results[n.nid] = 'good'; });
+    const next = SR.steps[SR.stepIdx + 1];
+    srPlayGap(st.beat, next ? next.beat : 1e9);
+    SR.stepIdx++;
+    SR.stepAttacks.clear();
+    srPaintAll();
+    if (!next) {
+        srLearnFinish();
+        return;
+    }
+    srCount();
+    srTargets();
+    srScrollStep();
 }
 function srListen() {
     if (!SR.piece)
@@ -9752,7 +9758,7 @@ function srShape() {
 // the wrong way from the previous note, or the right way but the wrong distance.
 // What kind of slip it was (oct, key, chord, other, dir or dist), the note that was wanted and the key played.
 function srSlip(st: { notes: readonly SrStaffNote[]; }, m: number): SrSlip | null {
-    const want = st.notes.filter((n) => !SR.hit.has(n.nid));
+    const want = st.notes;
     if (!want.length)
         return null;
     const n = want.reduce((a, b) => Math.abs(b.midi - m) < Math.abs(a.midi - m) ? b : a);

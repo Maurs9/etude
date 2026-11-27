@@ -5,10 +5,9 @@ async function advanceSteps(page, count) {
     const app = window.__etude;
     for (let i = 0; i < count; i++) {
       const step = app.SR.steps[app.SR.stepIdx];
-      for (const note of step.notes) {
-        app.handleNoteOn(note.midi, 100);
-        app.handleNoteOff(note.midi);
-      }
+      const keys = [...new Set(step.notes.map(note => note.midi))];
+      keys.forEach(key => app.handleNoteOn(key, 100));
+      keys.forEach(key => app.handleNoteOff(key));
     }
   }, count);
 }

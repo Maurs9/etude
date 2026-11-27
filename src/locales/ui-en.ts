@@ -1132,6 +1132,7 @@ const payload: UIPayload = {
       "rd_count": "Count-in…",
       "rd_play": "Play!",
       "rd_learn_go": "Play the highlighted note — the keys below show the target.",
+      "rd_learn_chord": "Play the highlighted keys together.",
       "rd_perfect": "Perfect — a flawless read-through! ✦",
       "rd_done_learn": "Done — %s slip(s). Run it again for a clean pass.",
       "rd_score": "Score: %s%",

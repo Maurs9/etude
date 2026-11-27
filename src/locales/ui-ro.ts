@@ -1132,6 +1132,7 @@ const payload: UIPayload = {
       "rd_count": "Pregătește-te…",
       "rd_play": "Cântă!",
       "rd_learn_go": "Cântă nota evidențiată — clapele de jos arată ținta.",
+      "rd_learn_chord": "Apasă simultan clapele evidențiate.",
       "rd_perfect": "Perfect — citire fără nicio greșeală! ✦",
       "rd_done_learn": "Gata — %s greșeli. Mai treci o dată pentru o rundă curată.",
       "rd_score": "Scor: %s%",

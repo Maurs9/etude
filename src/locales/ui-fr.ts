@@ -234,6 +234,7 @@ const payload: UIPayload = {
       "rd_extra": "%s note(s) fausse(s) en trop",
       "rd_eyebrow": "Partitions",
       "rd_learn_go": "Jouez la note surlignée — le clavier ci-dessous indique la cible.",
+      "rd_learn_chord": "Appuyez en même temps sur les touches surlignées.",
       "rd_learned": "apprise",
       "rd_lede": "Apprenez à déchiffrer avec fluidité : courts exercices de notes, intervalles, accords, armures et rythme, puis lisez à première vue de nouvelles mélodies. Utilisez un clavier MIDI, l’écran ou A–K.",
       "rd_level": "Niveau",
