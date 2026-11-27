@@ -678,7 +678,6 @@
   .an-lasso{position:fixed; inset:0; pointer-events:none; z-index:var(--z-dock); overflow:visible}
   .an-lasso-path{fill:color-mix(in srgb, var(--sel-ui) 12%, transparent); stroke:var(--sel-ui); stroke-width:1.75; stroke-dasharray:5 3; stroke-linejoin:round; stroke-linecap:round}
   .an-about{margin-top:18px; font-size:12.5px; color:var(--muted)} .an-about summary{cursor:pointer; font-weight:600; padding:6px 0}
-  #view-analysis:has(#an-file:focus-visible) label[for="an-file"]{outline:2px solid var(--accent); outline-offset:2px}
   .ss-beam{fill:var(--staffink)}
 
   /* ---------- score & analysis: MuseScore-like workspace ---------- */
@@ -883,13 +882,6 @@
   .an-hover:not(:empty) + .st-hint{display:none}
   .an-credit{font-size:11px; margin:10px 2px 0; color:var(--faint)}
   /* empty state */
-  .an-empty{display:grid; grid-template-columns:minmax(0,1fr); gap:18px; padding:4px 18px 20px}
-  .an-drop{display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:6px; min-height:210px; padding:22px 24px; border:1.5px dashed var(--line2); border-radius:12px; background:var(--card); transition:border-color .15s, background-color .15s}
-  .an-drop.is-over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 7%, var(--card))}
-  .an-drop-t{margin:0; font-family:var(--serif); font-size:20px; font-weight:600; line-height:1.25; color:var(--ink)}
-  .an-drop-s{margin:0 0 10px; font-size:13px; color:var(--muted); max-width:44ch}
-  .an-drop-err{margin:6px 0 0; font-size:13px; font-weight:600; color:var(--bad)}
-  .an-drop-err:empty{display:none}
   /* analysis panel: beside the score on wide screens (between the toolbar and the status bar), a bottom sheet on narrow ones */
   .an-side{position:relative; display:flex; flex-direction:column; min-width:0; min-height:0; border-left:1px solid var(--line); background:var(--card)}
   .an-side-head{flex:none; display:flex; align-items:center; gap:4px; padding:0 6px 0 6px; border-bottom:1px solid var(--line)}
@@ -1028,8 +1020,6 @@
   .tool-d{font-size:13.5px; color:var(--muted)}
   .tool-go{color:var(--muted); font-size:15px}
   @media (max-width:760px){
-    .an-empty{padding:12px}
-    .an-drop{min-height:0; padding:18px}
     .an-src{padding:12px 12px 11px}
     .an-tb{gap:6px; padding:6px 8px}
     .an-score{padding:12px 10px 18px}

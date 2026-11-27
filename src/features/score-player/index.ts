@@ -7,7 +7,7 @@ import type { ScoreSelectionGesture } from '../../domain/score-gestures.js';
 import * as audio from '../../domain/audio.js';
 import type * as notationApi from '../../domain/notation.js';
 import * as scoreLibraryStore from '../../domain/score-library-store.js';
-import { AN_MAX_BYTES, AN_MAX_NOTES, SC_BASE, SC_PAGE_W, anError, scoreHasKey, xmlEsc, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnSource, type ScoreMeasure, type ScoreXmlKey } from '../../domain/score-types.js';
+import { AN_MAX_BYTES, AN_MAX_NOTES, SC_BASE, SC_PAGE_W, anError, isScoreFileName, scoreHasKey, xmlEsc, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnSource, type ScoreMeasure, type ScoreXmlKey } from '../../domain/score-types.js';
 import type { AnHarmonySeg, AnSpanReading, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from '../../domain/score-harmony.js';
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from '../../domain/score-symbols.js';
 import type { ExpressiveNotePlan } from '../../domain/score-expression.js';
@@ -27,6 +27,7 @@ import { AN_SMUFL_NOTES, anAssignHands, anParse, anXmlTidy, bindScoreGestures, b
 import { createAnState, createPanelSide, createPracticeState, createScoreState, AN_POPS, AN_PROFILE, anClock, anKeyInfo, anLibraryMetadata, anMeasureIndex, anPieceToParsed, anSegIndexAt, anSignedSemi, defaultScoreTool, isPracChoice, isPracFlag, PRAC_FLAGS, PRAC_KEY, pracEveryNote, pracRaw, pracSegAt, SC_FIT, SCORE_BASE_MARGINS, SCORE_LOOK, scoreToUser, scoreVisibleEntries, type AnAnalysisModel, type AnCatalogTab, type AnExamplePiece, type AnListContext, type AnPanelFocus, type AnPanelSide, type AnPanelSpanRow, type AnScreen, type AnSelectionFocus, type AnSpanBeatFacts, type AnSpanChordFacts, type AnSpanNctFacts, type AnSpanNoteFacts, type AnState, type PracticeBarrier, type PracticeBeat, type PracticeCarry, type PracticeCountIn, type PracticeRun, type PracticeSaved, type PracticeSegment, type PracticeStartOptions, type PracticeState, type PracticeTimedNote, type ScoreCrossLink, type ScoreCursorPos, type ScoreEngravingRules, type ScoreLoopState, type ScoreMeasureRange, type ScoreState } from './score-state.js';
 import { createFallState, FALL_BLACK, FALL_COL, FALL_FONT, FALL_NUDGE, FALL_PAL, FALL_SEC, FALL_SEL, FALL_YOU, fallDrawBlackKey, fallKeyPath, fallKeys, fallPalette, fallRR, type FallGeo, type FallHandColours, type FallKeyRect, type FallPalette, type FallState } from './score-falling.js';
 import { samePitch } from '../../core/pitch-match.js';
+import { readScoreDirectories, scoreFileDrop } from '../../infra/score-file-drop.js';
 
 const pc = theory.pitchClass, spellMidi = theory.spellMidi, keyFromFifths = theory.keyFromFifths, keyFifths = theory.keyFifths;
 const anFnKey = theory.analysisFunction, srKeyName = theory.circleKeyPitchClass, chordDegreeMap = theory.chordDegreeMap;
@@ -288,11 +289,12 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       anLibrarySyncPlayTimer();
   }
   async function anLibraryInspect(file: File): Promise<LibraryMetadata> {
-      if (!/\.(mid|midi|xml|musicxml|mxl)$/i.test(file.name) || !file.size || file.size > AN_MAX_BYTES)
+      if (!isScoreFileName(file.name) || !file.size || file.size > AN_MAX_BYTES)
           throw anError('type');
       const title = file.name.replace(/\.[^.]+$/, '');
       if (/\.(mxl|xml|musicxml)$/i.test(file.name))
           return anLibraryMetadata(await anReadXml(file, title));
+      await ensureModules();
       const parsed = anParse(await file.arrayBuffer());
       if (!parsed.notes.length || parsed.notes.length > AN_MAX_NOTES)
           throw anError('midi');
@@ -300,7 +302,7 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
   }
   async function anInspectDifficulty(file: File, startingBpm?: number, options?: ImportedScoreDifficultyOptions) {
       const [{ estimateImportedScore }] = await Promise.all([import('../../domain/score-difficulty-import.js'), ensureModules()]);
-      if (!file.size || file.size > AN_MAX_BYTES || !/\.(mid|midi|xml|musicxml|mxl)$/i.test(file.name))
+      if (!file.size || file.size > AN_MAX_BYTES || !isScoreFileName(file.name))
           throw anError('type');
       const title = file.name.replace(/\.[^.]+$/, '');
       if (!/\.midi?$/i.test(file.name))
@@ -335,6 +337,7 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
   let anScreen: AnScreen = 'catalog';
   let anCatalogTab: AnCatalogTab = 'builtin';
   let anCatalogTabManual = false;
+  let anImporting = false;
   let anLibraryItems: readonly LibraryItem[] = [];
   let anContinueTarget: { kind: 'lib'; id: string } | { kind: 'builtin'; id: string; speed?: number; measure?: string; elapsed?: number } | null = null;
   let anListContext: AnListContext | null = null;
@@ -435,15 +438,14 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       if (a.kind !== b.kind) return false;
       return a.kind === 'catalog' || (b.kind !== 'catalog' && a.id === b.id);
   }
-  function anCatalogStatus(msg?: string, kind: 'info' | 'error' = 'error', allowRetry = false) {
-      const el = maybeById('an-catalog-status'), banner = maybeById('an-import-banner'), retry = maybeById('an-import-retry');
+  function anCatalogStatus(msg?: string, kind: 'info' | 'error' = 'error') {
+      const el = maybeById('an-catalog-status'), banner = maybeById('an-import-banner');
       const text = msg?.trim() ?? '';
       if (el) el.textContent = text;
       if (banner) {
           banner.hidden = !text;
           banner.classList.toggle('is-error', Boolean(text && kind === 'error'));
       }
-      if (retry) retry.hidden = !(text && kind === 'error' && allowRetry);
   }
   function anCaptureListContext(focusSelector?: string | null) {
       if (view0() !== 'analysis' || anScreen !== 'catalog') return;
@@ -4183,7 +4185,7 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       const retryBtn = maybeById('an-msg-retry');
       if (retryBtn) retryBtn.hidden = false;
       if (anScreen === 'catalog' || !SCORE.xml)
-          anCatalogStatus(msg, 'error', true);
+          anCatalogStatus(msg);
       if (!SCORE.xml || anScreen === 'catalog')
           anRenderEmpty();
   }
@@ -4203,25 +4205,13 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       const n = p.keyN || 0, keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n);
       return [p.comp, anKeyName({ root: keyPc, minor: !!p.minor, fifths: n }), p.ts[0] + '/' + p.ts[1]].filter(Boolean).join(' · ');
   }
-  // Touch screens can't drop files, so they get the open wording (native.css picks the span).
-  function anDropTitle() { return `<span class="ctx-kbd">${xmlEsc(t('an_drop_t'))}</span><span class="ctx-touch">${xmlEsc(t('an_pick_t'))}</span>`; }
   function anRenderEmpty() {
       const box = byId('an-roll');
       box.classList.add('is-empty');
       box.classList.remove('is-loading', 'is-over');
       box.setAttribute('aria-busy', 'false');
       box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
-      const esc = xmlEsc;
-      const html = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
-    <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div></div>`;
-      const host = maybeById('an-empty-host');
-      if (host) {
-          host.innerHTML = html;
-          box.replaceChildren();
-      }
-      else {
-          box.innerHTML = html;
-      }
+      box.replaceChildren();
       anUpdateControls();
   }
   /* Pieces: the built-in repertoire, by level, above My Library. Each piece opens in this player through anLoadExample. */
@@ -4333,7 +4323,36 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
           },
       });
   }
-  // The single entry point for the file input and drag & drop.
+  async function anImportBatch(files: File[], directories: readonly FileSystemDirectoryEntry[] = []): Promise<void> {
+      if (anImporting) return;
+      anImporting = true;
+      const navigation = shell.navigationToken();
+      const inCatalog = () => view0() === 'analysis' && anScreen === 'catalog' && navigation === shell.navigationToken();
+      const buttons = [buttonById('an-choose-files'), buttonById('an-choose-folder')];
+      const copy = (key: Parameters<typeof libraryText>[1]) => libraryText(host.i18n.lang(), key);
+      for (const button of buttons) button.setAttribute('aria-disabled', 'true');
+      anCatalogStatus(copy('working'), 'info');
+      try {
+          if (directories.length) files = files.concat(await readScoreDirectories(directories));
+          if (!files.length) {
+              if (inCatalog()) anCatalogStatus(t('an_no_scores'));
+              return;
+          }
+          const library = await anLibraryEnsure();
+          if (inCatalog()) {
+              anSetCatalogTab('library', true);
+              anCatalogStatus('');
+          }
+          const accepted = await library.importFiles(files);
+          if (!accepted && inCatalog()) anCatalogStatus(copy('action_failed'));
+      } catch {
+          if (inCatalog()) anCatalogStatus(directories.length ? t('an_folder_failed') : copy('action_failed'));
+      } finally {
+          anImporting = false;
+          for (const button of buttons) button.removeAttribute('aria-disabled');
+      }
+  }
+  // Open a single score in the player and save it to the library.
   async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHistory?: boolean }): Promise<boolean> {
       if (!file)
           return false;
@@ -4341,7 +4360,7 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       anRollbackOpening?.();
       const token = ++AN.loadToken;
       const name = file.name || '';
-      const rejected = !/\.(mid|midi|xml|musicxml|mxl)$/i.test(name) ? 'an_err_type'
+      const rejected = !isScoreFileName(name) ? 'an_err_type'
           : file.size > AN_MAX_BYTES ? 'an_err_size' : !file.size ? 'an_err_empty' : null;
       if (rejected) {
           anSetLoading(false);
@@ -5832,14 +5851,33 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
   }
   function anInitControls() {
       anLibraryInit();
-      byId('an-file').addEventListener('change', (e) => { if (!(e.target instanceof HTMLInputElement) || !e.target.files)
-          return; const f = e.target.files[0]; e.target.value = ''; if (f)
-          anOpenFile(f); });
-      byId('view-analysis').addEventListener('click', (e) => { const el = eventElement(e); if (!el)
-          return; if (el.closest('[data-an-open]')) {
-          byId('an-file').click();
-          return;
-      } });
+      const playerFile = inputById('an-file');
+      playerFile.addEventListener('change', () => {
+          const file = playerFile.files?.[0];
+          playerFile.value = '';
+          if (file) void anOpenFile(file);
+      });
+      byId('view-analysis').addEventListener('click', (event) => {
+          if (eventClosest(event, '[data-an-open]')) playerFile.click();
+      });
+      const pickFiles = inputById('library-files'), pickFolder = inputById('an-folder');
+      const chooseFiles = buttonById('an-choose-files'), chooseFolder = buttonById('an-choose-folder');
+      chooseFolder.hidden = !('webkitdirectory' in pickFolder);
+      const bindImportPicker = (button: HTMLButtonElement, input: HTMLInputElement, directory: boolean) => {
+          button.addEventListener('click', () => {
+              if (anImporting) return;
+              scoreLibrary?.requestStorageProtection();
+              input.click();
+          });
+          input.addEventListener('change', () => {
+              const selected = Array.from(input.files ?? []);
+              input.value = '';
+              if (selected.length) void anImportBatch(directory ? selected.filter(file => isScoreFileName(file.name)) : selected);
+          });
+      };
+      bindImportPicker(chooseFiles, pickFiles, false);
+      bindImportPicker(chooseFolder, pickFolder, true);
+      chooseFiles.disabled = false;
       byId('an-back').addEventListener('click', () => { anExitToCatalog(false); });
       maybeById('an-continue-btn')?.addEventListener('click', () => {
           if (!anContinueTarget) return;
@@ -6169,15 +6207,17 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       anSideResizer();
       anTab(SIDE.tab);
       (window).matchMedia('(max-width: 999px)').addEventListener('change', () => { SIDE.sheet = false; anSideSync(); anLayoutVars(); });
-      // drag & dropwhere on the analysis view; the drop zone (or the score) shows the target state
+      // The whole Pieces view accepts drops and highlights the import bar or the current score.
       let depth = 0;
       const files = (e: DragEvent): e is DragEvent & { dataTransfer: DataTransfer } => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
-      const over = (on: boolean) => { const drop = maybeById('an-drop'), tt = maybeById('an-drop-t'); byId('an-roll').classList.toggle('is-over', on && !!SCORE.xml); if (drop)
-          drop.classList.toggle('is-over', on); if (tt)
-      {
-          if (on) tt.textContent = t('an_drop_over');
-          else tt.innerHTML = anDropTitle();
-      } };
+      const dropZone = byId('an-drop'), dropHint = queryHtml(dropZone, '.an-drop-hint'), dropTitle = byId('an-drop-t');
+      const over = (on: boolean) => {
+          const highlightCatalog = on && anScreen === 'catalog' && !anImporting;
+          dropZone.classList.toggle('is-over', highlightCatalog);
+          dropTitle.hidden = highlightCatalog;
+          if (dropHint) dropHint.hidden = !highlightCatalog;
+          byId('an-roll').classList.toggle('is-over', on && anScreen === 'player' && !!SCORE.xml);
+      };
       window.addEventListener('dragenter', (e) => { if (view0() !== 'analysis' || !files(e))
           return; e.preventDefault(); depth++; over(true); });
       window.addEventListener('dragover', (e) => { if (view0() !== 'analysis' || !files(e))
@@ -6185,11 +6225,22 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       window.addEventListener('dragleave', (e) => { if (view0() !== 'analysis' || !files(e))
           return; depth = Math.max(0, depth - 1); if (!depth)
           over(false); });
-      window.addEventListener('drop', (e) => { if (view0() !== 'analysis' || !files(e))
-          return; e.preventDefault(); depth = 0; over(false); const list = [...e.dataTransfer.files]; if (list.length !== 1) {
-          anShowError('an_err_many');
-          return;
-      } anOpenFile(list[0]); });
+      window.addEventListener('drop', (event) => {
+          if (view0() !== 'analysis' || !files(event)) return;
+          event.preventDefault();
+          depth = 0;
+          over(false);
+          const dropped = scoreFileDrop(event.dataTransfer);
+          if (anScreen === 'catalog') {
+              if (anImporting || (!dropped.files.length && !dropped.directories.length)) return;
+              scoreLibrary?.requestStorageProtection();
+              void anImportBatch(dropped.files, dropped.directories);
+          } else if (dropped.directories.length || dropped.files.length > 1) {
+              anShowError('an_err_many');
+          } else if (dropped.files.length === 1) {
+              void anOpenFile(dropped.files[0]);
+          }
+      });
       // Toolbar and status bar sizes feed the viewport height (the shell observes the header, dock and bottom bar and the
       // window size the same way); the viewport size drives redraws and re-layout.
       // border-box: a safe-area inset only changes padding, which a content-box observer would miss

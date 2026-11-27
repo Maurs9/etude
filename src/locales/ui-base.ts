@@ -103,7 +103,6 @@ const payload: UIPayload = {
       "rating_driver_pedal_control": "pedal changes",
       "corrupt_entries": "Unreadable library entries: {count}. Their originals were kept.",
       "heading": "My Library ({count})",
-      "import": "Add scores",
       "search": "Search title, composer or filename",
       "filter": "Show scores",
       "all": "All scores",

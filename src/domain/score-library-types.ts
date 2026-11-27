@@ -142,6 +142,9 @@ export interface LibraryHost {
 }
 
 export interface LibraryController {
+  /** False when another library action is in progress. */
+  importFiles(files: readonly File[]): Promise<boolean>;
+  requestStorageProtection(): void;
   refresh(): Promise<void>;
   prepareRating(item: LibraryItem, estimate: OpenedScoreEstimator): void;
   localize(): void;

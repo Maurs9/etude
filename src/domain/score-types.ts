@@ -143,6 +143,9 @@ export type AnHandAssignment =
 export const AN_MAX_XML_CHARS = 33554432;
 export const AN_MAX_BYTES = 2097152;
 export const AN_MAX_NOTES = 5000;
+export function isScoreFileName(name: string): boolean {
+    return /\.(mid|midi|xml|musicxml|mxl)$/i.test(name);
+}
 
 export function anError(code: string, detail?: string) { const e = Object.assign(new Error(detail || code), { code }); return e; }
 export const XML_ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' };

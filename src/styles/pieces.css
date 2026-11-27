@@ -1,9 +1,12 @@
 .an-catalog[hidden], .an-panel[hidden]{display:none}
-.an-head-actions{display:flex; align-items:center; gap:8px}
-.an-open-cta{min-height:44px; padding-inline:16px}
-.an-open-cta svg{width:16px; height:16px; flex:none}
-.an-empty-host{margin-top:14px}
-.an-empty-host[hidden]{display:none}
+.an-drop{display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"t b" "s b"; align-items:center; gap:4px 24px; margin-top:14px; padding:18px 24px; border:1.5px dashed var(--line2); border-radius:12px; background:var(--card); transition:border-color .15s, background-color .15s}
+.an-drop.is-over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 7%, var(--card))}
+.an-drop-t, .an-drop-hint{grid-area:t; margin:0; font:600 20px/1.25 var(--serif); color:var(--ink)}
+.an-drop-s{grid-area:s; margin:0; font-size:13px; color:var(--muted)}
+.an-drop-actions{grid-area:b; display:flex; flex-wrap:wrap; gap:8px}
+.an-drop-actions .btn{min-height:44px}
+.an-drop-actions .btn[aria-disabled=true]{opacity:.65; cursor:progress}
+.an-drop [hidden]{display:none}
 .an-import-banner{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 14px; margin-top:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:var(--card)}
 .an-import-banner[hidden]{display:none}
 .an-import-banner.is-error{border-color:color-mix(in srgb, var(--bad) 38%, var(--line)); background:color-mix(in srgb, var(--bad) 8%, var(--card))}
@@ -30,7 +33,6 @@
 [data-an-screen="player"] .an-panel{margin-top:0 !important}
 @media (max-width:680px){
   .an-back-btn{min-height:44px; padding-inline:12px}
-  .an-empty-host{display:none}
   .an-continue-btn{width:100%; justify-content:center}
 }
 
@@ -61,14 +63,9 @@
   .pc-list{grid-template-columns:minmax(0,1fr); padding-inline:12px}
 }
 
-/* The empty player (no piece open yet): on a wide window the drop zone is one row, the words beside the Open button,
-   instead of a tall panel that holds three short lines */
-@media (min-width:761px){
-  .an-empty .an-drop{display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"t b" "s b"; align-items:center; gap:4px 24px; min-height:0; padding:18px 24px}
-  .an-empty .an-drop-t{grid-area:t}
-  .an-empty .an-drop-s{grid-area:s; margin:0; max-width:none}
-  .an-empty .an-drop > .btn{grid-area:b}
-  .an-empty .an-drop-err{grid-column:1 / -1}
+@media (max-width:760px){
+  .an-drop{grid-template-columns:minmax(0,1fr); grid-template-areas:"t" "s" "b"; padding:14px 16px}
+  .an-drop-actions{margin-top:6px}
 }
 
 /* Run complete: headline scores at the same visual level, saved best, and Good explanation */
