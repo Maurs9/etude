@@ -26,6 +26,7 @@ import {
 } from '../core/learn-progress.js';
 import * as safety from './data-safety.js';
 import { createCoaching } from '../app/coaching.js';
+import { samePitch } from '../core/pitch-match.js';
 import { createPwaLifecycle, WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
 import * as theory from './theory.js';
 import * as audio from './audio.js';
@@ -3667,7 +3668,7 @@ function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, rele
     if (kind !== 'on' || !srNoteStartArmed(source))
         return false;
     const first = srFirstNotes(), anyOctave = !!data.settings.anyOctave;
-    if (!first || !first.midis.some((m) => anyOctave ? (m - midi) % 12 === 0 : m === midi))
+    if (!first || !first.midis.some((m) => samePitch(m, midi, anyOctave)))
         return false;
     rdnAutoCancel();
     srNoteStart = { perf, receivedAt: now, events: [{ kind, midi, source, releaseKind, perf }] };
@@ -3846,7 +3847,7 @@ function srKeyInput(m: number) {
         const st = SR.steps[SR.stepIdx];
         if (!st)
             return;
-        const need = st.notes.find((n: { nid: number; midi: number; }) => !SR.hit.has(n.nid) && (SR.anyOctave ? pc(n.midi) === pc(m) : n.midi === m));
+        const need = st.notes.find((n: { nid: number; midi: number; }) => !SR.hit.has(n.nid) && samePitch(n.midi, m, SR.anyOctave));
         if (need) {
             SR.hit.add(need.nid);
             SR.results[need.nid] = 'good';
@@ -5212,7 +5213,7 @@ function rdInput(m: number) {
     const src = [...(inputOwners.get(m) || [])], strict = src.some((s) => s === 'midi' || s === 'ble');
     // On-screen keys must be the exact key while the note is within the keyboard's octaves; beyond them the name is enough, as the folded mark shows.
     if (q.ty === 'play')
-        return rdAnswer(data.settings.anyOctave ? pc(m) === pc(q.midi) : (strict || (src.some((s) => /^(pointer|button):/.test(s)) && foldToView(q.midi) === q.midi) ? m === q.midi : pc(m) === pc(q.midi)), { midi: m });
+        return rdAnswer(data.settings.anyOctave ? samePitch(q.midi, m, true) : (strict || (src.some((s) => /^(pointer|button):/.test(s)) && foldToView(q.midi) === q.midi) ? m === q.midi : pc(m) === pc(q.midi)), { midi: m });
     if (q.ty === 'name')
         return rdAnswer(pc(m) === pc(q.midi), { midi: m });
     // Key to staff answers with 1–4 or a click: a played note only sounds, since playing the lit key would answer without reading.

@@ -26,6 +26,7 @@ import { localDayNumber } from '../../core/sync-merge.js';
 import { AN_SMUFL_NOTES, anAssignHands, anParse, anXmlTidy, bindScoreGestures, buildExpressiveTempos, buildScoreExpression, classifyUnmatchedKeyPress, computeFitWidthLayout, createCursorCurves, cursorCurveAt, defaultInflatedSize, ensureScoreModules, extractSustainMistakes, gradePracticeSustain, groupPracticeMistakes, importMxlPreflight, importReadXml, isScoreOsmdSheet, notationReloadMessage, performanceAt, performanceMarkers, performanceOf, performanceTimeline, performanceWindow, pracAcc, practicePassageBounds, practicePercent, practiceSustainReference, rememberScorePedalLayout, repeatRanges, scoreBeams, scoreFeature, scoreFixFingerings, scoreFixPedalsDefault, scoreMidiToXml, scoreModulesReady, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreXmlEndings, scoreXmlLayout, scoreXmlNotes, scoreXmlRepeatBars } from './score-modules.js';
 import { createAnState, createPanelSide, createPracticeState, createScoreState, AN_POPS, AN_PROFILE, anClock, anKeyInfo, anLibraryMetadata, anMeasureIndex, anPieceToParsed, anSegIndexAt, anSignedSemi, defaultScoreTool, isPracChoice, isPracFlag, PRAC_FLAGS, PRAC_KEY, pracEveryNote, pracRaw, pracSegAt, SC_FIT, SCORE_BASE_MARGINS, SCORE_LOOK, scoreToUser, scoreVisibleEntries, type AnAnalysisModel, type AnCatalogTab, type AnExamplePiece, type AnListContext, type AnPanelFocus, type AnPanelSide, type AnPanelSpanRow, type AnScreen, type AnSelectionFocus, type AnSpanBeatFacts, type AnSpanChordFacts, type AnSpanNctFacts, type AnSpanNoteFacts, type AnState, type PracticeBarrier, type PracticeBeat, type PracticeCarry, type PracticeCountIn, type PracticeRun, type PracticeSaved, type PracticeSegment, type PracticeStartOptions, type PracticeState, type PracticeTimedNote, type ScoreCrossLink, type ScoreCursorPos, type ScoreEngravingRules, type ScoreLoopState, type ScoreMeasureRange, type ScoreState } from './score-state.js';
 import { createFallState, FALL_BLACK, FALL_COL, FALL_FONT, FALL_NUDGE, FALL_PAL, FALL_SEC, FALL_SEL, FALL_YOU, fallDrawBlackKey, fallKeyPath, fallKeys, fallPalette, fallRR, type FallGeo, type FallHandColours, type FallKeyRect, type FallPalette, type FallState } from './score-falling.js';
+import { samePitch } from '../../core/pitch-match.js';
 
 const pc = theory.pitchClass, spellMidi = theory.spellMidi, keyFromFifths = theory.keyFromFifths, keyFifths = theory.keyFifths;
 const anFnKey = theory.analysisFunction, srKeyName = theory.circleKeyPitchClass, chordDegreeMap = theory.chordDegreeMap;
@@ -2523,7 +2524,7 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
       pracHud();
   }
   // "Accept any octave" (the shared setting) lets a key count for the same note name in another octave.
-  function pracSame(want: number, played: number) { return want === played || (!!host.store.data().settings.anyOctave && pc(want) === pc(played)); }
+  function pracSame(want: number, played: number) { return samePitch(want, played, !!host.store.data().settings.anyOctave); }
   // The awaited key a played key stands for: the key itself, else (any octave) an unplayed one with its note name.
   function pracNeedKey(B: PracticeBarrier, m: number) {
       if (B.need.has(m))
