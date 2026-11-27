@@ -518,6 +518,11 @@ test.describe('data safety', () => {
 test('oversized progress imports are rejected before the file is read', async ({ app, page }) => {
   await app.open();
   await page.evaluate(() => {
+    window.backupRead = false;
+    File.prototype.text = function () {
+      window.backupRead = true;
+      return Blob.prototype.text.call(this);
+    };
     const files = new DataTransfer();
     files.items.add(new File([new Uint8Array(16 * 1024 * 1024 + 1)], 'oversized.json'));
     const input = document.querySelector('#importFile');
@@ -525,6 +530,7 @@ test('oversized progress imports are rejected before the file is read', async ({
     input.dispatchEvent(new Event('change'));
   });
   expect((await handleAppDialog(page, 'dismiss')).message).toContain('16 MiB');
+  expect(await page.evaluate(() => window.backupRead)).toBe(false);
 });
 
 test('a second progress import is ignored while the first file is being read', async ({ app, page }) => {

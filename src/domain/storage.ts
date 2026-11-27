@@ -165,13 +165,16 @@ export function parseJson(text: string): unknown {
 export function parsePttV3(raw: string | null): PttV3Payload | null {
   if (!raw) return null;
   try {
-    const parsed = parseJson(raw);
-    // Recognize a newer record before interpreting any of its nested structures.
-    if (isPttEnvelope(parsed) && (pttSchema(parsed) > PTT_SCHEMA || hasFutureSightLedger(parsed))) return parsed;
-    return isBackupPayload(parsed) ? parsed : null;
+    return readPttV3Value(parseJson(raw));
   } catch {
     return null;
   }
+}
+
+export function readPttV3Value(value: unknown): PttV3Payload | null {
+  // Recognize a newer record before interpreting any of its nested structures.
+  if (isPttEnvelope(value) && (pttSchema(value) > PTT_SCHEMA || hasFutureSightLedger(value))) return value;
+  return isBackupPayload(value) ? value : null;
 }
 
 export function readPttV3(storage: StorageLike, key = PTT_KEY): ReadPttResult | null {

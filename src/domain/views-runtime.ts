@@ -1,5 +1,5 @@
 import { loadUI, loadLearn } from '../locales/loader.js';
-import { installLibraryCopy } from '../locales/library-runtime.js';
+import { installLibraryCopy, libraryText } from '../locales/library-runtime.js';
 import { LESSONS } from '../locales/catalog.js';
 import type { UIPayload } from '../locales/payload-types.js';
 import type { MusicTranslations, StepLabels } from '../locales/content-types.js';
@@ -25,6 +25,7 @@ import * as theory from './theory.js';
 import * as audio from './audio.js';
 import type * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
+import type { LibraryRestoreResult } from './score-library-types.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc } from './score-types.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl } from './repertoire-data.js';
 import { srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srRest, srStem2, srStemLine, srTimeSigG } from './grand-staff.js';
@@ -638,7 +639,7 @@ const persistence = createPersistence({
     syncPayload: () => syncPayload(),
     saveAll: () => saveAll(),
 });
-const { clampPersistedNumber, SYNC, SYNC_ID, SYNC_THEMES, SYNC_NOTATIONS, SYNC_LABELS, SYNC_TONES, syncOneOf, syncIsLang, syncParseJson, SYNC_PREFS, syncIsPrefName, syncGen, syncGenTime, syncNextGen, syncId, syncRemember, syncCurrent, syncPair, syncInitial, syncPref, syncBusy, syncIdle, syncNote, syncAfter, syncRefresh, flushSaveSoon, saveSoon, STORE, STORE_LAST_EXPORT, STORE_SNAPSHOTS_CHANGED, STORE_UNREADABLE, STORE_EXPORT_DUE_MS, backupJson, storeSaved, storeFailed, storeBlock, storeHasProgress, storeDaily, storeSnapshotsChanged, UPGRADE_SNAPSHOT_TIMEOUT_MS, storeSnapshot, storeQuarantine, storeBackupBlocked, MAX_PROGRESS_IMPORT_BYTES, storeRestore, storeReset, storeExported, storeLastExport, storeWhen, storeSize, storeRefresh, storeI18nReady, renderDataSafety, storeNote, storeDiagnostics, storeMs, storeDiagRender, storeInit, applyTopLevelPrefs, loadAll } = persistence;
+const { clampPersistedNumber, SYNC, SYNC_ID, SYNC_THEMES, SYNC_NOTATIONS, SYNC_LABELS, SYNC_TONES, syncOneOf, syncIsLang, syncParseJson, SYNC_PREFS, syncIsPrefName, syncGen, syncGenTime, syncNextGen, syncId, syncRemember, syncCurrent, syncPair, syncInitial, syncPref, syncBusy, syncIdle, syncNote, syncAfter, syncRefresh, flushSaveSoon, saveSoon, STORE, STORE_LAST_EXPORT, STORE_SNAPSHOTS_CHANGED, STORE_UNREADABLE, STORE_EXPORT_DUE_MS, backupJson, storeSaved, storeFailed, storeBlock, storeHasProgress, storeDaily, storeSnapshotsChanged, UPGRADE_SNAPSHOT_TIMEOUT_MS, storeSnapshot, storeQuarantine, storeBackupBlocked, storeRestore, storeReset, storeExported, storeLastExport, storeWhen, storeSize, storeRefresh, storeI18nReady, renderDataSafety, storeNote, storeDiagnostics, storeMs, storeDiagRender, storeInit, applyTopLevelPrefs, loadAll } = persistence;
 /* ---------- SETTINGS, DIALOGS AND CONTROL WIRING (src/app/shell-controls.ts) ---------- */
 const shellControls = createShellControls({
     get anLayoutVars() { return anLayoutVars; },
@@ -682,13 +683,16 @@ const shellControls = createShellControls({
     get localeLoadError() { return localeLoadError; },
     get localize() { return localize; },
     get localizeLoadedFeatures() { return localizeLoadedFeatures; },
-    get MAX_PROGRESS_IMPORT_BYTES() { return MAX_PROGRESS_IMPORT_BYTES; },
+    inspectLibraryFile: async file => {
+        await ensureFeature('analysis');
+        if (!scorePlayer) throw new Error('Score parser unavailable');
+        return scorePlayer.inspectLibraryFile(file);
+    },
     get metro() { return metro; },
     get notation() { return notation; },
     set notation(value: "letter" | "solfege" | "german") { notation = value; },
     get openMobileMenu() { return openMobileMenu; },
     get panic() { return panic; },
-    get parsePttV3() { return parsePttV3; },
     get persistence() { return persistence; },
     get pianoStatus() { return pianoStatus; },
     get popModalState() { return popModalState; },
@@ -1831,7 +1835,18 @@ function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
         storeSaved();
 }
 /** Import and restore share this path: a copy of the current progress first, then the backup, then a reload. */
-async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<void> {
+async function storeApplyBackup(
+    p: storage.PttV3Payload, reason: safety.SnapshotReason, mergeLibrary?: () => Promise<LibraryRestoreResult>,
+): Promise<void> {
+    let scoresAdded = 0;
+    const reportFailure = async (key: string) => {
+        if (scoresAdded) await scorePlayer?.refreshLibrary();
+        await appAlert(scoresAdded ? `${t(key)} ${t('import_library_added')}` : t(key));
+    };
+    const assertWritable = () => {
+        if (storeBackupBlocked() || STORE.blocked === 'upgrade')
+            throw new Error('Progress is protected');
+    };
     try {
         if (storeBackupBlocked()) {
             await appAlert(t('store_too_new'));
@@ -1843,14 +1858,23 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
         }
         if (!await storeSnapshot(reason, backupJson()) && !await appConfirm(t('store_copy_failed')))
             return;
+        if (mergeLibrary) {
+            assertWritable();
+            try {
+                await scorePlayer?.flushLibrary();
+                scoresAdded = (await mergeLibrary()).added;
+            } catch {
+                await appAlert(libraryText(lang, 'restore_failed'));
+                return;
+            }
+        }
         const saved = await storage.restoreProgressBackup(localStorage, p, () => {
             // The save may have changed while taking the snapshot or waiting for the ledger lock.
-            if (storeBackupBlocked() || STORE.blocked === 'upgrade')
-                throw new Error('Progress is protected');
+            assertWritable();
             return syncNextGen();
         }, { replace: reason === 'before-restore' });
         if (!saved.ok) {
-            await appAlert(t(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : saved.reason === 'quota' ? 'import_quota' : 'import_storage'));
+            await reportFailure(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : saved.reason === 'quota' ? 'import_quota' : 'import_storage');
             return;
         }
         reloadingForRestore = true;
@@ -1860,7 +1884,7 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
     }
     catch (_) {
         reloadingForRestore = false;
-        await appAlert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'import_storage'));
+        await reportFailure(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'import_storage');
     }
 }
 /* boot */

@@ -84,7 +84,7 @@ test('Pieces shows the import bar in the catalog and the single-file picker in t
   await expect(page.getByRole('button', { name: 'Choose files' })).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Choose folder' })).toHaveCount(1);
   await page.locator('#an-tab-library').click();
-  await expect(page.locator('#score-library [type=file]:visible')).toHaveCount(1); // Backup restore.
+  await expect(page.locator('#score-library [type=file]')).toHaveCount(0);
   await page.locator('#an-tab-builtin').click();
   await expect(page.locator('#pc-list .pc-item')).toHaveCount(23);
   await expect(playerOpen).toBeHidden();

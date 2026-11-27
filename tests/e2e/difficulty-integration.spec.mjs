@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { test, expect } from '../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../helpers/fixtures.mjs';
 
 const xml = `<?xml version="1.0"?>
 <score-partwise version="4.0">
@@ -347,8 +347,7 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
   if (await page.locator('#an-back').isVisible()) await page.locator('#an-back').click();
   await openLib(page);
-  await expect(page.locator('.score-library-transfer input[type=file]')).toHaveCount(1);
-  await expect(page.locator('#library-restore')).toBeVisible();
+  await expect(page.locator('.score-library-transfer')).toHaveCount(0);
   await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({
     tempoFallback: true,
     tempoSource: 'fallback',
@@ -538,9 +537,13 @@ test('difficulty details explain drivers, spans and provisional BPM, and v1 back
       data: Array.from(Buffer.from(legacySource)),
     }],
   };
-  await page.locator('#library-restore').setInputFiles({
+  await page.locator('#settingsBtn').click();
+  await page.locator('#importFile').setInputFiles({
     name: 'legacy-backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(legacyBackup)),
   });
+  expect((await handleAppDialog(page, 'accept', { waitHidden: false })).type).toBe('confirm');
+  expect((await handleAppDialog(page)).type).toBe('alert');
+  await page.locator('#drawerClose').click();
   await expect.poll(async () => {
     const items = await storedList();
     return items.find(item => item.id === legacyId)?.difficultyRating?.version;

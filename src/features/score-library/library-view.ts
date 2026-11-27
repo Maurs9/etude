@@ -7,10 +7,7 @@ import {
   libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryUpdate,
 } from '../../domain/score-library-store.js';
 import { libraryText, type LibraryTextKey } from '../../locales/library-runtime.js';
-import {
-  createAutoRatingController, exportLibraryBackup, importLibraryFiles,
-  requestStorageProtection, restoreLibraryBackup,
-} from './library-actions.js';
+import { createAutoRatingController, importLibraryFiles, requestStorageProtection } from './library-actions.js';
 import {
   createDifficultyRange, createLibraryEditor, element, renderRatingDetailsPanel,
   starGraphic, starNumber, type LibraryEditor, type LibraryValues,
@@ -53,7 +50,7 @@ type Row = {
   editor: LibraryEditor | null;
 };
 
-/** Controls and file inputs are created once. Refresh only reconciles library rows. */
+/** Controls are created once. Refresh only reconciles library rows. */
 export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryController {
   const existing = controllers.get(root);
   if (existing) return existing;
@@ -62,7 +59,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   details.id = 'score-library';
   const summary = element('summary');
   const content = element('div', 'score-library-content');
-  const privacy = element('p', 'score-library-note');
   const toolbar = element('div', 'score-library-toolbar');
   const searchLabel = element('label', 'score-library-search');
   const searchText = element('span');
@@ -243,20 +239,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   emptyBox.hidden = true;
   const empty = element('p', 'score-library-note');
   emptyBox.append(empty);
-  const transfer = element('div', 'score-library-transfer');
-  const transferNote = element('p', 'score-library-note');
-  const backup = element('button');
-  backup.id = 'library-backup';
-  backup.type = 'button';
-  const restoreLabel = element('label', 'score-library-picker');
-  const restoreText = element('span');
-  const restore = element('input');
-  restore.id = 'library-restore';
-  restore.type = 'file';
-  restore.accept = '.json,application/json';
-  restoreLabel.append(restoreText, restore);
-  transfer.append(privacy, transferNote, backup, restoreLabel);
-  content.append(toolbar, protection, status, corruptStatus, failures, scroll, emptyBox, transfer);
+  content.append(toolbar, protection, status, corruptStatus, failures, scroll, emptyBox);
   details.append(summary, content);
   root.append(details);
 
@@ -301,13 +284,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function notice(key: LibraryTextKey, values?: LibraryValues): void {
     statusCopy = { key, values };
     status.textContent = t(key, values);
-    if (key === 'save_failed' || key === 'unavailable' || key === 'restore_failed' || key === 'action_failed') details.open = true;
+    if (key === 'save_failed' || key === 'unavailable' || key === 'action_failed') details.open = true;
   }
 
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    restore.disabled = backup.disabled = sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = tagFilter.disabled = group.disabled = value;
     syncDifficultyFilters();
     for (const { button } of tabButtons) button.disabled = value;
@@ -1002,8 +985,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
 
   function localize(): void {
     const locale = host.language();
-    privacy.textContent = t('privacy');
-    transferNote.textContent = t('transfer');
     searchText.textContent = t('search_label');
     search.placeholder = t('search');
     search.setAttribute('aria-label', t('search'));
@@ -1038,9 +1019,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     axisRange.localize(locale, t);
     for (const { key, option } of groupOptions) option.textContent = t(`group_${key}`);
     resetFilters.textContent = t('reset_filters');
-    backup.textContent = t('backup');
-    restoreText.textContent = t('restore');
-    restore.setAttribute('aria-label', t('restore'));
     protection.textContent = protectedStorage === null ? '' : t(protectedStorage ? 'protected' : 'unprotected');
     if (statusCopy) status.textContent = t(statusCopy.key, statusCopy.values);
     render();
@@ -1052,25 +1030,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       localize();
     });
   };
-  restore.addEventListener('click', onRequestProtection);
-  restore.addEventListener('change', () => {
-    const file = restore.files?.[0];
-    if (!file || busy) { restore.value = ''; return; }
-    void run(async () => {
-      try {
-        const result = await restoreLibraryBackup(file, host);
-        await refresh();
-        notice('restore_result', result);
-      } finally { restore.value = ''; }
-    }, 'restore_failed');
-  });
-  backup.addEventListener('click', () => {
-    void run(async () => {
-      const { skipped } = await exportLibraryBackup(host);
-      if (skipped > 0) notice('lib_export_skipped', { count: skipped });
-      else notice('backup_saved');
-    });
-  });
   search.addEventListener('input', render);
   sort.addEventListener('change', render);
   difficultySort.addEventListener('click', () => {

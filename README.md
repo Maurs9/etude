@@ -191,7 +191,7 @@ npm run test:dev
 
 - Sort by **Difficulty (stars)** from fewest to most stars; open a title to start or resume from your saved position.
 - Combine an overall star range with a single-axis range in **Filters**, and inspect decisive measures under **More → Difficulty details**.
-- If a score lacks a written tempo, it receives a provisional rating—use **Set BPM** in difficulty details to enter a verified starting tempo and recalculate. Star ratings are preserved in library backups.
+- If a score lacks a written tempo, it receives a provisional rating—use **Set BPM** in difficulty details to enter a verified starting tempo and recalculate. **Settings → Your data → Backup** includes the score library, its star ratings, and practice positions.
 - In **Read**, **New reading exercise** selects a fresh piece using the experimental scorer with a fingerprint-based ID, leaving numbered book results and daily sets intact.
 
 #### CLI Reports & Calibration (Node.js 22)
