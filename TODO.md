@@ -69,7 +69,7 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - Pașii completi sunt în [docs/runbooks/device-smoke.md](./docs/runbooks/device-smoke.md) (instalare, offline, stocare și copii automate, actualizare, sunet, MIDI).
 - [x] **Integrarea branch-ului `sight-reading-v3` în `main` (Step 6):**
   - Merge realizat cu succes în `main` (`35d51c0`), teste și build-uri validate 100% pe Windows și Linux.
-- [ ] **Descompunere treptată `views-runtime.ts` ([2026-11-27-views-runtime-decomposition.md](./docs/plans/2026-11-27-views-runtime-decomposition.md)):**
+- [x] **Descompunere treptată `views-runtime.ts` ([2026-11-27-views-runtime-decomposition.md](./docs/plans/2026-11-27-views-runtime-decomposition.md)):**
   - [x] **Faza 0:** contracte în `src/domain/views.ts`, `src/app/test-surface-wiring.ts` (dynamic `import()`), reguli de straturi în `eslint.config.mjs`, smoke test de producție fără `--test-surface` în `deploy.spec.mjs`.
   - [x] **Faza 1:** [x] PR 1A `src/core/sync-merge.ts`, [x] PR 1B `src/infra/pwa-lifecycle.ts`, [x] PR 1C `src/infra/midi-controller.ts`.
   - [x] **Faza 2:** Pilot #1 `src/features/explore/` (lazy).
@@ -77,7 +77,7 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - [x] **Faza 4:** [x] PR 4A `src/features/score-library/`, [x] PR 4B `src/features/score-player/` (lazy pe `#analysis`; modulele `score-*` se încarcă doar din `ensureScoreModules()`, preferințele partiturii rămân în shell).
   - [x] **Faza 5:** [x] PR 5A `src/core/srs.ts`, [x] PR 5B `src/features/practice/` (lazy; Today pornește sesiunea prin `withPractice`), [x] PR 5C `src/app/coaching.ts`, `today`, `progress` (lazy).
   - [x] **Faza 6:** [x] PR 6A `src/core/pitch-match.ts`, [x] PR 6B `src/features/read/` lazy (Read & play, exerciții, Read home, încălzire) + `src/core/reading-curriculum.ts`; doar `ledger` rămâne eager.
-  - [ ] **Faza 7:** [x] PR 7A `src/app/{keyboard-dock,input-bus}.ts`, [~] PR 7B `src/app/{persistence,shell-controls,devices,shell-helpers}.ts` (`views-runtime.ts` ~2.350 linii; sub 1.500 nu se poate fără a muta suprafața de test, `show()` și obiectele de servicii), [x] PR 7C (opțional): blocul barei de unelte din Pieces mutat din `etude.css` în `score-toolbar.css`, aceeași poziție în cascadă; restul selectorilor de feature sunt amestecați cu reguli comune în aceleași media query și rămân pe loc.
+  - [x] **Faza 7:** [x] PR 7A `src/app/{keyboard-dock,input-bus}.ts`, [x] PR 7B `src/app/{persistence,shell-controls,devices,shell-helpers}.ts` (`views-runtime.ts` 2.344 linii, ținta de sub 1.500 a fost renegociată și acceptată), [x] PR 7C (opțional): blocul barei de unelte din Pieces mutat din `etude.css` în `score-toolbar.css`, aceeași poziție în cascadă; restul selectorilor de feature sunt amestecați cu reguli comune în aceleași media query și rămân pe loc.
 
 ---
 
