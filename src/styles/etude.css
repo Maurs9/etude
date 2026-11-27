@@ -1653,62 +1653,6 @@
   }
   body[data-stage=immersive] .bottomnav{display:none}
   @media (prefers-reduced-motion: reduce){ .bottomnav svg{transition:none} }
-/* ---------- score toolbar on phones: essentials in one row (>= 44px), Display / Practice / Study tools in popovers ---------- */
-  @media (min-width:861px) and (max-width:1270px){
-    .an-tb{gap:4px 5px; padding:6px 8px}
-    .an-tb .tb-wait .lbl,.an-tb .tb-pop-lbl,.an-tb .tb-caret{display:none}
-    .an-tb #sc-stage span{display:none}
-  }
-  @media (max-width:860px), (orientation: landscape) and (max-height: 560px) and (max-width: 1020px){
-    .an-tb{flex-wrap:nowrap; overflow:visible; gap:4px; padding:5px 6px}
-    .an-tb > .tb-g,.an-tb > .tb-end{display:inline-flex; align-items:center}
-    .an-tb .tb-transport #sc-start,.an-tb .tb-transport #score-stop,.an-tb .tb-transport #an-study-mode{display:none}
-    .an-tb .btn.tb-b{height:44px; min-width:44px; padding:0 6px; position:relative}
-    .an-tb .btn.tb-b::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
-    .an-tb .btn.tb-play{min-width:44px}
-    .an-tb .tb-tempo{height:44px}
-    .an-tb .tb-tempo .tb-tempo-step{min-width:34px; padding:0 4px}
-    .an-tb .tb-tempo .tb-tempo-val{font-size:12px; padding:0 6px}
-    .an-tb .btn.tb-b.tb-prac-btn{display:inline-flex}
-    .an-tb .tb-pop-lbl,.an-tb .tb-caret,.tb-prac-btn > span,#sc-stage > span{display:none}
-    .an-tb .tb-prac{display:none}
-    .an-tb .tb-prac.is-prac-open{display:flex; position:absolute; top:calc(100% + 6px); left:8px; right:8px; z-index:var(--z-pop); flex-wrap:wrap; gap:10px; padding:12px 14px; border:1px solid var(--line2); border-radius:12px; background:var(--paper2); box-shadow:0 22px 44px -18px rgba(0,0,0,.5)}
-    .an-tb .tb-prac.is-prac-open .tb-wait .lbl{display:inline}
-    .an-tb .tb-prac.is-prac-open .tb-hands > button,.an-tb .tb-prac.is-prac-open .btn.tb-b{min-height:44px; padding:0 10px}
-    .an-tb #an-side-btn{display:none}
-  }
-  @media (max-width:400px){
-    .an-tb{gap:2px; padding:4px}
-    .an-tb .btn.tb-b{min-width:40px; padding:0 4px}
-    .an-tb .btn.tb-play{min-width:42px}
-    .an-tb .tb-tempo .tb-tempo-step{min-width:30px; padding:0 2px}
-    .an-tb .tb-tempo .tb-tempo-val{font-size:11.5px; padding:0 4px}
-  }
-  @media (orientation: landscape) and (max-height: 560px){
-    :has(#view-analysis.active) .keys{height:clamp(60px, 18dvh, 76px)}
-    .an-tb{padding:3px 6px; min-height:40px}
-    .an-tb .btn.tb-b,.an-tb .tb-tempo{height:36px}
-    .an-tb .btn.tb-b{min-width:36px}
-    .an-tb .btn.tb-play{min-width:40px}
-    .an-tb .tb-tempo .tb-tempo-step{height:34px; min-width:30px}
-    .an-tb .tb-tempo .tb-tempo-val{height:34px}
-    .an-tl{height:30px; padding:0 10px; gap:8px; font-size:11px}
-    .tl-track{height:22px}
-    .an-status{min-height:24px; padding:3px 10px; gap:2px 8px; font-size:11px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
-    .an-status > *{flex:none}
-    .st-hint{display:none}
-    .an-score{padding:6px 10px 10px}
-    .an-sheet > div{margin-bottom:12px}
-    .an-work{height:max(min(200px, 50dvh), calc(100dvh - var(--hdr-h) - var(--dock-h) - var(--an-tb-h) - var(--an-low) - 2px))}
-    .an-fab{min-height:34px; padding:0 11px 0 9px; font-size:12px; right:max(10px, env(safe-area-inset-right, 0px)); bottom:calc(var(--dock-h) + var(--an-sb-h) + 34px)}
-  }
-
-  .an-tools{display:inline-flex; gap:4px}
-  .an-tools-pop .an-tools{display:flex; flex:1 1 100%}
-  .an-tools-pop .an-tool{flex:1 1 0; min-height:40px}
-  .btn.tb-b.an-tool{width:auto; gap:5px; padding-inline:10px}
-  .btn.tb-b.an-tool[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
-
 .notation-reload {
   position: fixed;
   z-index: var(--z-notice);

@@ -29,6 +29,7 @@ import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCAL
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl } from './repertoire-data.js';
 import { srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srRest, srStem2, srStemLine, srTimeSigG } from './grand-staff.js';
 
+import '../styles/score-toolbar.css';
 import '../styles/score-library.css';
 import '../styles/native.css';
 import * as router from './router.js';
