@@ -810,6 +810,8 @@ export interface ReadController extends FeatureController {
   preInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: InputReleaseKind): boolean;
   /** Warm-up, rhythm, drill and Read & play input while Read is shown; true when the note was consumed. */
   viewInput(kind: 'on' | 'off', midi: number, lastHeld: number | undefined): boolean;
+  /** Drop a released key from the current reading step, or clear the input when the device resets. */
+  releaseInput(midi?: number): void;
   releaseFocus(): void;
   panicBegin(): void;
   panicRecorder(): void;

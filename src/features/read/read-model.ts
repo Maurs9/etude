@@ -22,7 +22,7 @@ export interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 export interface SrSlip { k: string; n: SrStaffNote; m: number }
 export interface SrState {
     piece: SrPiece | null; hands: string; modeSel: string; names: boolean; anyOctave: boolean; instantFeedback: boolean; active: boolean; assessOn: boolean;
-    notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
+    notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
     gen?: SrPiece | null; listening?: boolean;

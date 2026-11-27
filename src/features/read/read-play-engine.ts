@@ -7,7 +7,8 @@ import { type SrLayout, type SrPiece, type SrRenderResult, type SrScore, type Sr
 import { srBeatPt, srSpellName } from '../../domain/grand-staff.js';
 import { byId, maybeById, inputById, buttonById } from '../../domain/dom.js';
 import { type CoachTip } from '../../domain/views.js';
-import { inputTimeForRelease } from '../../domain/midi-timing.js';
+import { inputTime, inputTimeForRelease } from '../../domain/midi-timing.js';
+import { evaluateWaitChord, WAIT_CHORD_WINDOW } from '../../domain/wait-chord.js';
 import { srtEvaluate, type SightReadingPerformed } from '../../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected } from '../../sight-reading/model.js';
 import { srtLevelClicks, srtLevelDurationMs, srtLevelExpected } from '../../sight-reading/score.js';
@@ -97,6 +98,13 @@ export interface ReadPlayEngineDeps {
    attempt ledger, instant feedback, and the level piece that starts on its first note. */
 export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
   const { host, shell } = deps;
+  const stepAttacks = new Map<number, number>();
+
+  function releaseInput(midi?: number) {
+    if (midi === undefined) stepAttacks.clear();
+    else stepAttacks.delete(midi);
+  }
+
     /* ---- state, drawing, grading ---- */
   function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
     function srHandsAvail() { const p = deps.SR.piece; if (!p)
@@ -220,7 +228,7 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
       const stepNids = st ? new Set(st.notes.map((n: { nid: number; }) => n.nid)) : null;
       entry.notes.forEach(({ g, title, sym: visible }, id) => {
           const r = deps.SR.results[id];
-          if (stepNids && stepNids.has(id) && !deps.SR.hit.has(id))
+          if (stepNids?.has(id))
               g.dataset.s = 'now';
           else if (r)
               g.dataset.s = r;
@@ -402,8 +410,7 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
           return;
       const st = deps.SR.steps[deps.SR.stepIdx];
       if (st)
-          st.notes.forEach((n: { nid: number; midi: number; }) => { if (!deps.SR.hit.has(n.nid))
-              deps.kbState(n.midi, 'target', true); });
+          st.notes.forEach(n => deps.kbState(n.midi, 'target', true));
   }
     function srClick(t: number, acc: boolean) {
       const click = shell.audioEngine.scheduleClick(t, acc);
@@ -507,6 +514,7 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
       }
       const preservePendingResult = srtPendingSaveProtected();
       deps.SR.active = false;
+      stepAttacks.clear();
       deps.stageSync();
       deps.rdnNavUi();
       deps.SR.assessOn = false;
@@ -534,7 +542,6 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
           deps.SR.results = {};
           deps.SR.wrongExtra = 0;
           deps.SR.stepIdx = 0;
-          deps.SR.hit.clear();
           deps.SR.next = null;
           srPaintAll();
       }
@@ -558,7 +565,13 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
           return;
       deps.SR.notes.filter((n) => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach((n) => host.audio.previewNote(n.midi, ctx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
   }
-    function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = deps.SR.stepIdx + ' / ' + deps.SR.steps.length + (deps.SR.mistakes ? '  ·  ✗ ' + deps.SR.mistakes : ''); }
+    function srCount(start = false) {
+      const v = byId('rd-verdict'), step = deps.SR.steps[deps.SR.stepIdx];
+      const chord = step?.notes.some(n => n.midi !== step.notes[0].midi);
+      const count = deps.SR.stepIdx + ' / ' + deps.SR.steps.length + (deps.SR.mistakes ? '  ·  ✗ ' + deps.SR.mistakes : '');
+      v.className = 'verdict neutral';
+      v.textContent = chord ? count + ' · ' + deps.t('rd_learn_chord') : start ? deps.t('rd_learn_go') : count;
+    }
     function srLearnStart() {
       deps.rdnResultHide();
       deps.SR.active = true;
@@ -568,7 +581,6 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
       rdWarmButtonsSync();
       deps.SR.results = {};
       deps.SR.stepIdx = 0;
-      deps.SR.hit.clear();
       deps.SR.mistakes = 0;
       deps.SR.errs = {};
       deps.SR.slipKey = null;
@@ -577,9 +589,7 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
       srPaintAll();
       srTargets();
       srScrollStep();
-      const v = byId('rd-verdict');
-      v.className = 'verdict neutral';
-      v.textContent = deps.t('rd_learn_go');
+      srCount(true);
       byId('rd-go').textContent = deps.t('rd_stop');
   }
     function srLearnFinish() {
@@ -1517,41 +1527,43 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
       v.textContent = text;
   }
     function srKeyInput(m: number) {
-      if (!deps.SR.active)
+      const sr = deps.SR, step = sr.steps[sr.stepIdx];
+      if (!sr.active || sr.modeSel !== 'learn' || !step)
           return;
-      if (deps.SR.modeSel === 'learn') {
-          const st = deps.SR.steps[deps.SR.stepIdx];
-          if (!st)
-              return;
-          const need = st.notes.find((n: { nid: number; midi: number; }) => !deps.SR.hit.has(n.nid) && samePitch(n.midi, m, deps.SR.anyOctave));
-          if (need) {
-              deps.SR.hit.add(need.nid);
-              deps.SR.results[need.nid] = 'good';
-              if (st.notes.every((n: { nid: number; }) => deps.SR.hit.has(n.nid))) {
-                  const next = deps.SR.steps[deps.SR.stepIdx + 1];
-                  srPlayGap(st.beat, next ? next.beat : 1e9);
-                  deps.SR.stepIdx++;
-                  deps.SR.hit.clear();
-                  if (deps.SR.stepIdx >= deps.SR.steps.length) {
-                      srPaintAll();
-                      srLearnFinish();
-                      return;
-                  }
-                  srCount();
-              }
-              srPaintAll();
-              srTargets();
-              srScrollStep();
-          }
-          else {
-              deps.SR.mistakes++;
-              deps.srSlipNote(st, m);
-              deps.kbState(m, 'bad', true);
-              deps.SR.timers.push(setTimeout(() => { const el = shell.keyEl.get(deps.foldToView(m)); if (el && el.dataset.s === 'bad')
-                  deps.kbState(m, null, true); srTargets(); }, 320));
-              srCount();
-          }
+      if (!step.notes.some(n => samePitch(n.midi, m, sr.anyOctave))) {
+          sr.mistakes++;
+          deps.srSlipNote(step, m);
+          deps.kbState(m, 'bad', true);
+          sr.timers.push(setTimeout(() => { const el = shell.keyEl.get(deps.foldToView(m)); if (el && el.dataset.s === 'bad')
+              deps.kbState(m, null, true); srTargets(); }, 320));
+          srCount();
+          return;
       }
+      const need = new Set(step.notes.map(n => n.midi));
+      if (need.size > 1) {
+          stepAttacks.set(m, inputTime() / 1000);
+          const latest = Math.max(...stepAttacks.values());
+          // An old exact key must not mask a fresh octave substitute.
+          for (const [key, time] of stepAttacks)
+              if (latest - time > WAIT_CHORD_WINDOW + 1e-9)
+                  stepAttacks.delete(key);
+          // Notes from the preceding step can stay held, but only fresh inputs count here.
+          if (!evaluateWaitChord(need, stepAttacks, shell.held, new Set(), shell.held, sr.anyOctave).complete)
+              return;
+      }
+      step.notes.forEach(n => { sr.results[n.nid] = 'good'; });
+      const next = sr.steps[sr.stepIdx + 1];
+      srPlayGap(step.beat, next ? next.beat : 1e9);
+      sr.stepIdx++;
+      stepAttacks.clear();
+      srPaintAll();
+      if (!next) {
+          srLearnFinish();
+          return;
+      }
+      srCount();
+      srTargets();
+      srScrollStep();
   }
     function srListen() {
       if (!deps.SR.piece)
@@ -1911,6 +1923,7 @@ export function createReadPlayEngine(deps: ReadPlayEngineDeps) {
     srAssessLoop,
     srAssessFinish,
     srRenderAssessResult,
+    releaseInput,
     srKeyInput,
     srListen,
     srGo,

@@ -94,6 +94,7 @@ export function createInputBus(deps: InputBusDeps) {
       held.forEach((m) => deps.audioNoteOff(m));
       sustained.forEach((m) => deps.audioNoteOff(m));
       held.clear();
+      deps.read?.releaseInput();
       heldOrder.length = 0;
       sustained.clear();
       inputOwners.clear();
@@ -155,6 +156,8 @@ export function createInputBus(deps: InputBusDeps) {
   const inputBusListeners = new Set<InputBusListener>();
   // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
   function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
+      if (kind === 'off')
+          deps.read?.releaseInput(midi);
       if (deps.calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
           if (kind === 'on')
               deps.calTap();

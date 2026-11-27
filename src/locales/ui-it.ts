@@ -1946,6 +1946,7 @@ const payload: UIPayload = {
       "rd_count": "Battuta d'aspetto…",
       "rd_play": "Suona!",
       "rd_learn_go": "Suona la nota evidenziata — i tasti in basso mostrano il bersaglio.",
+      "rd_learn_chord": "Premi insieme i tasti evidenziati.",
       "rd_perfect": "Perfetto — un'esecuzione impeccabile! ✦",
       "rd_done_learn": "Completato — %s errori. Suonalo un'altra volta per un'esecuzione pulita.",
       "rd_score": "Punteggio: %s%",

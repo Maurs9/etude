@@ -50,7 +50,7 @@ export function createReadFeature(host: AppHost, shell: ReadShell): ReadControll
   } = shell;
   const LETTERS = shell.letters;
   const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, instantFeedback: false, active: false, assessOn: false,
-      notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
+      notes: [], steps: [], stepIdx: 0, results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
       render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
       srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
       srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null,
@@ -444,7 +444,7 @@ export function createReadFeature(host: AppHost, shell: ReadShell): ReadControll
   // the wrong way from the previous note, or the right way but the wrong distance.
   // What kind of slip it was (oct, key, chord, other, dir or dist), the note that was wanted and the key played.
   function srSlip(st: { notes: readonly SrStaffNote[]; }, m: number): SrSlip | null {
-      const want = st.notes.filter((n) => !SR.hit.has(n.nid));
+      const want = st.notes;
       if (!want.length)
           return null;
       const n = want.reduce((a, b) => Math.abs(b.midi - m) < Math.abs(a.midi - m) ? b : a);
@@ -1173,8 +1173,7 @@ export function createReadFeature(host: AppHost, shell: ReadShell): ReadControll
       return true;
     }
     if (SR.active && kind === 'on') {
-      if (lastHeld != null)
-        srKeyInput(lastHeld);
+      srKeyInput(midi);
       return true;
     }
     return false;
@@ -1394,6 +1393,7 @@ export function createReadFeature(host: AppHost, shell: ReadShell): ReadControll
     },
     preInput,
     viewInput,
+    releaseInput: read_play_engine.releaseInput,
     releaseFocus: () => {
       if (RD.rh)
         [...RD.rh.open.keys()].forEach((s) => { if (/^(k:|p\d)/.test(s))
