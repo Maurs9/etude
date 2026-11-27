@@ -1124,11 +1124,9 @@ async function ensureFeature(view: router.AppView): Promise<FeatureController | 
     const promise = loader().then((controller) => {
         controller.mount?.(appHost);
         loadedFeatures[view] = controller;
-        delete featureLoadPromises[view];
         return controller;
-    }, (err) => {
+    }).finally(() => {
         delete featureLoadPromises[view];
-        throw err;
     });
     featureLoadPromises[view] = promise;
     return promise;
@@ -1616,9 +1614,10 @@ function showImpl(
                 }
                 catch (_) { }
             }
-            void reader.abandonClaim().then((result) => {
+            return reader.abandonClaim().then((result) => {
+                if (navigation !== featureNavigation) return;
                 if (result.ok || !reader.isPendingSaveState()) {
-                    show(hum ? 'transcribe' : v, moveFocus, fromHistory);
+                    return show(hum ? 'transcribe' : v, { ...opts, moveFocus, fromHistory, analysisRoute: requestedAnRoute });
                 }
                 else if (location.hash.slice(1) !== prev) {
                     try {
