@@ -210,12 +210,21 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     await expect(page.locator('#helpTitle')).toBeInViewport();
   });
 
-  test('header fits around the mobile navigation breakpoint', async ({ app }) => {
+  test('the enlarged wordmark fits the header on small screens', async ({ app }) => {
     const page = app.page;
-    await page.setViewportSize({ width: 681, height: 800 });
+    await page.setViewportSize({ width: 320, height: 800 });
     await app.open({ lang: 'ro' });
-    const right = await page.locator('#settingsBtn').evaluate(el => el.getBoundingClientRect().right);
-    expect(right).toBeLessThanOrEqual(681);
+    await page.evaluate(() => document.fonts.ready);
+
+    for (const { width, height, fontSize } of [
+      { width: 320, height: 800, fontSize: '54px' },
+      { width: 681, height: 800, fontSize: '54px' },
+      { width: 844, height: 390, fontSize: '28px' },
+    ]) {
+      await page.setViewportSize({ width, height });
+      await expect(page.locator('.brand .mark')).toHaveCSS('font-size', fontSize);
+      await expect(page.locator('#settingsBtn')).toBeInViewport({ ratio: 1 });
+    }
   });
 
   test('widening the window closes the mobile menu', async ({ app }) => {
@@ -354,6 +363,11 @@ test.describe('bottom navigation on phones', () => {
     await app.open();
     await expect(page.locator('#bottomNav')).toBeHidden();
     await expect(page.locator('#nav')).toBeVisible();
+    await expect(page.locator('.brand .mark')).toHaveCSS('font-size', '54px');
+    await expect(page.locator('#brand-tag')).toBeVisible();
+    await expect(page.locator('#brand-tag')).toHaveCSS('font-size', '34px');
+    const brand = await rect(page, '.brand'), header = await rect(page, 'header .bar');
+    expect(Math.abs(header.bottom - brand.bottom)).toBeLessThanOrEqual(1);
   });
 
   test('Explore lives under Practice, and the keyboard dock sits above the bar', async ({ app }) => {

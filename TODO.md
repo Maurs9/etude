@@ -99,7 +99,7 @@ main/
 │       └── osmd-3.0.0.min.js   # OpenSheetMusicDisplay 3.0.0 (lazy-loaded)
 ├── src/                        # Codul sursă al aplicației
 │   ├── assets/
-│   │   ├── fonts/              # 6 subseturi WOFF2 (Bodoni Moda + Mr De Haviland)
+│   │   ├── fonts/              # 5 fișiere WOFF2 (Bodoni Moda + Etude Script)
 │   │   └── piano/              # 30 sample-uri MP3 Salamander Grand Piano v3
 │   ├── domain/                 # Module TypeScript stricte pe domenii (audio, dom, notation, router, storage, theory, views, views-runtime, score-*, practice-*, technique*, etc.)
 │   ├── sight-reading/          # Generatoare, niveluri, evaluare, progresie și încălzire Read
@@ -160,7 +160,7 @@ main/
 |---:|---|---|---|---|---|
 | **1** | **OpenSheetMusicDisplay (OSMD)** | `3.0.0` | `public/vendor/osmd-3.0.0.min.js` (încărcat la cerere prin `src/domain/notation.ts`) | Include intern 4 biblioteci: **VexFlow** (`1.2.93` fork OSMD), **JSZip** (`3.10.2`), **loglevel** (`^1.8.0`), **typescript-collections** (`^1.3.3`) | BSD-3-Clause (PhonicScore) + MIT (sub-dependențe) |
 | **2** | **Salamander Grand Piano v3** | `v3` | `src/assets/piano/21.mp3` … `108.mp3` (30 fișiere) | Note din 3 în 3 semitonuri; integritate păzită de `tests/golden/piano-recordings.json` | CC BY 3.0 (Alexander Holm / Tone.js) |
-| **3** | **Fonturi WOFF2 auto-găzduite** | Static (`v2`) | `src/assets/fonts/*.woff2` (6 fișiere) + `src/styles/fonts.css` | **Bodoni Moda** (normal + italic, `latin` + `latin-ext`) și **Mr De Haviland** (`latin` + `latin-ext`) | SIL Open Font License 1.1 |
+| **3** | **Fonturi WOFF2 auto-găzduite** | Static | `src/assets/fonts/*.woff2` (5 fișiere) + `src/styles/fonts.css` | **Bodoni Moda** (normal + italic, `latin` + `latin-ext`) și **Etude Script**, bazat pe [Mr De Haviland](https://github.com/google/fonts/tree/main/ofl/mrdehaviland), cu șase glife românești adăugate | SIL Open Font License 1.1 |
 | **4** | **Glife SMuFL Bravura** | Static | Contururi SVG `CLEF_G` și `CLEF_F` în cod | Cheia Sol și cheia Fa pentru portativul rapid SVG | SIL Open Font License 1.1 |
 
 ---
