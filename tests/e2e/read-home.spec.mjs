@@ -23,11 +23,22 @@ test.describe('Read home', () => {
     await expect(page.locator('#rdn-today-h')).toHaveCount(1);
     await expect(page.locator('#rdn-book-h')).toHaveCount(1);
     await expect(page.locator('#rdn-plan')).toBeVisible();
-    // Companion routine inside the unified hero: Warm-up and Long piece (no duplicate Today card), with 3 milestone segments.
+    // Companion routine inside the unified hero: Warm-up and Long piece are the only buttons (no duplicate Today card), with 3 milestone segments.
     const steps = page.locator('#rdn-plan .plan-item');
     await expect(steps).toHaveCount(2);
     await expect(steps.nth(0)).toHaveAttribute('data-next', 'true');
     await expect(steps.nth(0).locator('.ck')).toHaveText('1');
+    // The list shows all three steps, numbered 1-3. Today's set (step 2) is a status row without a control of its own.
+    await expect(page.locator('#rdn-plan .ck')).toHaveText(['1', '2', '3']);
+    const setStep = page.locator('#rdn-plan .rdn-set-step');
+    await expect(setStep).toHaveCount(1);
+    await expect(setStep.locator('button, a, [tabindex]')).toHaveCount(0);
+    await expect(setStep.locator('.plan-pill')).toHaveText('0/5');
+    await expect(setStep.locator('.visually-hidden')).toHaveText(fill(STRINGS.en.rdn_goal_aria, 0, 5));
+    // The footer spans the whole card, under both columns.
+    const footer = await page.locator('.rdn-today').evaluate((el) => { const f = el.querySelector(':scope > .hero-why'); return f ? f.getBoundingClientRect().width - el.getBoundingClientRect().width : null; });
+    expect(footer).not.toBeNull();
+    expect(Math.abs(footer)).toBeLessThanOrEqual(2);
     await expect(page.locator('#rdn-long-go')).toHaveCount(0);
     await expect(page.locator('#rdn-plan-sub')).toHaveText(STRINGS.en.plan_sub.replace('%a', '0').replace('%b', '3'));
     await expect(page.locator('#rdn-plan-segs i')).toHaveCount(3);

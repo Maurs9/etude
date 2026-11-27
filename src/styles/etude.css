@@ -1100,17 +1100,17 @@
   .plan-item:hover{border-color:var(--accent); background:var(--paper); transform:translateY(-1px)}
   .plan-item[data-next="true"]{border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); background:var(--paper); box-shadow:0 6px 18px -12px rgba(30,66,102,.45)}
   .plan-item[data-partial="true"]:not([data-next="true"]){border-color:color-mix(in srgb, var(--gold) 55%, var(--line))}
-  .plan-item .ck{grid-column:1; grid-row:1 / span 2; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line2); display:grid; place-items:center; font-size:11px; font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums}
-  .plan-item[data-next="true"] .ck{border-color:var(--accent); color:var(--accent)}
-  .plan-item[data-partial="true"] .ck{border-color:var(--gold); color:var(--gold-ink)}
-  .plan-item[data-done="true"] .ck{background:var(--good); border-color:var(--good); color:var(--paper); font-weight:900}
-  .plan-item .pt{grid-column:2; grid-row:1; font-weight:700; font-size:13.5px; line-height:1.2}
-  .plan-item .pd{grid-column:2; grid-row:2; font-size:11.5px; color:var(--muted); line-height:1.25}
-  .plan-item[data-done="true"] .pt{color:var(--muted)}
+  :is(.plan-item,.plan-step) .ck{grid-column:1; grid-row:1 / span 2; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line2); display:grid; place-items:center; font-size:11px; font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums}
+  :is(.plan-item,.plan-step)[data-next="true"] .ck{border-color:var(--accent); color:var(--accent)}
+  :is(.plan-item,.plan-step)[data-partial="true"] .ck{border-color:var(--gold); color:var(--gold-ink)}
+  :is(.plan-item,.plan-step)[data-done="true"] .ck{background:var(--good); border-color:var(--good); color:var(--paper); font-weight:900}
+  :is(.plan-item,.plan-step) .pt{grid-column:2; grid-row:1; font-weight:700; font-size:13.5px; line-height:1.2}
+  :is(.plan-item,.plan-step) .pd{grid-column:2; grid-row:2; font-size:11.5px; color:var(--muted); line-height:1.25}
+  :is(.plan-item,.plan-step)[data-done="true"] .pt{color:var(--muted)}
   .plan-end{grid-column:3; grid-row:1 / span 2; display:inline-flex; align-items:center; gap:6px; padding-left:2px}
   .plan-pill{font-size:10.5px; font-weight:700; color:var(--muted); background:var(--card); border:1px solid var(--line); border-radius:99px; padding:1px 6px; white-space:nowrap; font-variant-numeric:tabular-nums}
-  .plan-item[data-partial="true"] .plan-pill{color:var(--gold-ink); border-color:var(--gold)}
-  .plan-item[data-done="true"] .plan-pill{color:var(--good); border-color:var(--good)}
+  :is(.plan-item,.plan-step)[data-partial="true"] .plan-pill{color:var(--gold-ink); border-color:var(--gold)}
+  :is(.plan-item,.plan-step)[data-done="true"] .plan-pill{color:var(--good); border-color:var(--good)}
   .plan-go{font-size:13px; color:var(--muted); opacity:.45; transition:transform .15s, opacity .15s, color .15s}
   .plan-item:hover .plan-go,.plan-item[data-next="true"] .plan-go{color:var(--accent); opacity:1; transform:translateX(2px); font-weight:700}
   .plan-bar{position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--line); pointer-events:none}
