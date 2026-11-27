@@ -11,6 +11,10 @@ import {
   type SyncNoBase,
 } from '../core/sync-merge.js';
 import {
+  srsBox, srsDueItems, srsEntryOf, srsIsDue, srsIsNew, srsMasteredCount, srsNewItems, srsNewQuotaLeft,
+  srsReview, srsSeedPlacement,
+} from '../core/srs.js';
+import {
   learnData as coreLearnData,
   learnDueDays as coreLearnDueDays,
   learnDueList as coreLearnDueList,
@@ -1491,25 +1495,13 @@ function restoreTrainerData(saved: storage.PttV3Payload['data']): StoredTrainerD
 }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
-function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = storage.restoreSrsEntry(null)); }
+// Spaced repetition lives in src/core/srs.ts; these wrappers pass the live srs map and today's day number.
+function srsOf(id: string|number) { return srsEntryOf(data.srs, id); }
 const IVL = SRS_INTERVALS;
 function reviewItem(id: string, correct: boolean) {
-    const it = srsOf(id);
-    it.reps++;
-    if (correct) {
-        it.box = Math.min(7, it.box + 1);
-        it.ease = Math.min(2.9, it.ease + .05);
-    }
-    else {
-        it.box = 1;
-        it.lapses++;
-        it.ease = Math.max(1.6, it.ease - .2);
-    }
-    const days = IVL[it.box] !== undefined ? IVL[it.box] : 120;
-    it.due = todayN() + Math.max(0, Math.round(days * (it.ease / 2.3)));
-    it.last = todayN();
+    const first = srsReview(data.srs, id, correct, todayN());
     creditReview(correct);
-    if (it.reps === 1)
+    if (first)
         data.newToday = (data.newToday || 0) + 1; // count fresh concepts against the daily quota
     saveAll();
 }
@@ -1545,16 +1537,7 @@ function touchDay() {
     if (keys.length > 400)
         keys.sort((a, b) => Number(a) - Number(b)).slice(0, keys.length - 400).forEach((k) => delete h[k]);
 }
-function seedPlacement(id: string, known: boolean) {
-    if (!known) return;
-    const it = srsOf(id);
-    it.box = 4;
-    it.ease = 2.4;
-    it.reps = 1;
-    it.lapses = 0;
-    it.due = todayN() + Math.round(IVL[4] * (it.ease / 2.3));
-    it.last = todayN();
-}
+function seedPlacement(id: string, known: boolean) { srsSeedPlacement(data.srs, id, known, todayN()); }
 type IntervalStyle = 'both' | 'melodic' | 'harmonic';
 type ChordTier = 'triads' | 'sevenths' | 'all';
 type ScaleTier = 'core' | 'modes' | 'all';
@@ -1593,14 +1576,14 @@ function chordEarOptions(correctItem: ChordTrainerItem) {
     return shuffle(same.concat(rest).slice(0, 7).concat([correctItem]));
 }
 const PLACEMENT = ['iv:7', 'iv:5', 'iv:4', 'iv:3', 'iv:12', 'ch:maj', 'ch:m', 'ch:maj7', 'ch:7', 'sc:Major (Ionian)', 'sc:Aeolian (Natural minor)', 'pr:I–IV–V'];
-function boxOf(id: string|number) { return data.srs[id] ? data.srs[id].box : 0; }
-function isDue(id: string|number) { const s = data.srs[id]; return s && s.reps > 0 && s.due <= todayN(); }
-function isNew(id: string|number) { const s = data.srs[id]; return !s || s.reps === 0; }
-function dueItems() { return ITEMS.filter((it) => isDue(it.id)).sort((a, b) => data.srs[a.id].due - data.srs[b.id].due); }
-function newItemsAvail() { return ITEMS.filter((it) => isNew(it.id)).sort((a, b) => a.intro - b.intro); }
+function boxOf(id: string|number) { return srsBox(data.srs, id); }
+function isDue(id: string|number) { return srsIsDue(data.srs, id, todayN()); }
+function isNew(id: string|number) { return srsIsNew(data.srs, id); }
+function dueItems() { return srsDueItems(ITEMS, data.srs, todayN()); }
+function newItemsAvail() { return srsNewItems(ITEMS, data.srs); }
 // New concepts still allowed today: the daily quota minus those already introduced today (across sessions).
-function newQuotaLeft() { const introduced = data.todayDay === todayN() ? (data.newToday || 0) : 0; return Math.max(0, data.settings.newPerDay - introduced); }
-function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length; }
+function newQuotaLeft() { return srsNewQuotaLeft(data, data.settings.newPerDay, todayN()); }
+function masteredCount() { return srsMasteredCount(ITEMS, data.srs); }
 /* ============================================================================
    SESSION ENGINE  (interleaved, adaptive, with feedback + elaboration)
    ============================================================================ */
