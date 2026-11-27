@@ -2139,6 +2139,19 @@ export function createPracticeFeature(host: AppHost, shell: PracticeShell): Prac
         if (!b) return;
         prSetMode(b.dataset.v === 'along' ? 'along' : prProgLastDrill);
     });
+    // Arrow keys, Home and End move between Exercise and Play along and select it (WAI-ARIA tabs, as on the Read tabs):
+    // the tab that is not selected has tabindex -1, so Tab alone never reaches it.
+    maybeById('pr-prog-split')?.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') return;
+        const split = e.currentTarget;
+        if (!(split instanceof HTMLElement)) return;
+        const tabs = queryAllHtml(split, '[role="tab"]'), fe = document.activeElement, i = fe instanceof HTMLElement ? tabs.indexOf(fe) : -1;
+        if (i < 0) return;
+        e.preventDefault();
+        const n = e.key === 'Home' ? tabs[0] : e.key === 'End' ? tabs[tabs.length - 1] : tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        prSetMode(n.dataset.v === 'along' ? 'along' : prProgLastDrill);
+        n.focus();
+    });
     byId('pr-cat').addEventListener('change', syncPracticeCatAndMode);
     byId('pr-key').addEventListener('change', () => { renderPracticeKeys(); updatePracticeModeHint(); });
     byId('pr-topics').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetTopic(r.dataset.v); });
