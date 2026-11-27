@@ -279,7 +279,7 @@ export function createReadHome(deps: ReadHomeDeps) {
               // With a set, the visible "Today's set · 0/5" is read as one sentence ("Today's set: 0 of 5 pieces read").
               // Without one, the title and "No set today." are read as they are shown.
               const title = it.pill ? `<span aria-hidden="true">${e(it.t)}</span><span class="visually-hidden">${e(deps.t('rdn_goal_aria', played, total))}</span>` : e(it.t);
-              return `<li class="plan-step rdn-set-step" data-done="${it.done}"${it.partial ? ' data-partial="true"' : ''}${idx === nextIdx ? ' data-next="true"' : ''}>` +
+              return `<li class="plan-step rdn-set-step" data-done="${it.done}"${it.partial ? ' data-partial="true"' : ''}>` +
                   `<span class="ck" aria-hidden="true">${mark}</span><span class="pt">${title}</span>` +
                   (it.pill ? `<span class="plan-end" aria-hidden="true"><span class="plan-pill">${e(it.pill)}</span></span>` : `<span class="pd">${e(it.d)}</span>`) + '</li>';
           }
