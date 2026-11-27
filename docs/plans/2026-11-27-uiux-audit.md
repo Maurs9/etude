@@ -237,4 +237,18 @@ Fiecare pas se implementează separat, cu `npm run lint`, `npm run test:unit` ș
 - Variantele din Învață sunt simulări CSS. Nu au fost testate lecții cu widget-uri late.
 
 ## 10. Stare implementare
-- 2026-11-27: P1a implementat pe branch-ul local `fix/read-today-plan-steps` (worktree `.claude/worktrees/read-today-plan-steps`). Necomis. Lint, typecheck, test:unit și npm test verzi.
+- 2026-11-28: top 1-5 implementate și mergeuite în `main` prin PR https://github.com/Maurs9/etude/pull/139 (merge commit `58bf389`).
+- Top 3 = varianta C (aliniere + coloană dreaptă), aleasă de owner. Top 4 = doar opțiunile exercițiilor pliate. Comutatoarele din Generator rămân la vedere, pentru că se folosesc în timpul cântatului.
+- Lint, typecheck, test:unit, test:i18n și npm test verzi pe branch. CI verde pe PR.
+
+## 11. Rămase pentru un PR separat
+
+| # | Ecran | Problemă | Dovadă | Propunere | Cost |
+|---|---|---|---|---|---|
+| R1 | Citește > Carte | După încălzire, accentul „următorul pas” cade pe rândul 2 „Setul de azi”, care nu se poate apăsa. Start este în coloana stângă. | `src/features/read/read-home.ts` (`data-next` pe `.rdn-set-step`) | Accentul trece pe butonul Start, sau rămâne așa dacă e intenționat. Decizia ta. | S |
+| R2 | Învață | Titlurile widget-urilor (Metronom, Gamă, Acord) apar în cuprinsul „Pe această pagină” ca și cum ar fi secțiuni. | `src/features/learn/index.ts` (`learnRailHeads`), `learn-widgets.ts:229, 247, 299` | Exclus `[data-widget] h4` din cuprins, dacă vrei doar secțiuni. | S |
+| R3 | Citește > Generator | Tabul se deschide fără melodie, 4 clicuri până la sunet (rest din P4). | `shots/read-pieces_1280_light_en.png` | Generează o melodie la prima vizită din sesiune, sau arată ultima. | S |
+| R4 | Citește > Generator | După generare, „Ambele mâini” și „Mâna stângă” devin gri fără motiv afișat (rest din P4). | `SP/agents/ux/f4_sr.png` | Un rând cu motivul, sau ascunderea opțiunilor indisponibile. | S |
+| R5 | Teste | Două teste e2e pică uneori sub încărcarea suitei complete: `pieces.spec.mjs:673` (pică și pe `main`, 2 din 4) și `sight-reading/claim-races.spec.mjs:33`. | logurile din `SP/e2e-*.log` | Stabilizare separată. | S-M |
+
+Restul propunerilor din audit care nu au intrat în top 5 rămân valabile: P1 complet, P2, P5, P6, P7, P10, P12, P13, P14 și restul din P11.
