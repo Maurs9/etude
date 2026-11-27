@@ -2,34 +2,25 @@ import { loadUI, loadLearn } from '../locales/loader.js';
 import { installLibraryCopy } from '../locales/library-runtime.js';
 import { LESSONS } from '../locales/catalog.js';
 import type { UIPayload } from '../locales/payload-types.js';
-import type { LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
+import type { MusicTranslations, StepLabels } from '../locales/content-types.js';
 import * as storage from './storage.js';
-import {
-  SRS_INTERVALS, SYNC_ADD, SYNC_MAX, SYNC_NONE, localDayNumber,
-  syncCloneData, syncData, syncHasBase, syncInto, syncIsObject,
-  syncNewCollisions, syncPick, syncSame, syncSrs, syncSrsPair,
-  type SyncNoBase,
-} from '../core/sync-merge.js';
+import { SRS_INTERVALS, SYNC_ADD, SYNC_MAX, SYNC_NONE, localDayNumber, syncData, syncInto, syncNewCollisions, syncPick, syncSame, syncSrs, syncSrsPair } from '../core/sync-merge.js';
 import {
   srsBox, srsDueItems, srsEntryOf, srsIsDue, srsIsNew, srsMasteredCount, srsNewItems, srsNewQuotaLeft,
   srsReview, srsSeedPlacement,
 } from '../core/srs.js';
 import { isSubset, randItem, setEq, shuffle } from '../core/collections.js';
 import { CATS, INTRO_CH, INTRO_IV, INTRO_SC, ITEMS, ITEM_BY_ID, isCatKey } from '../core/trainer-items.js';
-import {
-  learnData as coreLearnData,
-  learnDueDays as coreLearnDueDays,
-  learnDueList as coreLearnDueList,
-  learnGap as coreLearnGap,
-  learnUnitDone as coreLearnUnitDone,
-  learnUnitOf as coreLearnUnitOf,
-} from '../core/learn-progress.js';
 import * as safety from './data-safety.js';
 import { createCoaching } from '../app/coaching.js';
 import { createInputBus } from '../app/input-bus.js';
 import { createKeyboardDock } from '../app/keyboard-dock.js';
-import { RD_ALL, RD_ALLIV, RD_LV, RD_UNITS, rdS, rdU, type ReadDrillLevel } from '../core/reading-curriculum.js';
-import { createPwaLifecycle, WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
+import { createPersistence } from '../app/persistence.js';
+import { createShellControls } from '../app/shell-controls.js';
+import { createDevices } from '../app/devices.js';
+import { createShellHelpers } from '../app/shell-helpers.js';
+import { RD_ALL, RD_ALLIV, RD_LV, RD_UNITS, rdS, rdU } from '../core/reading-curriculum.js';
+import { WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
 import * as theory from './theory.js';
 import * as audio from './audio.js';
 import type * as notationApi from './notation.js';
@@ -41,13 +32,10 @@ import { srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srRest, srStem2, srSt
 import '../styles/score-library.css';
 import '../styles/native.css';
 import * as router from './router.js';
-import { byId, downloadBlob, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
-import { createTestSurfaceRegistry, SCORE_SIDE_TABS, type AppHost, type ScorePlayerController, type PracticeController, type PracticeShell, type ProgressController, type ProgressShell, type TodayController, type TodayShell, type ReadController, type ReadShell, type ScorePlayerShell, type EtudeSurface, type FeatureController, type PreviewSequenceFrame, type ReadDrillData, type ShowFn, type ShowOptions, type StoredTrainerData, type UiPrefsPatch, type UiPrefsSnapshot, type UiPrefsStore, type ViewApplicationState, type ViewEventHandler, type ViewEventName } from './views.js';
+import { byId, maybeById, inputById, selectById, queryHtml, queryAllHtml } from './dom.js';
+import { createTestSurfaceRegistry, type AppHost, type ScorePlayerController, type PracticeController, type PracticeShell, type ProgressController, type ProgressShell, type TodayController, type TodayShell, type ReadController, type ReadShell, type ScorePlayerShell, type EtudeSurface, type FeatureController, type PreviewSequenceFrame, type ShowFn, type ShowOptions, type StoredTrainerData, type UiPrefsPatch, type UiPrefsSnapshot, type UiPrefsStore, type ViewApplicationState, type ViewEventHandler, type ViewEventName } from './views.js';
 import type { InterfaceLanguage } from '../types/architecture.js';
-import { useLatencyOffsets } from './midi-timing.js';
-import { createTimingCalibration } from './midi-calibration.js';
-import { BLE_MIDI_CHR, BLE_MIDI_SVC, createBleMidi, type BleMidiDevice } from './ble-midi.js';
-import { createMidiController } from '../infra/midi-controller.js';
+import { BLE_MIDI_CHR, BLE_MIDI_SVC, type BleMidiDevice } from './ble-midi.js';
 import { pickArturia } from './midi-input-selection.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
@@ -59,7 +47,7 @@ import '../styles/explore.css';
 import '../styles/pieces.css';
 import '../styles/score-fullscreen.css';
 import '../styles/layout.css';
-import { SRT_LEDGER_KEY, isFutureSightLedgerStorage, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction } from '../sight-reading/ledger.js';
+import { srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger } from '../sight-reading/ledger.js';
 import '../styles/sight-rhythm.css';
 
 
@@ -590,320 +578,243 @@ const keyboardDock = createKeyboardDock({
 });
 const { LAND_PHONE, bindKeyA11y, blackEl, blurInputField, buildKeyboard, chooseView, dockForced, dockKeepEnd, dockKeyInSight, dockLabels, dockOpen, dockReflowListeners, dockReveal, dockSet, dockShown, dockSync, dockWanted, fixedBottomTop, foldToView, initPointer, kbClear, kbClearAll, kbDegrees, kbPress, kbState, keyAt, keyDg, keyEl, keyMk, midiLive, notifyDockReflow, pointerKey, positionBlacks, reflowKeys, repaintHeld, sesNeedsKeys, stageDock, syncKeyboardPan, touchInput, viewHigh, whiteEl, BLACK_NUDGE } = keyboardDock;
 const { handleNoteOff, handleNoteOn, held, heldMidis, heldOrder, heldPcs, inputBusListeners, inputOwners, midiChannels, midiSustainOwners, onInputChange, panic, pedalUp, releaseFocusInput, releaseLiveInput, sustained } = inputBus;
-/* ---------- WEB MIDI ---------- */
-const midiController = createMidiController({
-    t,
-    ensureAudio,
-    audioLockCheck,
-    releaseLiveInput,
-    panic,
-    saveAll: () => saveAll(),
-    onNoteOn: (midi, velocity, source) => handleNoteOn(midi, velocity, source),
-    onNoteOff: (midi, source, releaseKind, silence) => handleNoteOff(midi, source, releaseKind, silence),
-    onPitchBend: (value) => setBendFromValue(value),
-    onModulation: (depth) => audioEngine.setModulation(depth),
-    onSustainChange: (dn) => {
-        if (view0() === 'analysis' && !calListening() && !overlaysOpen()) scorePlayer?.sustainInput(dn);
-    },
-    silenceNote: (midi) => audioEngine.silenceNote(midi),
-    getPedalDown: () => pedalDown,
-    setPedalDown: (dn) => { pedalDown = dn; },
-    pedalUp,
-    midiChannels,
-    midiSustainOwners,
-    sustained,
-    held,
-    isBleCan: () => bleCan(),
-    isBleLive: () => bleLive(),
-    getBleName: () => bleName(),
-    isDockShown: () => dockShown(),
-    onChipSync: () => {
-        read?.readySync();
-        scorePlayer?.syncPracticeLine();
-        if (STAGE.on || practice?.sesActive()) dockSync(); // a connected piano releases the keys a stage or drill opened
-    },
-    runtimeErrorName,
-});
-const {
-    midiStatus, setMidi, midiChipSync, connectMidi, listInputs, refreshDeviceList,
-    attachInput, autoReconnectMidi, onStateChange, onMidiMessage, midiIn, midiDispatch, midiNoteOff,
-} = midiController;
-/* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ---------- */
-function calRecord(): Record<string, unknown> { return data; }
-useLatencyOffsets(() => calRecord().latency);
-const calController = createTimingCalibration({
+/* ---------- PERSISTENCE (src/app/persistence.ts); the write gateway stays below (syncWrite, storeApplyBackup, syncPayload) ---------- */
+// Created before anything below captures saveSoon or the sync state; shell values it needs are read through getters.
+const persistence = createPersistence({
+    get data() { return data; },
+    set data(value: StoredTrainerData) { data = value; },
+    get lang() { return lang; },
+    set lang(value: InterfaceLanguage) { lang = value; },
+    get notation() { return notation; },
+    set notation(value: theory.NoteSystem) { notation = value; },
+    get theme() { return theme; },
+    set theme(value: 'auto' | 'light' | 'dark') { theme = value; },
+    get labelMode() { return labelMode; },
+    set labelMode(value: string) { labelMode = value; },
+    get reloadingForRestore() { return reloadingForRestore; },
+    get strings() { return STRINGS; },
+    get localeRequest() { return localeRequest; },
+    set localeRequest(value: number) { localeRequest = value; },
+    audioEngine,
+    get midiController() { return midiController; },
+    metro,
+    dock: DOCK,
+    get ble() { return BLE; },
+    get pwa() { return PWA; },
+    get wake() { return WAKE; },
+    get loadedFeatures() { return loadedFeatures; },
+    get practice() { return practice; },
+    get read() { return read; },
+    todayN: () => todayN(),
+    view0: () => view0(),
     t: (key, ...args) => t(key, ...args),
-    ensureAudio,
-    timedAudioReady,
-    scheduleClick: (when, accent) => audioEngine.scheduleClick(when, accent),
-    touchInput,
-    getLatency: () => calRecord().latency,
-    setLatency: (next) => { calRecord().latency = next; },
-    clearLatency: () => { delete calRecord().latency; },
-    saveAll,
-});
-const CAL = calController.state;
-const calLabel = calController.label;
-const initLatencyCalibration = calController.init;
-const calUi = calController.ui;
-const calListening = calController.listening;
-const calSay = calController.say;
-const calStart = calController.start;
-const calBeat = calController.beat;
-const calTap = calController.tap;
-const calStop = calController.stop;
-const calFinish = calController.finish;
-const calReset = calController.reset;
-/* ---------- BLUETOOTH MIDI: BLE-MIDI straight from the piano over Web Bluetooth ---------- */
-const bleController = createBleMidi({
-    t: (key, ...args) => t(key, ...args),
-    midiChipSync,
-    ensureAudio,
-    saveAll,
-    panic,
-    srtEligibleFirstSightActive: () => !!read?.firstSightActive(),
-    midiIn,
-    releaseBleChannels() {
-        midiChannels.delete('ble');
-        for (const [midi, owner] of midiSustainOwners) {
-            if (owner.source === 'ble') midiSustainOwners.delete(midi);
-        }
-        [...inputOwners.entries()].forEach(([m, o]) => {
-            if (o.has('ble')) handleNoteOff(m, 'ble', 'reset');
-        });
-    },
-    releaseSustainPedal() {
-        if (pedalDown) {
-            pedalDown = false;
-            pedalUp();
-        }
-    },
-    resetBend() { setBendFromValue(0); },
-    resetModulation() { audioEngine.setModulation(0); },
-    runtimeErrorName,
-    runtimeErrorMessage,
-});
-const BLE = bleController.state;
-const bleCan = bleController.can;
-const bleLive = bleController.live;
-const bleName = bleController.name;
-const bleSet = bleController.set;
-const bleUi = bleController.ui;
-const bleClick = bleController.click;
-const bleChoose = bleController.choose;
-const bleErr = bleController.err;
-const bleStale = bleController.stale;
-const bleOpen = bleController.open;
-const bleUnhook = bleController.unhook;
-const bleOnGone = bleController.onGone;
-const bleRetry = bleController.retry;
-const bleReconnect = bleController.reconnect;
-const bleDisconnect = bleController.disconnect;
-const bleReleaseInput = bleController.releaseInput;
-const bleAutoReconnect = bleController.autoReconnect;
-const bleParserReset = bleController.parserReset;
-const bleOnValue = bleController.onValue;
-const bleParse = bleController.parse;
-const bleStatus = bleController.status;
-const bleData = bleController.data;
-const bleMsg = bleController.msg;
-/* ---------- INSTALLED APP: offline copy, install prompt, full screen and screen wake lock ---------- */
-const pwaLifecycle = createPwaLifecycle({
-    t,
+    appAlert: (message) => appAlert(message),
+    appConfirm: (message) => appConfirm(message),
+    setLang: (l, synchronized) => setLang(l, synchronized),
+    isRuntimeLanguage: (value): value is InterfaceLanguage => isRuntimeLanguage(value),
+    applyTheme: () => applyTheme(),
+    applyNotation: () => applyNotation(),
+    localeLoadError: (retry, target) => localeLoadError(retry, target),
+    reflectSettingsUI: () => reflectSettingsUI(),
+    refreshToday: () => refreshToday(),
+    renderProgress: () => renderProgress(),
+    anyLoadedFeatureBusy: () => anyLoadedFeatureBusy(),
+    freshData: () => freshData(),
+    restoreTrainerData: (saved) => restoreTrainerData(saved),
+    scorePrefsNow: () => scorePrefsNow(),
+    setScorePrefs: (next) => setScorePrefs(next),
+    savedScoreView: (v, explicit) => savedScoreView(v, explicit),
+    defaultScoreLayoutForViewport: (w) => defaultScoreLayoutForViewport(w),
+    buildKeyboard: () => buildKeyboard(),
+    repaintHeld: () => repaintHeld(),
+    calUi: () => calUi(),
+    calRecord: () => calRecord(),
+    pwaStandalone: () => pwaStandalone(),
+    bleLive: () => bleLive(),
+    bleName: () => bleName(),
+    syncWrite: (replacement) => syncWrite(replacement),
+    storeApplyBackup: (payload, reason) => storeApplyBackup(payload, reason),
+    syncPayload: () => syncPayload(),
     saveAll: () => saveAll(),
-    runtimeErrorName,
 });
-const {
-    PWA, WAKE, pwaStandalone, pwaInit, pwaRegister, pwaUi, pwaInstall,
-    fsCan, fsUi, fsToggle,
-    wakeCan, wakeGet, wakeOnGesture, wakeDrop, wakeSet, wakePing, wakeArm, wakeUi, wakeInit,
-} = pwaLifecycle;
-// Both score players share one expand action. Native fullscreen is optional;
-// ownership prevents leaving fullscreen opened independently in Settings.
-function scoreFocusUi() {
-    for (const id of ['rd-fs', 'rd-top-fs']) {
-        const button = maybeById(id);
-        if (!button) continue;
-        const on = SCORE_FOCUS.owner === 'read';
-        button.hidden = false;
-        button.setAttribute('aria-pressed', String(on));
-        button.setAttribute('aria-label', t(on ? 'pc_stage_exit' : 'pc_stage'));
-        button.title = t(on ? 'pc_stage_exit' : 'pc_stage_t');
-        button.textContent = id === 'rd-top-fs' ? '⛶' : '⛶ ' + t(on ? 'pc_stage_exit' : 'pc_stage');
-        button.setAttribute('aria-disabled', String(!read?.hasPiece()));
-    }
-    const kb = maybeById('rd-focus-kb');
-    kb?.setAttribute('aria-expanded', String(dockOpen()));
-    if (kb) { kb.textContent = t(dockOpen() ? 'kb_hide' : 'kb_show'); }
-}
-function readScoreZoom(value = SCORE_FOCUS.zoom) {
-    SCORE_FOCUS.zoom = Math.round(Math.max(.7, Math.min(2, value)) * 10) / 10;
-    const svg = read?.svg();
-    if (svg) svg.style.setProperty('zoom', String(SCORE_FOCUS.zoom));
-    const reset = maybeById('rd-focus-fit');
-    if (reset) reset.textContent = t('score_fit');
-    buttonById('rd-focus-out').disabled = SCORE_FOCUS.zoom <= .7;
-    buttonById('rd-focus-in').disabled = SCORE_FOCUS.zoom >= 2;
-}
-function rdFocusDispSet(open: boolean, focusBack = false) {
-    const tools = maybeById('rd-focus-tools'), btn = maybeById('rd-focus-disp-btn');
-    if (!tools || !btn) return;
-    tools.hidden = !open;
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) {
-        const first = queryHtml(tools, 'button:not(:disabled)');
-        first?.focus({ preventScroll: true });
-    } else if (focusBack) {
-        btn.focus({ preventScroll: true });
-    }
-}
-let scoreFocusPrevSide: boolean | null = null;
-function scoreFocusExit(quiet = false) {
-    const owner = SCORE_FOCUS.owner;
-    if (!owner) return;
-    rdFocusDispSet(false);
-    const native = SCORE_FOCUS.native, target = SCORE_FOCUS.returnTo, scroll = SCORE_FOCUS.scroll;
-    SCORE_FOCUS.owner = null; SCORE_FOCUS.native = false; SCORE_FOCUS.token++;
-    delete document.body.dataset.scoreFocus;
-    if (owner === 'analysis') {
-        scorePlayer?.setStage(false, true);
-        if (scoreFocusPrevSide !== null) {
-            const restoreSide = scoreFocusPrevSide;
-            scoreFocusPrevSide = null;
-            scorePlayer?.setSide(restoreSide);
-        }
-    }
-    else {
-        SCORE_FOCUS.readOverride = false;
-        read?.autoCancel();
-        stageSync();
-    }
-    if (native && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    scoreFocusUi();
-    if (!quiet) requestAnimationFrame(() => {
-        if (SCORE_FOCUS.owner || view0() !== owner) return;
-        window.scrollTo(0, scroll);
-        target?.focus({ preventScroll: true });
-    });
-}
-function scoreFocusToggle(owner: 'analysis' | 'read', target: HTMLElement) {
-    const on = owner === 'analysis' ? !!scorePlayer?.stageOn() : SCORE_FOCUS.owner === 'read';
-    if (on) {
-        if (SCORE_FOCUS.owner) scoreFocusExit();
-        else scorePlayer?.setStage(false);
-        return;
-    }
-    if (owner === 'analysis' ? !scorePlayer?.hasNotes() : !read?.hasPiece() || byId('rdp-pieces').hidden) return;
-    scoreFocusEnter(owner, target);
-}
-function scoreFocusEnter(owner: 'analysis' | 'read', target: HTMLElement, manual = true) {
-    document.body.dataset.scoreFocus = owner;
-    SCORE_FOCUS.owner = owner; SCORE_FOCUS.returnTo = target; SCORE_FOCUS.scroll = scrollY;
-    const token = ++SCORE_FOCUS.token;
-    if (owner === 'analysis') {
-        if (scorePlayer) {
-            scoreFocusPrevSide = scorePlayer.sideOpen();
-            scorePlayer.setSide(false);
-            scorePlayer.closeSheet(true);
-            scorePlayer.setStage(true);
-        }
-    }
-    else { SCORE_FOCUS.readOverride = true; stageSync(); }
-    scoreFocusUi();
-    if (manual && owner === 'read') byId('rd-top-fs').focus({ preventScroll: true });
-    if (manual && fsCan() && !document.fullscreenElement) {
-        SCORE_FOCUS.native = true;
-        void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => {
-            if (token !== SCORE_FOCUS.token && document.fullscreenElement) {
-                // A quick exit/re-entry adopts the pending request; a cancelled session releases it.
-                if (SCORE_FOCUS.owner) SCORE_FOCUS.native = true;
-                else void document.exitFullscreen().catch(() => {});
-            }
-        }).catch(() => { if (token === SCORE_FOCUS.token) SCORE_FOCUS.native = false; });
-    }
-}
-function scoreFocusFullscreenChanged() {
-    if (SCORE_FOCUS.native && !document.fullscreenElement) scoreFocusExit();
-    fsUi(); scoreFocusUi();
-}
-/* computer keyboard */
-// Notes and Z / X follow physical key positions (KeyboardEvent.code), so QWERTZ, AZERTY… keep the piano shape; shortcuts stay on letters.
-const KEYMAP: Record<string, number> = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12 };
-const typingDown = new Map<string, number>();
-function shiftTypeOctave(dir: number) { releaseTypingKeys(); const next = typeOctave + dir * 12, minLow = BASE_LOW, maxLow = Math.max(BASE_LOW, BASE_HIGH - view.oct * 12); if (dir < 0) {
-    if (next < view.low && view.low > minLow) {
-        view.low = Math.max(minLow, view.low - 12);
-        buildKeyboard();
-        repaintHeld();
-    }
-}
-else if (dir > 0) {
-    if (next + 12 > viewHigh() && view.low < maxLow) {
-        view.low = Math.min(maxLow, view.low + 12);
-        buildKeyboard();
-        repaintHeld();
-    }
-} typeOctave = next; clampTypeOctave(); }
-function physKey(e: KeyboardEvent) { return e.code || (/^[a-z]$/i.test(e.key || '') ? 'Key' + e.key.toUpperCase() : ''); } // some synthetic and virtual-keyboard events carry no code
-// Name those physical keys as the user's layout prints them (Keyboard Map API, Chromium); elsewhere the QWERTY names stay.
-function kbdLayoutLabels() {
-    const kb = (navigator).keyboard;
-    if (!kb || typeof kb.getLayoutMap !== 'function')
-        return;
-    try {
-        kb.getLayoutMap().then((map) => queryAllHtml(document, 'kbd[data-codes]').forEach((el) => {
-            const ks = (el.dataset.codes ?? '').split(' ').map((c) => map.get(c));
-            if (ks.every((x) => typeof x === 'string' && x.trim()))
-                el.textContent = ks.map((x) => String(x).toUpperCase()).join(el.dataset.sep || ' ');
-        })).catch(() => { });
-    }
-    catch (_) { }
-}
-function releaseTypingKeys() { typingDown.forEach((m, k) => handleNoteOff(m, 'typing:' + k)); typingDown.clear(); }
-function inField() { const a = document.activeElement; return a && (/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) || (a instanceof HTMLElement && a.isContentEditable)); }
-document.addEventListener('keydown', (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || e.key === 'Meta' || e.key === 'Control' || e.key === 'Alt') {
-        releaseTypingKeys();
-        return;
-    }
-    if ((e.key !== 'Escape' && inField()) || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || byId('appDialog').classList.contains('on') || !byId('mobileMenu').hidden || e.repeat)
-        return;
-    const k = e.key.toLowerCase();
-    if (e.key === '?') {
-        e.preventDefault();
-        openHelp(!byId('helpBox').classList.contains('on'));
-        return;
-    }
-    if (read?.key(e, k))
-        return;
-    if (practice?.sessionKey(k, e)) // session shortcuts: digits pick an answer, R replays, N advances
-        return;
-    if (view0() === 'analysis' && scorePlayer?.hasNotes() && /^[lpmc]$/.test(k))
-        return; // score shortcuts keep their letters wherever the layout puts them
-    const c = physKey(e);
-    if (c === 'KeyZ') {
-        e.preventDefault();
-        shiftTypeOctave(-1);
-        return;
-    }
-    if (c === 'KeyX') {
-        e.preventDefault();
-        shiftTypeOctave(1);
-        return;
-    }
-    if (c in KEYMAP) {
-        const m = typeOctave + KEYMAP[c];
-        if (!typingDown.has(c)) {
-            e.preventDefault();
-            typingDown.set(c, m);
-            handleNoteOn(m, 100, 'typing:' + c);
-        }
-    }
+const { clampPersistedNumber, SYNC, SYNC_ID, SYNC_THEMES, SYNC_NOTATIONS, SYNC_LABELS, SYNC_TONES, syncOneOf, syncIsLang, syncParseJson, SYNC_PREFS, syncIsPrefName, syncGen, syncGenTime, syncNextGen, syncId, syncRemember, syncCurrent, syncPair, syncInitial, syncPref, syncBusy, syncIdle, syncNote, syncAfter, syncRefresh, flushSaveSoon, saveSoon, STORE, STORE_LAST_EXPORT, STORE_SNAPSHOTS_CHANGED, STORE_UNREADABLE, STORE_EXPORT_DUE_MS, backupJson, storeSaved, storeFailed, storeBlock, storeHasProgress, storeDaily, storeSnapshotsChanged, UPGRADE_SNAPSHOT_TIMEOUT_MS, storeSnapshot, storeQuarantine, storeBackupBlocked, MAX_PROGRESS_IMPORT_BYTES, storeRestore, storeReset, storeExported, storeLastExport, storeWhen, storeSize, storeRefresh, storeI18nReady, renderDataSafety, storeNote, storeDiagnostics, storeMs, storeDiagRender, storeInit, applyTopLevelPrefs, loadAll } = persistence;
+/* ---------- SETTINGS, DIALOGS AND CONTROL WIRING (src/app/shell-controls.ts) ---------- */
+const shellControls = createShellControls({
+    get anLayoutVars() { return anLayoutVars; },
+    get applyTheme() { return applyTheme; },
+    get attachInput() { return attachInput; },
+    get audioEngine() { return audioEngine; },
+    get audioLockCheck() { return audioLockCheck; },
+    get audioLockSync() { return audioLockSync; },
+    get audioUnlock() { return audioUnlock; },
+    get backupJson() { return backupJson; },
+    get BASE_HIGH() { return BASE_HIGH; },
+    get BASE_LOW() { return BASE_LOW; },
+    get bleClick() { return bleClick; },
+    get bleReconnect() { return bleReconnect; },
+    get buildKeyboard() { return buildKeyboard; },
+    get CAL() { return CAL; },
+    get calSay() { return calSay; },
+    get calStop() { return calStop; },
+    get chooseView() { return chooseView; },
+    get closeMobileMenu() { return closeMobileMenu; },
+    get coachRefresh() { return coachRefresh; },
+    get connectMidi() { return connectMidi; },
+    get data() { return data; },
+    get dockOpen() { return dockOpen; },
+    get dockSet() { return dockSet; },
+    get dockShown() { return dockShown; },
+    get dockSync() { return dockSync; },
+    get ensureAudio() { return ensureAudio; },
+    get fillRoots() { return fillRoots; },
+    get fitHeader() { return fitHeader; },
+    get flushSaveSoon() { return flushSaveSoon; },
+    get fsToggle() { return fsToggle; },
+    get initLatencyCalibration() { return initLatencyCalibration; },
+    get kbdLayoutLabels() { return kbdLayoutLabels; },
+    get KEY() { return KEY; },
+    get labelMode() { return labelMode; },
+    set labelMode(value: string) { labelMode = value; },
+    get lang() { return lang; },
+    get layoutVarsSoon() { return layoutVarsSoon; },
+    get liveVoices() { return liveVoices; },
+    get localeLoadError() { return localeLoadError; },
+    get localize() { return localize; },
+    get localizeLoadedFeatures() { return localizeLoadedFeatures; },
+    get MAX_PROGRESS_IMPORT_BYTES() { return MAX_PROGRESS_IMPORT_BYTES; },
+    get metro() { return metro; },
+    get notation() { return notation; },
+    set notation(value: "letter" | "solfege" | "german") { notation = value; },
+    get openMobileMenu() { return openMobileMenu; },
+    get panic() { return panic; },
+    get parsePttV3() { return parsePttV3; },
+    get persistence() { return persistence; },
+    get pianoStatus() { return pianoStatus; },
+    get popModalState() { return popModalState; },
+    get positionBlacks() { return positionBlacks; },
+    get practice() { return practice; },
+    get pushModalState() { return pushModalState; },
+    get pwaInstall() { return pwaInstall; },
+    get pwaRegister() { return pwaRegister; },
+    get rdFocusDispSet() { return rdFocusDispSet; },
+    get read() { return read; },
+    get readScoreZoom() { return readScoreZoom; },
+    get reflowKeys() { return reflowKeys; },
+    get refreshToday() { return refreshToday; },
+    get registerViewEvent() { return registerViewEvent; },
+    get releaseFocusInput() { return releaseFocusInput; },
+    get releaseLiveInput() { return releaseLiveInput; },
+    get releaseTypingKeys() { return releaseTypingKeys; },
+    get reloadingForRestore() { return reloadingForRestore; },
+    get repaintHeld() { return repaintHeld; },
+    get saveAll() { return saveAll; },
+    get saveSoon() { return saveSoon; },
+    get SCORE_FOCUS() { return SCORE_FOCUS; },
+    get scoreFocusFullscreenChanged() { return scoreFocusFullscreenChanged; },
+    get scoreFocusToggle() { return scoreFocusToggle; },
+    get scoreFocusUi() { return scoreFocusUi; },
+    get scorePlayer() { return scorePlayer; },
+    get setLang() { return setLang; },
+    get show() { return show; },
+    get STAGE() { return STAGE; },
+    get stopDrone() { return stopDrone; },
+    get stopPreviews() { return stopPreviews; },
+    get STORE() { return STORE; },
+    get STORE_LAST_EXPORT() { return STORE_LAST_EXPORT; },
+    get STORE_SNAPSHOTS_CHANGED() { return STORE_SNAPSHOTS_CHANGED; },
+    get storeApplyBackup() { return storeApplyBackup; },
+    get storeBackupBlocked() { return storeBackupBlocked; },
+    get storeDiagnostics() { return storeDiagnostics; },
+    get storeExported() { return storeExported; },
+    get storeNote() { return storeNote; },
+    get storeRefresh() { return storeRefresh; },
+    get storeReset() { return storeReset; },
+    get storeRestore() { return storeRestore; },
+    get SYNC_NOTATIONS() { return SYNC_NOTATIONS; },
+    get SYNC_THEMES() { return SYNC_THEMES; },
+    get SYNC_TONES() { return SYNC_TONES; },
+    get syncAfter() { return syncAfter; },
+    get syncNote() { return syncNote; },
+    get syncOneOf() { return syncOneOf; },
+    get syncWrite() { return syncWrite; },
+    get t() { return t; },
+    get theme() { return theme; },
+    set theme(value: "auto" | "light" | "dark") { theme = value; },
+    get view() { return view; },
+    get view0() { return view0; },
+    get wakeSet() { return wakeSet; },
+    get withPractice() { return withPractice; },
 });
-document.addEventListener('keyup', (e) => { const c = physKey(e), m = typingDown.get(c); if (m !== undefined) {
-    typingDown.delete(c);
-    handleNoteOff(m, 'typing:' + c);
-} });
+const { labelSettingsControl, labelSettingsControls, reflectSettingsUI, setWeakSpotInjection, appAlert, appConfirm, overlaysOpen, syncScrim, overlayReturn, setOverlay, trapFocus, openDrawer, openHelp, applyNotation, initControls } = shellControls;
+/* ---------- DEVICES (src/app/devices.ts): Web MIDI, timing calibration, Bluetooth MIDI, installed app and score focus ---------- */
+const devices = createDevices({
+    get audioEngine() { return audioEngine; },
+    get audioLockCheck() { return audioLockCheck; },
+    get BASE_HIGH() { return BASE_HIGH; },
+    get BASE_LOW() { return BASE_LOW; },
+    get buildKeyboard() { return buildKeyboard; },
+    get clampTypeOctave() { return clampTypeOctave; },
+    get data() { return data; },
+    get dockOpen() { return dockOpen; },
+    get dockShown() { return dockShown; },
+    get dockSync() { return dockSync; },
+    get ensureAudio() { return ensureAudio; },
+    get handleNoteOff() { return handleNoteOff; },
+    get handleNoteOn() { return handleNoteOn; },
+    get held() { return held; },
+    get inputOwners() { return inputOwners; },
+    get midiChannels() { return midiChannels; },
+    get midiSustainOwners() { return midiSustainOwners; },
+    get openHelp() { return openHelp; },
+    get overlaysOpen() { return overlaysOpen; },
+    get panic() { return panic; },
+    get pedalDown() { return pedalDown; },
+    set pedalDown(value: boolean) { pedalDown = value; },
+    get pedalUp() { return pedalUp; },
+    get practice() { return practice; },
+    get read() { return read; },
+    get releaseLiveInput() { return releaseLiveInput; },
+    get repaintHeld() { return repaintHeld; },
+    get runtimeErrorMessage() { return runtimeErrorMessage; },
+    get runtimeErrorName() { return runtimeErrorName; },
+    get saveAll() { return saveAll; },
+    get SCORE_FOCUS() { return SCORE_FOCUS; },
+    get scorePlayer() { return scorePlayer; },
+    get setBendFromValue() { return setBendFromValue; },
+    get STAGE() { return STAGE; },
+    get stageSync() { return stageSync; },
+    get sustained() { return sustained; },
+    get t() { return t; },
+    get timedAudioReady() { return timedAudioReady; },
+    get touchInput() { return touchInput; },
+    get typeOctave() { return typeOctave; },
+    set typeOctave(value: number) { typeOctave = value; },
+    get view() { return view; },
+    get view0() { return view0; },
+    get viewHigh() { return viewHigh; },
+});
+const { midiController, setMidi, midiChipSync, connectMidi, listInputs, refreshDeviceList, attachInput, autoReconnectMidi, onStateChange, onMidiMessage, midiIn, calRecord, CAL, initLatencyCalibration, calUi, calListening, calSay, calTap, calStop, BLE, bleCan, bleLive, bleName, bleSet, bleUi, bleClick, bleChoose, bleErr, bleStale, bleOpen, bleUnhook, bleOnGone, bleRetry, bleReconnect, bleDisconnect, bleReleaseInput, bleAutoReconnect, bleParserReset, bleOnValue, bleParse, bleStatus, bleData, bleMsg, PWA, WAKE, pwaStandalone, pwaInit, pwaRegister, pwaUi, pwaInstall, fsCan, fsUi, fsToggle, wakeCan, wakeGet, wakeOnGesture, wakeDrop, wakeSet, wakePing, wakeArm, wakeUi, wakeInit, scoreFocusUi, readScoreZoom, rdFocusDispSet, scoreFocusExit, scoreFocusToggle, scoreFocusEnter, scoreFocusFullscreenChanged, KEYMAP, typingDown, shiftTypeOctave, physKey, kbdLayoutLabels, releaseTypingKeys, inField } = devices;
+/* ---------- SHELL HELPERS (src/app/shell-helpers.ts): Learn bridge, reading data, spelling, layout variables ---------- */
+const shellHelpers = createShellHelpers({
+    get clampPersistedNumber() { return clampPersistedNumber; },
+    get coaching() { return coaching; },
+    get data() { return data; },
+    get dockShown() { return dockShown; },
+    get lang() { return lang; },
+    get LOCALE_TAGS() { return LOCALE_TAGS; },
+    get notifyDockReflow() { return notifyDockReflow; },
+    get practice() { return practice; },
+    get read() { return read; },
+    get SCORE_FOCUS() { return SCORE_FOCUS; },
+    get scorePlayer() { return scorePlayer; },
+    get show() { return show; },
+    get STAGE() { return STAGE; },
+    get STRINGS() { return STRINGS; },
+    get t() { return t; },
+    get todayN() { return todayN; },
+    get view0() { return view0; },
+});
+const { learnTitle, learnData, learnUnitOf, learnUnitDone, learnGap, learnDueDays, learnDueList, learnGoId, learnPlanItems, srPieceTitle, rdData, rdEsc, rdLvName, coachRefresh, tl, KEY_MAJ_FIFTHS, LETTER_PC, LETTERS, spelledName, showNotationReloadPrompt, reduceMotion, savedScoreView, anLayoutVars, layoutVarsSoon, syncMobileStartBars, anNum, rdStarCount } = shellHelpers;
 /* ---------- GRADING CORE ---------- */
 function chordTargetPcs(rootPc: number, tpl: theory.ChordTemplate|undefined) { if (!tpl)
     throw new Error('Étude: unknown chord template'); return chordPitches(rootPc, tpl.intervals); }
@@ -1825,10 +1736,10 @@ window.addEventListener('popstate', (e) => {
     }
     const modal = historyModalOf(e.state);
     _modalStack.length = 0;
-    if (modal === 'menu' || modal === 'help' || modal === 'drawer' || (modal === 'dialog' && appDialogClose))
+    if (modal === 'menu' || modal === 'help' || modal === 'drawer' || (modal === 'dialog' && shellControls.appDialogClose))
         _modalStack.push(modal);
-    if (modal !== 'dialog' && appDialogClose)
-        appDialogClose(false, true);
+    if (modal !== 'dialog' && shellControls.appDialogClose)
+        shellControls.appDialogClose(false, true);
     if (modal !== 'menu') {
         const menu = byId('mobileMenu'), returnFocus = !modal && menu.contains(document.activeElement) && location.hash.slice(1) === _view;
         closeMobileMenu(returnFocus, true);
@@ -1880,370 +1791,10 @@ function fillRoots(sel: HTMLElement, withAll: boolean) {
         sel.appendChild(o);
     });
 }
-/* ============================================================================
-   LEARN SHELL BRIDGE — core progress helpers (src/core/learn-progress.ts)
-   and thin navigation wrappers; full Learn UI lives lazily in src/features/learn/.
-   ============================================================================ */
-function learnTitle(L: Lesson) { return L[lang]?.t || L.en.t; }
-function learnData() { return coreLearnData(data); }
-function learnUnitOf(id: string) { return coreLearnUnitOf(id); }
-function learnUnitDone(i: number) { return coreLearnUnitDone(data, i); }
-function learnGap(id: string) { return coreLearnGap(data, id); }
-function learnDueDays(id: string) { return coreLearnDueDays(data, id, todayN()); }
-function learnDueList() { return coreLearnDueList(data, todayN()); }
-function learnGoId(id: string) {
-    if (LESSONS.some((L) => L.id === id)) void show('learn', { learnLessonId: id });
-}
-function learnPlanItems(tn: number) {
-    const D = learnData(), ld = D.learnDone;
-    const nextL = LESSONS.find((L) => !ld[L.id]), learnToday = Object.keys(ld).some((k) => ld[k] === tn);
-    const out = [{ id: 'learn', done: learnToday || !nextL, t: t('plan_learn'), d: nextL ? t('plan_learn_d', learnTitle(nextL)) : t('plan_learn_all'),
-            go: () => { if (nextL)
-                learnGoId(nextL.id);
-            else
-                show('learn'); } }];
-    const due = learnDueList();
-    if (due.length) {
-        const L = due[0];
-        out.push({ id: 'learnrev', done: false, t: t('plan_lrev'),
-            d: t('plan_lrev_d', learnTitle(L), learnDueDays(L.id) ?? 0) + (due.length > 1 ? t('plan_lrev_more', due.length - 1) : ''), go: () => learnGoId(L.id) });
-    }
-    else if (Object.keys(D.learnRev).some((k) => D.learnRev[k].rv === tn))
-        out.push({ id: 'learnrev', done: true, t: t('plan_lrev'), d: t('plan_lrev_done'), go: () => show('learn') });
-    return out;
-}
-function srPieceTitle(p: { id?: string; t?: Localised<string>; }) {
-    return STRINGS[lang]?.['piece_title_' + p.id] ?? p.t?.[lang] ?? p.t?.en ?? '';
-}
-// sv, ta: best Survival and Time Attack scores; mn: best Marathon pace in notes per minute.
-function rdData(): ReadDrillData {
-    if (!data.reading || typeof data.reading !== 'object')
-        data.reading = {};
-    const r = data.reading;
-    r.lv = r.lv || {};
-    r.nt = r.nt || {};
-    const tot = r.tot;
-    r.tot = {
-        ...tot,
-        n: clampPersistedNumber(tot?.n, 0, Infinity, 0),
-        ok: clampPersistedNumber(tot?.ok, 0, Infinity, 0),
-        ms: clampPersistedNumber(tot?.ms, 0, Infinity, 0),
-        sess: clampPersistedNumber(tot?.sess, 0, Infinity, 0),
-    };
-    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false, stage: true, instantFeedback: false }, r.prefs || {});
-    if (!isReadDrillData(r))
-        throw new Error('Étude: reading progress could not be initialised');
-    return r;
-}
-function isReadDrillData(r: Partial<ReadDrillData>): r is ReadDrillData { return !!r.lv && !!r.nt && !!r.tot && !!r.prefs; }
-function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
-/* ---- sessions: intro → questions → summary ---- */
-function rdLvName(L: ReadDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
-function rdStarCount(value: unknown) { return Math.floor(clampPersistedNumber(value, 0, 3, 0)); }
-coaching.register(() => { if (!byId('pr-sum').hidden)
-    scorePlayer?.refreshCoach(); });
-function coachRefresh() { coaching.refresh(); }
-function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) {
-    // The table of language L when it is loaded, else the interface language's own (English strings load only for English).
-    const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined, base = STRINGS[lang] || STRINGS.en; let v = (own && own[k] != null) ? own[k] : base ? base[k] : undefined; if (v == null)
-    return k; if (a != null)
-    v = v.replace('%s', () => String(a)).replace('%a', () => String(a)); if (b != null)
-    v = v.replace('%b', () => String(b)); return v; }
-/* keys, spelling */
-const KEY_MAJ_FIFTHS = { 0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: -5, 8: -4, 3: -3, 10: -2, 5: -1 }, LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
-const LETTERS = { letter: ['C', 'D', 'E', 'F', 'G', 'A', 'B'], solfege: ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'], german: ['C', 'D', 'E', 'F', 'G', 'A', 'H'] };
-// B-flat is B in German; B-natural and other alterations use H.
-function spelledName(sys: theory.NoteSystem, li: number, acc: number, ascii = false) { if (sys === 'german' && li === 6 && acc === -1)
-    return 'B'; const symbols = ascii ? ['bb', 'b', '', '#', '##'] : ['𝄫', '♭', '', '♯', '𝄪']; return LETTERS[sys][li] + (symbols[acc + 2] || ''); }
-// OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
-function showNotationReloadPrompt(notationReloadMessage?: (language: InterfaceLanguage) => { message: string; button: string }) {
-    if (document.querySelector('.notation-reload')) return;
-    const copy = notationReloadMessage ? notationReloadMessage(lang) : { message: 'The score could not load. Reload the page.', button: 'Reload' }, box = (document).createElement('div');
-    box.setAttribute('role', 'alert');
-    box.className = 'notation-reload';
-    box.innerHTML = '<p></p><button type="button"></button>';
-    const message = box.querySelector('p');
-    const button = box.querySelector('button');
-    if (message) message.textContent = copy.message;
-    if (button) {
-        button.textContent = copy.button;
-        button.addEventListener('click', () => location.reload());
-    }
-    document.body.append(box);
-}
-const reduceMotionMql = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-const reduceMotion = () => !!reduceMotionMql?.matches;
-function savedScoreView(view: unknown, explicit: unknown): notationApi.ScoreLayoutMode | 'fall' | null {
-    if (explicit === false) return null;
-    // Older releases saved Page even when the default had never been changed.
-    if (view === 'page') return explicit === true ? view : null;
-    return view === 'fit' || view === 'cont' || view === 'fall' ? view : null;
-}
-// The page is sized in CSS from these: 100dvh − header (or the Pieces full-window bar) − dock − bottom bar. The Score Player
-// adds its toolbar and status bar rows (scorePlayer.layoutVars) in the same frame.
-function anLayoutVars() {
-    const st = document.documentElement.style, h = (el: HTMLElement|null) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = byId('dock');
-    const topBarH = scorePlayer?.stageOn() ? h(maybeById('an-fs-top')) : h(document.querySelector('header'));
-    st.setProperty('--hdr-h', topBarH + 'px');
-    const bnav = h(byId('bottomNav')); // 0 while the bar is not displayed (wide screens, short landscape, the practice stage)
-    st.setProperty('--bnav-h', bnav + 'px');
-    st.setProperty('--dock-h', ((document.body.classList.contains('kb') ? h(dock) : 0) + bnav) + 'px');
-    scorePlayer?.layoutVars();
-    notifyDockReflow(); // Explore's staff is sized from the room these leave
-    syncMobileStartBars();
-}
-let layoutRq = 0;
-function layoutVarsSoon() { cancelAnimationFrame(layoutRq); layoutRq = requestAnimationFrame(anLayoutVars); }
-function syncMobileStartBars() {
-    const v = view0(), dockExpanded = dockShown(), inFocus = !!SCORE_FOCUS.owner || STAGE.on;
-    const prBar = maybeById('pr-mobile-bar'), prSum = maybeById('pr-mobile-summary'), prBtn = maybeById('pr-mobile-start') as HTMLButtonElement | null;
-    const prHome = maybeById('pr-home'), prStartBtn = maybeById('pr-start') as HTMLButtonElement | null;
-    if (prBar && prSum && prBtn && prHome) {
-        const showPr = v === 'practice' && !!practice && !practice.sesActive() && !dockExpanded && !inFocus && prHome.style.display !== 'none';
-        prBar.hidden = !showPr;
-        prHome.classList.toggle('has-mobile-bar', showPr);
-        if (showPr && practice && maybeById('pr-cat') && maybeById('pr-mode')) {
-            const bar = practice.mobileBar();
-            prSum.textContent = bar.summary;
-            prBtn.textContent = bar.label;
-            prBtn.disabled = !!prStartBtn?.disabled;
-        }
-    }
-    const rdBar = maybeById('rd-mobile-bar'), rdSum = maybeById('rd-mobile-summary'), rdBtn = maybeById('rd-mobile-start') as HTMLButtonElement | null;
-    const rdPieces = maybeById('rdp-pieces'), rdResult = maybeById('rdn-result'), rdGoBtn = maybeById('rd-go') as HTMLButtonElement | null;
-    if (rdBar && rdSum && rdBtn && rdPieces) {
-        const rdState = read?.mobileBar();
-        const showRd = v === 'read' && !rdPieces.hidden && !!rdState?.ready && (!rdResult || rdResult.hidden) && !dockExpanded && !inFocus;
-        rdBar.hidden = !showRd;
-        rdPieces.classList.toggle('has-mobile-bar', showRd);
-        if (showRd && rdState) {
-            rdSum.textContent = rdState.summary;
-            rdBtn.disabled = !!rdGoBtn?.disabled;
-        }
-    }
-    const mobileBarVisible = v === 'practice' && !!prBar && !prBar.hidden;
-    document.body.classList.toggle('has-mobile-start-bar', mobileBarVisible);
-}
-function anNum(x: number, d: number) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
 /* ---------- PROGRESS and TODAY: lazy features in src/features/progress/ and src/features/today/ ---------- */
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + rdEsc(v) + '</b><span>' + rdEsc(l) + '</span></div>'; }
-/* ============================================================================
-   PERSISTENCE  (versioned, migrates V2)
-   ============================================================================ */
-function clampPersistedNumber(v: unknown, min: number, max: number, fallback: number) { return typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : fallback; }
-/* ---- several open tabs ----
-   Each tab keeps the whole record in memory and saves all of it, so a plain write would wipe out whatever another tab saved
-   in the meantime. Every write identifies its parent and each tab retains a short history of prior records. Before every
-   write, and whenever another tab writes (the `storage` event), sibling records are merged three ways against their actual
-   shared parent: a value only one side changed keeps that change; if both changed, counters add both increments, day stamps,
-   bests and stars keep the larger value, a review card keeps the copy with more reviews, and anything else keeps this tab's
-   value. The history holds private copies, so later changes in memory cannot alter a base. A save that merges in a record
-   the other tab had not seen also names that record (`syncMerge`), and the tab keeps the plain merge of the two: when several
-   tabs merge the same pair at once, that merge (or the first such save taken in) is their shared base, so nothing counts
-   twice. Reset and import stamp a newer generation (`gen`) that other tabs adopt outright, with a notice, and a save from an
-   older generation is overwritten again, so cleared progress cannot come back. A session running in this tab is never
-   stopped or rebuilt: it carries on and saves into the merged record. Theme, language, note names and key labels follow the
-   latest change made in any tab; the last three re-render the page and keyboard, so they wait while a drill, reading run or
-   playback is going. Sound, device and panel choices stay with each tab (whichever saved last is what loads next time). */
-type SyncPrefName = 'theme' | 'lang' | 'notation' | 'labels';
-interface SyncPendingPref { v: unknown; from: string; running?: boolean; failed?: boolean }
-interface SyncState {
-    raw: string | null;
-    gen: string;
-    id: string;
-    known: Map<string, storage.PttV3Payload>;
-    merge: { into: string; id: string } | null;
-    pend: Partial<Record<SyncPrefName, SyncPendingPref>>;
-    t: number | ReturnType<typeof setTimeout>;
-    w: number | ReturnType<typeof setTimeout>;
-}
-const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_ID = /^[a-z0-9_-]{1,48}$/i;
-const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
-const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
-function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
-function syncIsLang(v: unknown): v is RuntimeLanguage { return isRuntimeLanguage(v); }
-const syncParseJson = storage.parseJson;
-type SyncPrefEntry = readonly [get: () => string, set: (v: unknown) => void | Promise<void>, later?: 1];
-const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (v: unknown) => { if (syncOneOf(SYNC_THEMES, v)) {
-            theme = v;
-            applyTheme();
-        } }],
-    lang: [() => lang, (v: unknown) => { if (syncIsLang(v)) {
-            return setLang(v, true).catch(() => localeLoadError(() => setLang(v)));
-        } }, 1],
-    notation: [() => notation, (v: unknown) => { if (syncOneOf(SYNC_NOTATIONS, v)) {
-            notation = v;
-            applyNotation();
-            refreshToday();
-        } }, 1],
-    labels: [() => labelMode, (v: unknown) => { if (syncOneOf(SYNC_LABELS, v)) {
-            labelMode = v;
-            buildKeyboard();
-            repaintHeld();
-        } }, 1] };
-function syncIsPrefName(k: string): k is SyncPrefName { return Object.prototype.hasOwnProperty.call(SYNC_PREFS, k); }
-function syncGen(time = Date.now()) { return time.toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 8); }
-function syncGenTime(gen: string) {
-    return /^[0-9a-z]{9,15}$/.test(gen) ? parseInt(gen.slice(0, 9), 36) : -1;
-}
-function syncNextGen() {
-    const saved = readPttV3(localStorage)?.payload.gen;
-    const prior = Math.max(syncGenTime(SYNC.gen), typeof saved === 'string' ? syncGenTime(saved) : -1);
-    return syncGen(Math.max(Date.now(), prior + 1));
-}
-function syncId(p: unknown, raw: string|null) {
-    if (syncIsObject(p) && typeof p.syncId === 'string' && SYNC_ID.test(p.syncId))
-        return p.syncId;
-    const s = typeof raw === 'string' ? raw : JSON.stringify(p || {});
-    let h = 2166136261;
-    for (let i = 0; i < s.length; i++)
-        h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-    return 'h' + (h >>> 0).toString(36);
-}
-function syncRemember(id: string, p: unknown) {
-    if (!id || !isBackupPayload(p))
-        return;
-    SYNC.known.delete(id);
-    SYNC.known.set(id, p);
-    while (SYNC.known.size > 16) {
-        const oldest = SYNC.known.keys().next();
-        if (oldest.done)
-            break;
-        SYNC.known.delete(oldest.value);
-    }
-}
-function syncCurrent(raw: string) { const p = parsePttV3(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
-function syncPair(a: string, b: string) { return 'merge:' + [a, b].sort().join('+'); }
-function syncInitial() {
-    const p = { v: 3, gen: SYNC.gen, data: syncCloneData(data) };
-    SYNC.id = 'init';
-    SYNC.raw = null;
-    syncRemember(SYNC.id, p);
-}
-function syncPref(f: SyncPrefName, v: string) { const p = SYNC.pend[f]; return p && p.from === v ? p.v : v; } // another tab's choice that is still waiting here is what gets saved
-// Folds in what another tab stored since SYNC.raw. Returns '' (nothing new), 'merge', 'merge-save' (the merged state must
-// be persisted), 'swap' (that tab reset or imported the record) or 'old' (it saved over this tab's newer reset or import).
-let syncPull = function syncPull() {
-    let stored: storage.ReadPttResult | null = null;
-    try {
-        stored = readPttV3(localStorage, KEY);
-    }
-    catch (_) { }
-    const cur = stored?.raw || null;
-    if (cur === null || cur === SYNC.raw)
-        return '';
-    let rp: storage.PttV3Payload | null = null, bp: storage.PttV3Payload | SyncNoBase = SYNC_NONE, lp: storage.PttV3Payload | null = null;
-    rp = stored?.payload || null;
-    if (!rp)
-        return '';
-    if (storage.pttSchema(rp) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(rp)) { // a newer build wrote it: merging would drop what this build does not know
-        storeBlock();
-        return '';
-    }
-    const gen = typeof rp.gen === 'string' ? rp.gen : '';
-    // Older saves sometimes used labels instead of a timestamp-based generation.
-    const remoteTime = syncGenTime(gen), localTime = syncGenTime(SYNC.gen);
-    const order = remoteTime - localTime || (gen === SYNC.gen ? 0 : gen > SYNC.gen ? 1 : -1);
-    const swap = order > 0;
-    if (order < 0)
-        return 'old';
-    lp = parsePttV3(SYNC.raw);
-    if (lp) {
-        syncRemember(syncId(lp, SYNC.raw), lp);
-        bp = lp;
-    }
-    const parent = typeof rp.syncParent === 'string' ? rp.syncParent : '', pair = parent && typeof rp.syncMerge === 'string' && SYNC_ID.test(rp.syncMerge) ? syncPair(parent, rp.syncMerge) : '';
-    const ancestor = pair && SYNC.known.get(pair) || parent && SYNC.known.get(parent); // a merge of the same pair made or taken in here is the real shared base
-    if (ancestor && (typeof ancestor.gen === 'string' ? ancestor.gen : '') === gen)
-        bp = ancestor;
-    const lid = SYNC.id, sibling = !swap && parent && lp && lp.syncParent === parent && lid !== syncId(rp, cur), sameData = !swap && syncSame(data, rp.data) && !sibling;
-    if (swap) {
-        data = restoreTrainerData(rp.data);
-        applyTopLevelPrefs(rp);
-        SYNC.gen = gen;
-        SYNC.known.clear();
-        SYNC.merge = null;
-    }
-    else if (!sameData) {
-        syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
-        data.settings = restoreSettings(data.settings);
-        data.srs = storage.restoreSrs(data.srs);
-        if (isRecord(data.reading?.book)) read?.forgetBook(data.reading.book);
-        if (!isRecord(data.sheet)) data.sheet = {};
-    }
-    if (swap || syncHasBase(bp))
-        Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => {
-            const [get, set, later] = SYNC_PREFS[f], v = rp[f];
-            if (v === undefined || (!swap && syncHasBase(bp) && (v === bp[f] || syncPref(f, get()) !== bp[f])))
-                return; // the other tab did not change it, or this tab changed it too
-            if (v === get()) {
-                // A newer choice can equal the committed language while an older import is still running.
-                if (f === 'lang' && SYNC.pend.lang?.running) localeRequest++;
-                delete SYNC.pend[f];
-            }
-            else if (later)
-                SYNC.pend[f] = { v, from: get() };
-            else
-                set(v);
-        });
-    const prefNeedsWrite = !swap && syncHasBase(bp) && Object.keys(SYNC_PREFS).filter(syncIsPrefName).some((f) => {
-        const curPref = syncPref(f, SYNC_PREFS[f][0]());
-        return bp[f] !== undefined && curPref !== bp[f] && curPref !== rp[f];
-    });
-    const needsWrite = !swap && (!syncSame(data, rp.data) || prefNeedsWrite);
-    syncCurrent(cur);
-    if (needsWrite && isBackupPayload(lp) && parent !== lid && syncHasBase(bp)) { // theirs lacks this tab's record: keep the plain merge of the two for the save that follows
-        const merged: Record<string, unknown> & { data: Record<string, unknown> } = { v: 3, gen, data: syncCloneData(lp.data) };
-        syncData(bp.data, merged.data, rp.data);
-        Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => { merged[f] = syncPref(f, SYNC_PREFS[f][0]()); });
-        syncRemember(syncPair(SYNC.id, lid), merged);
-        SYNC.merge = { into: SYNC.id, id: lid };
-    }
-    if (pair && !SYNC.known.has(pair))
-        syncRemember(pair, SYNC.known.get(SYNC.id));
-    return swap ? 'swap' : needsWrite ? 'merge-save' : 'merge';
-};
-function syncBusy() { return anyLoadedFeatureBusy(); }
-function syncIdle() {
-    clearTimeout(SYNC.w);
-    if (!Object.keys(SYNC.pend).length)
-        return;
-    if (syncBusy()) {
-        SYNC.w = setTimeout(syncIdle, 1500);
-        return;
-    }
-    Object.keys(SYNC.pend).filter(syncIsPrefName).forEach((f) => {
-        const p = SYNC.pend[f];
-        if (!p || p.running || p.failed) return;
-        if (SYNC_PREFS[f][0]() !== p.from) { delete SYNC.pend[f]; return; }
-        p.running = true;
-        const result = SYNC_PREFS[f][1](p.v);
-        if (result) void result.finally(() => {
-            if (SYNC.pend[f] !== p || p.failed) return;
-            if (p.running) delete SYNC.pend[f];
-            else syncIdle();
-        });
-        else delete SYNC.pend[f];
-    });
-}
-function syncNote(on: boolean) { const n = byId('syncNote'); if (n)
-    n.hidden = !on; }
-// Re-rendering waits for a fresh task, so a save made in the middle of drawing something is never re-entered.
-function syncAfter(got: string) { if (got === 'swap')
-    syncNote(true); clearTimeout(SYNC.t); SYNC.t = setTimeout(syncRefresh, 0); }
-function syncRefresh() {
-    syncIdle();
-    reflectSettingsUI();
-    calUi();
-    renderDataSafety();
-    if (view0() === 'today' && !practice?.sesActive())
-        refreshToday();
-    else if (view0() === 'progress')
-        renderProgress();
-    for (const ctrl of Object.values(loadedFeatures)) ctrl?.onStorageSync?.();
-}
 let reloadingForRestore = false;
-function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
+function saveAll() { if (reloadingForRestore) return; const got = persistence.syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
 function scorePrefsPayload() {
     const sp = scorePrefsNow();
@@ -2278,144 +1829,6 @@ function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
     if (!replacement)
         storeSaved();
 }
-let _saveT: ReturnType<typeof setTimeout> | null = null;
-function flushSaveSoon() {
-    if (_saveT === null) return;
-    clearTimeout(_saveT);
-    _saveT = null;
-    saveAll();
-}
-function saveSoon() {
-    clearTimeout(_saveT ?? undefined);
-    _saveT = setTimeout(flushSaveSoon, 400);
-} // for sliders — avoid a localStorage write per pixel
-// Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
-const STORE = { blocked: '' as '' | 'too-new' | 'quarantine' | 'upgrade', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1, snapPending: false };
-const STORE_LAST_EXPORT = 'etude-last-export', STORE_SNAPSHOTS_CHANGED = 'etude-snapshots-changed', STORE_UNREADABLE = KEY + '-unreadable', STORE_EXPORT_DUE_MS = 14 * 864e5;
-/** The Export file: the saved record plus the sight-reading ledger. Uses memory when the last save failed. */
-function backupJson(): string {
-    let current: storage.ReadPttResult | null = null;
-    try {
-        current = STORE.failed ? null : readPttV3(localStorage, KEY);
-    }
-    catch (_) { }
-    const payload = current?.payload ?? syncPayload();
-    let ledger: unknown;
-    try {
-        const raw = localStorage.getItem(SRT_LEDGER_KEY);
-        ledger = raw === null ? srtReadLedger(localStorage) : syncParseJson(raw);
-    } catch { }
-    const future = isRecord(ledger) && storage.hasFutureSightLedger({ v: 3, data: { sightLedger: ledger } });
-    return storage.serializeProgressBackup(payload, isSightReadingLedger(ledger) || future ? ledger : undefined);
-}
-function storeSaved() { if (STORE.failed) {
-    STORE.failed = false;
-    storeNote();
-} storeDaily(); }
-function storeFailed() { if (STORE.failed)
-    return; STORE.failed = true; storeNote(); }
-function storeBlock() { if (STORE.blocked === 'too-new')
-    return; STORE.blocked = 'too-new'; storeNote(); }
-function storeHasProgress() {
-    const reading = data.reading, log = data.practiceLog;
-    const outcomes = [data.srs, data.learnDone, data.singCleared, data.sheet, reading?.lv, reading?.nt, reading?.book?.pieces];
-    if (data.totalReviews > 0 || data.placed || (data.lastDrill?.n ?? 0) > 0 || (log?.techRuns ?? 0) > 0 || (log?.melRuns ?? 0) > 0 || reading?.prefs?.warmDone ||
-        outcomes.some(map => isRecord(map) && Object.keys(map).length > 0))
-        return true;
-    try {
-        const ledger = srtReadLedger(localStorage);
-        return Object.keys(ledger.attempts).length > 0 || Object.keys(ledger.sessions).length > 0;
-    }
-    catch (_) {
-        return false;
-    }
-}
-/** One copy a day, taken on the first save of the day. An empty record is not worth a slot. */
-function storeDaily() {
-    const day = todayN();
-    if (STORE.blocked || STORE.snapPending || STORE.snapDay === day || !storeHasProgress())
-        return;
-    STORE.snapPending = true;
-    void Promise.resolve().then(async () => {
-        await safety.saveSnapshot({ day, reason: 'daily', raw: backupJson() });
-        STORE.snapDay = day;
-        storeSnapshotsChanged();
-        await storeRefresh();
-    }).catch((e: unknown) => console.warn('daily backup failed', e)).finally(() => { STORE.snapPending = false; });
-}
-function storeSnapshotsChanged() {
-    try { localStorage.setItem(STORE_SNAPSHOTS_CHANGED, syncGen()); }
-    catch (_) { }
-}
-const UPGRADE_SNAPSHOT_TIMEOUT_MS = 5000;
-async function storeSnapshot(reason: safety.SnapshotReason, raw: string, timeoutMs?: number): Promise<boolean> {
-    let timer = 0;
-    try {
-        const write = safety.saveSnapshot({ day: todayN(), reason, raw });
-        if (timeoutMs && timeoutMs > 0) {
-            write.catch(() => { });
-            await Promise.race([
-                write,
-                new Promise<never>((_, reject) => {
-                    timer = window.setTimeout(() => reject(new Error('Backup snapshot timed out')), timeoutMs);
-                }),
-            ]);
-        }
-        else {
-            await write;
-        }
-        storeSnapshotsChanged();
-        void storeRefresh();
-        return true;
-    }
-    catch (e) {
-        console.warn('backup copy failed', e);
-        return false;
-    }
-    finally {
-        if (timer) clearTimeout(timer);
-    }
-}
-/** A record that does not parse is kept before anything can save over it. */
-function storeQuarantine(text: string) {
-    STORE.unreadable = true;
-    let kept = false;
-    try {
-        localStorage.setItem(STORE_UNREADABLE, text);
-        kept = true;
-    }
-    catch (_) { }
-    if (!kept)
-        STORE.blocked = 'quarantine'; // no copy yet: saving now would destroy the only one
-    void storeSnapshot('unreadable', text).then((ok) => {
-        if (!ok)
-            return;
-        try {
-            localStorage.removeItem(STORE_UNREADABLE); // IndexedDB holds it now: free the quota the live record needs
-        }
-        catch (_) { }
-        if (STORE.blocked === 'quarantine') {
-            STORE.blocked = '';
-            storeNote();
-            saveAll();
-        }
-    });
-}
-function storeBackupBlocked(): boolean {
-    if (STORE.blocked === 'too-new')
-        return true;
-    if (isFutureSightLedgerStorage(localStorage)) {
-        storeBlock();
-        return true;
-    }
-    const saved = readPttV3(localStorage, KEY);
-    if (!saved || (storage.pttSchema(saved.payload) <= storage.PTT_SCHEMA && !storage.hasFutureSightLedger(saved.payload)))
-        return false;
-    storeBlock();
-    return true;
-}
-const MAX_PROGRESS_IMPORT_BYTES = 16 * 1024 * 1024;
-let progressRestorePending = false;
 /** Import and restore share this path: a copy of the current progress first, then the backup, then a reload. */
 async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<void> {
     try {
@@ -2440,862 +1853,13 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
             return;
         }
         reloadingForRestore = true;
-        clearTimeout(_saveT ?? undefined);
-        _saveT = null;
+        clearTimeout(persistence.saveTimer ?? undefined);
+        persistence.saveTimer = null;
         location.reload();
     }
     catch (_) {
         reloadingForRestore = false;
         await appAlert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'import_storage'));
-    }
-}
-async function storeRestore(id: number | undefined) {
-    if (!id || progressRestorePending || reloadingForRestore)
-        return;
-    progressRestorePending = true;
-    try {
-        if (storeBackupBlocked()) {
-            await appAlert(t('store_too_new'));
-            return;
-        }
-        if (STORE.blocked === 'upgrade') {
-            await appAlert(t('store_upgrade_stuck'));
-            return;
-        }
-        const snap = await safety.readSnapshot(id), p = snap ? parsePttV3(snap.raw) : null;
-        if (!snap || !p) {
-            await appAlert(t('import_bad'));
-            return;
-        }
-        if ((storage.pttSchema(p) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(p))) {
-            await appAlert(t('import_too_new'));
-            return;
-        }
-        if (!storage.isImportableBackup(p)) {
-            await appAlert(t('import_bad'));
-            return;
-        }
-        if (await appConfirm(t('snap_confirm', storeWhen(snap.id))))
-            await storeApplyBackup(p, 'before-restore');
-    }
-    catch (_) {
-        await appAlert(t('import_storage'));
-    }
-    finally {
-        progressRestorePending = false;
-    }
-}
-async function storeReset() {
-    const button = buttonById('resetBtn');
-    if (button.disabled || progressRestorePending || reloadingForRestore)
-        return;
-    if (!await appConfirm(t('reset_confirm')))
-        return;
-    if (button.disabled || progressRestorePending || reloadingForRestore)
-        return;
-    const checkWritable = () => {
-        if (storeBackupBlocked() || STORE.blocked)
-            throw new Error('Progress is protected');
-    };
-    button.disabled = progressRestorePending = true;
-    try {
-        const result = await srtResetLedgerTransaction(localStorage, async () => {
-            checkWritable();
-            syncPull();
-            return await storeSnapshot('before-reset', backupJson()) || await appConfirm(t('store_reset_copy_failed'));
-        }, () => {
-            checkWritable();
-            syncPull();
-            const reset = { ...freshData(), settings: data.settings, latency: calRecord().latency };
-            syncWrite({ gen: syncNextGen(), data: reset });
-        });
-        if (!result)
-            return;
-        if (!result.ok) {
-            await appAlert(t(result.reason === 'unsupported' ? 'store_too_new' : 'store_reset_failed'));
-            return;
-        }
-        storeSaved();
-        for (const ctrl of Object.values(loadedFeatures)) ctrl?.onProgressReset?.();
-        renderProgress();
-        refreshToday();
-    }
-    catch (_) {
-        await appAlert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'store_reset_failed'));
-    }
-    finally {
-        button.disabled = progressRestorePending = false;
-    }
-}
-function storeExported() {
-    if (STORE.blocked) return;
-    try {
-        localStorage.setItem(STORE_LAST_EXPORT, String(Date.now()));
-    }
-    catch (_) { }
-    renderDataSafety();
-}
-function storeLastExport(): number {
-    try {
-        const v = Number(localStorage.getItem(STORE_LAST_EXPORT));
-        return Number.isFinite(v) && v > 0 ? v : 0;
-    }
-    catch (_) {
-        return 0;
-    }
-}
-function storeWhen(ms: number) { return new Date(ms).toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' }); }
-function storeSize(bytes: number) { return bytes < 1e6 ? Math.max(1, Math.round(bytes / 1e3)) + ' kB' : (bytes / 1e6).toFixed(1) + ' MB'; }
-async function storeRefresh() {
-    try {
-        STORE.snaps = await safety.listSnapshots();
-    }
-    catch (_) {
-        STORE.snaps = [];
-    }
-    STORE.usage = await safety.storageUsage(navigator.storage);
-    renderDataSafety();
-    storeNote();
-    if (byId('set-diag').hasAttribute('open')) void storeDiagRender();
-}
-/** loadAll runs before the locale loads: render nothing until strings exist. applyI18n renders again. */
-function storeI18nReady() { return !!(STRINGS[lang] || STRINGS.en); }
-function renderDataSafety() {
-    if (!storeI18nReady())
-        return;
-    const st = document.getElementById('set-storage-status'), age = document.getElementById('set-backup-age'), sel = document.getElementById('set-snaps'), btn = document.getElementById('set-snap-restore');
-    if (!st || !age || !(sel instanceof HTMLSelectElement) || !(btn instanceof HTMLButtonElement))
-        return;
-    const key = STORE.persist === 'persisted' ? 'set_storage_on' : STORE.persist === 'best-effort' ? 'set_storage_off' : 'set_storage_na';
-    st.textContent = t(key) + (STORE.usage ? ' ' + t('set_storage_used', storeSize(STORE.usage.usage)) : '');
-    const last = storeLastExport();
-    age.textContent = last ? t('set_backup_last', storeWhen(last)) : t('set_backup_never');
-    age.classList.toggle('warn', storeHasProgress() && (!last || Date.now() - last > STORE_EXPORT_DUE_MS));
-    const list = STORE.snaps.filter(x => x.reason !== 'unreadable'), selected = sel.dataset.selected;
-    sel.replaceChildren(...list.map((x) => { const o = document.createElement('option'); o.value = String(x.id); o.textContent = t('snap_item', storeWhen(x.id), t('snap_' + x.reason.replace('-', '_'))); return o; }));
-    if (!list.length) {
-        const o = document.createElement('option');
-        o.value = '';
-        o.textContent = t('set_snap_none');
-        sel.append(o);
-    }
-    if (selected && list.some(x => String(x.id) === selected)) sel.value = selected;
-    else delete sel.dataset.selected;
-    sel.disabled = btn.disabled = !list.length || STORE.blocked === 'too-new' || STORE.blocked === 'upgrade';
-}
-function storeNote() {
-    const box = document.getElementById('storeNote'), txt = document.getElementById('storeNoteText');
-    if (!box || !txt || !storeI18nReady())
-        return;
-    const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.blocked === 'upgrade' ? 'upgrade' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
-    box.hidden = !mode;
-    if (mode === 'too-new' || mode === 'upgrade') {
-        for (const id of ['importBtn', 'prog-import', 'set-snap-restore']) {
-            buttonById(id).disabled = true;
-        }
-    }
-    if (!mode)
-        return;
-    const restorable = STORE.snaps.some(x => x.reason !== 'unreadable');
-    const key = mode === 'too-new' ? 'store_too_new' : mode === 'stuck' ? 'store_stuck' : mode === 'upgrade' ? 'store_upgrade_stuck' : mode === 'failed' ? 'store_fail' : restorable ? 'store_unreadable' : 'store_unreadable_nobk';
-    txt.dataset.i18n = key; // applyI18n keeps it in the current language
-    txt.textContent = t(key);
-    byId('storeNoteExport').hidden = mode !== 'failed' && mode !== 'stuck' && mode !== 'upgrade';
-    byId('storeNoteReload').hidden = mode !== 'too-new' && mode !== 'upgrade';
-    byId('storeNoteRestore').hidden = !(mode === 'unreadable' && restorable);
-    byId('storeNoteOk').hidden = mode !== 'unreadable';
-}
-/** Plain-English facts for a bug report. Not translated: it is meant to be copied as is. */
-async function storeDiagnostics(): Promise<string> {
-    let version = 'not cached';
-    try {
-        const names = 'caches' in window ? (await caches.keys()).filter(n => n.startsWith('etude-') && n !== 'etude-active') : [];
-        if (names.length)
-            version = names.join(', ');
-    }
-    catch (_) { }
-    const standalone = pwaStandalone();
-    const u = STORE.usage, snaps = STORE.snaps.filter(x => x.reason !== 'unreadable'), last = storeLastExport();
-    const ctx = audioEngine.context;
-    return [
-        'App version: ' + version,
-        'Service worker: ' + (PWA.sw || 'none') + (PWA.err ? ' (' + PWA.err + ')' : ''),
-        'Display: ' + (standalone ? 'installed app' : 'browser tab'),
-        'Storage: ' + STORE.persist + (u ? ', ' + storeSize(u.usage) + ' of ' + storeSize(u.quota) : ''),
-        'Saving: ' + (STORE.blocked ? 'stopped (' + STORE.blocked + ')' : STORE.failed ? 'failing' : 'ok') + (STORE.unreadable ? ', unreadable record kept' : ''),
-        'Automatic backups: ' + snaps.length + (snaps[0] ? ', newest ' + new Date(snaps[0].id).toISOString() : ''),
-        'Last export: ' + (last ? new Date(last).toISOString() : 'never'),
-        midiController.describeInputs(),
-        'Bluetooth MIDI: ' + (bleLive() ? bleName() : 'not connected'),
-        'Audio: ' + (ctx ? ctx.state + ', ' + ctx.sampleRate + ' Hz' + storeMs(', base ', ctx.baseLatency) + storeMs(', output ', ctx.outputLatency) : 'not started'),
-        'Browser: ' + navigator.userAgent,
-    ].join('\n');
-}
-function storeMs(label: string, seconds: unknown) { return typeof seconds === 'number' && Number.isFinite(seconds) ? label + Math.round(seconds * 1000) + ' ms' : ''; }
-async function storeDiagRender() {
-    const out = document.getElementById('set-diag-out');
-    if (out)
-        out.textContent = await storeDiagnostics();
-}
-/** Chrome grants persistent storage without a prompt, mostly to installed apps. Ask once, on the first tap or key. */
-function storeInit() {
-    const sm = navigator.storage;
-    void safety.persistState(sm).then((state) => {
-        STORE.persist = state;
-        void storeRefresh();
-        if (state !== 'best-effort')
-            return;
-        const ask = () => {
-            window.removeEventListener('pointerdown', ask, true);
-            window.removeEventListener('keydown', ask, true);
-            void safety.requestPersist(sm).then((next) => { STORE.persist = next; renderDataSafety(); });
-        };
-        window.addEventListener('pointerdown', ask, true);
-        window.addEventListener('keydown', ask, true);
-    });
-    storeNote();
-}
-function applyTopLevelPrefs(raw: storage.PttV3Payload) {
-    audioEngine.tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone && syncOneOf(SYNC_TONES, raw.tone) ? raw.tone : 'piano';
-    audioEngine.masterVolume = clampPersistedNumber(raw.masterVol, 0, 1, audioEngine.masterVolume);
-    if (typeof raw.muted === 'boolean')
-        audioEngine.muted = raw.muted;
-    if (typeof raw.localSynth === 'boolean')
-        audioEngine.localSynth = raw.localSynth;
-    audioEngine.reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, audioEngine.reverbWet);
-    audioEngine.applyOutputMix();
-    metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
-    midiController.restoreSavedDevice(raw.device, raw.deviceName);
-    const prevScore = scorePrefsNow();
-    const scoreView = savedScoreView(raw.scoreView, raw.scoreViewExplicit);
-    const nextSide = { ...prevScore.anSide };
-    if (typeof raw.kbDock === 'boolean')
-        DOCK.pref = raw.kbDock;
-    else if (typeof raw.anKb === 'boolean')
-        DOCK.pref = raw.anKb; // the Score & analysis choice becomes the choice for every view
-    if (typeof raw.wake === 'boolean')
-        WAKE.want = raw.wake;
-    const bl = raw.ble;
-    if (bl === null) BLE.saved = null;
-    if (isRecord(bl) && typeof bl.id === 'string' && bl.id)
-        BLE.saved = { id: bl.id, name: typeof bl.name === 'string' ? bl.name : '', auto: bl.auto !== false };
-    const sd = raw.anSide;
-    if (isRecord(sd)) {
-        if (typeof sd.open === 'boolean')
-            nextSide.open = sd.open;
-        if (typeof sd.tab === 'string' && SCORE_SIDE_TABS.includes(sd.tab))
-            nextSide.tab = sd.tab;
-        if (typeof sd.w === 'number' && Number.isFinite(sd.w))
-            nextSide.w = Math.max(280, Math.min(560, Math.round(sd.w)));
-    }
-    setScorePrefs({
-        scoreLook: raw.scoreLook === 'paper' || raw.scoreLook === 'night' ? raw.scoreLook : prevScore.scoreLook,
-        scoreHl: typeof raw.scoreHl === 'boolean' ? raw.scoreHl : prevScore.scoreHl,
-        scoreLayout: scoreView && scoreView !== 'fall' ? scoreView : defaultScoreLayoutForViewport(window.innerWidth),
-        scoreFallMode: scoreView === 'fall' ? 'fall' : 'score',
-        scoreLayoutExplicit: scoreView !== null,
-        anSide: nextSide,
-    });
-}
-async function loadAll() {
-    try {
-        SYNC.known.clear();
-        SYNC.id = '';
-        SYNC.merge = null;
-        const load = () => {
-            const text = localStorage.getItem(KEY), stored = readPttV3(localStorage);
-            return { text, stored, migrated: stored ? storage.migratePtt(stored.payload) : null };
-        };
-        let { text, stored, migrated } = load();
-        let upgradeLoopExhausted = true;
-        for (let attempts = 0; attempts < 3 && stored && migrated?.status === 'migrated' && !storage.hasFutureSightLedger(stored.payload); attempts++) {
-            const copied = await storeSnapshot('before-upgrade', stored.raw, UPGRADE_SNAPSHOT_TIMEOUT_MS);
-            // Recheck after the IndexedDB write in case another tab saved a different record.
-            if (localStorage.getItem(KEY) !== stored.raw) {
-                ({ text, stored, migrated } = load());
-                continue;
-            }
-            if (!copied) STORE.blocked = 'upgrade';
-            else {
-                try {
-                    const raw = writePttV3(localStorage, migrated.payload);
-                    stored = { raw, payload: migrated.payload };
-                }
-                catch (_) { storeFailed(); }
-            }
-            upgradeLoopExhausted = false;
-            break;
-        }
-        if (upgradeLoopExhausted && stored && migrated?.status === 'migrated' && !storage.hasFutureSightLedger(stored.payload) && !STORE.blocked)
-            STORE.blocked = 'upgrade';
-        if (text && !stored)
-            storeQuarantine(text);
-        if (migrated?.status === 'too-new' || (stored && storage.hasFutureSightLedger(stored.payload)) || isFutureSightLedgerStorage(localStorage)) {
-            storeBlock();
-            return;
-        }
-        const raw = migrated?.payload;
-        if (raw && stored) {
-            SYNC.gen = typeof raw.gen === 'string' ? raw.gen : '';
-            syncCurrent(stored.raw);
-            data = restoreTrainerData(raw.data);
-            if (raw.lang && syncIsLang(raw.lang))
-                lang = raw.lang;
-            if (raw.theme && syncOneOf(SYNC_THEMES, raw.theme))
-                theme = raw.theme;
-            if (syncOneOf(SYNC_NOTATIONS, raw.notation))
-                notation = raw.notation;
-            if (syncOneOf(SYNC_LABELS, raw.labels))
-                labelMode = raw.labels;
-            applyTopLevelPrefs(raw);
-            return;
-        }
-        // migrate from V2 settings (notation/tone) if present
-        const v2s = legacySettings(localStorage);
-        if (v2s) {
-            const noteSys = String(v2s.noteSys);
-            if (syncOneOf(SYNC_NOTATIONS, noteSys))
-                notation = noteSys;
-            audioEngine.tone = 'piano';
-            audioEngine.masterVolume = clampPersistedNumber(v2s.vol, 0, 1, audioEngine.masterVolume);
-        }
-        let v2st: unknown;
-        try { v2st = syncParseJson(localStorage.getItem('ptt-stats-v2') || 'null'); } catch { }
-        if (isRecord(v2st) && v2st.items) { // seed SRS boxes from V2 per-item accuracy
-            const map = { iv: 'iv', ch: 'ch', sc: 'sc', pr: 'pr' }, v2items = v2st.items;
-            Object.keys(map).forEach((mode) => { const found = syncIsObject(v2items) ? v2items[mode] : undefined, it: Record<string, unknown> = syncIsObject(found) ? found : {}; Object.keys(it).forEach((k) => { const rec = it[k]; const id = (mode === 'iv' ? 'iv:' : mode === 'ch' ? 'ch:' : mode === 'sc' ? 'sc:' : 'pr:') + k; if (ITEM_BY_ID[id] && syncIsObject(rec) && Number(rec.seen) >= 2) {
-                const seen = Number(rec.seen);
-                if (!Number.isFinite(seen)) return;
-                const misses = clampPersistedNumber(rec.miss, 0, seen, 0);
-                const acc = 1 - misses / seen;
-                const box = acc > .85 ? 3 : acc > .6 ? 2 : 1;
-                data.srs[id] = { box, ease: 2.3, reps: seen, lapses: misses, due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
-            } }); });
-        }
-        if (navigator.language && /^ro/i.test(navigator.language)) {
-            lang = 'ro'; // first-time Romanian browser → Romanian UI + Do-Re-Mi default
-            notation = 'solfege';
-        }
-        syncInitial();
-    }
-    catch (e) {
-        console.warn('load failed', e);
-    }
-}
-/* ============================================================================
-   WIRING + BOOT
-   ============================================================================ */
-function labelSettingsControl(controlId: string, labelKey: string|undefined, helpKey: string|undefined) {
-    const control = maybeById(controlId), label = (document).querySelector('[data-i18n="' + labelKey + '"]');
-    if (!control || !label)
-        return;
-    label.id = controlId + '-label';
-    control.setAttribute('aria-labelledby', label.id);
-    if (helpKey) {
-        const help = (document).querySelector('[data-i18n="' + helpKey + '"]');
-        if (help) {
-            help.id = controlId + '-help';
-            control.setAttribute('aria-describedby', help.id);
-        }
-    }
-}
-type SettingsControlLabel = [controlId: string, labelKey: string, helpKey?: string];
-function labelSettingsControls() {
-    const controls: SettingsControlLabel[] = [['deviceSelect', 'set_input'], ['toneSel', 'set_tone'], ['set-goal', 'set_sessionlen'], ['set-new', 'set_newperday', 'set_newperday_s'],
-        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv'], ['set-weak-inject', 'set_weak_inject'],
-        ['set-any-octave', 'set_any_octave', 'set_any_octave_s']];
-    controls.forEach(([controlId, labelKey, helpKey]) => labelSettingsControl(controlId, labelKey, helpKey));
-}
-function reflectSettingsUI() {
-    inputById('volume').value = String(Math.round(audioEngine.masterVolume * 100));
-    selectById('toneSel').value = audioEngine.tone;
-    inputById('bpm').value = String(metro.bpm);
-    byId('bpmLbl').textContent = String(metro.bpm);
-    inputById('reverb').value = String(Math.round(audioEngine.reverbWet / 0.5 * 100));
-    queryAllHtml(document, '#set-labels button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === labelMode ? 'true' : 'false'));
-    const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
-    if (labelCBtn) labelCBtn.textContent = notation === 'solfege' ? 'Do' : 'C';
-    inputById('set-synth').checked = audioEngine.localSynth;
-    inputById('set-drone').checked = !!data.settings.drone;
-    inputById('set-inv').checked = !!data.settings.allowInv;
-    const prChordInv = maybeById('pr-chord-inv');
-    if (prChordInv instanceof HTMLInputElement) prChordInv.checked = !!data.settings.allowInv;
-    inputById('set-metronome').checked = !!data.settings.metronome;
-    inputById('set-weak-inject').checked = !!data.settings.weakSpotInjection;
-    inputById('set-any-octave').checked = !!data.settings.anyOctave;
-    read?.reflectSettings();
-    selectById('set-goal').value = String(data.settings.goal);
-    selectById('set-new').value = String(data.settings.newPerDay);
-    queryAllHtml(document, '#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
-    queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === lang ? 'true' : 'false'));
-    practice?.reflectSettings();
-}
-function setWeakSpotInjection(on: boolean) {
-    data.settings.weakSpotInjection = on;
-    const settingsToggle = maybeById('set-weak-inject');
-    if (settingsToggle instanceof HTMLInputElement)
-        settingsToggle.checked = on;
-    const readingToggle = maybeById('rdx-weak-inject');
-    if (readingToggle instanceof HTMLInputElement)
-        readingToggle.checked = on;
-    saveAll();
-}
-let appDialogClose: ((accepted: boolean, fromPop?: boolean) => void) | null = null;
-let appDialogWired = false;
-let appDialogSeq = 0;
-let appDialogQueue: Promise<unknown> = Promise.resolve();
-function ensureAppDialogWired() {
-    if (appDialogWired) return;
-    const dialog = maybeById('appDialog'), ok = maybeById('appDialogOk'), cancel = maybeById('appDialogCancel'), scrim = maybeById('appDialogScrim');
-    if (!dialog || !ok || !cancel || !scrim) return;
-    appDialogWired = true;
-    ok.addEventListener('click', () => appDialogClose?.(true));
-    cancel.addEventListener('click', () => appDialogClose?.(false));
-    scrim.addEventListener('click', () => appDialogClose?.(false));
-    dialog.addEventListener('keydown', trapFocus);
-}
-function appDialogOpen(kind: 'alert' | 'confirm', message: string): Promise<boolean> {
-    const task = appDialogQueue.then(() => new Promise<boolean>((resolve) => {
-        ensureAppDialogWired();
-        const dialog = maybeById('appDialog'), scrim = maybeById('appDialogScrim'), title = maybeById('appDialogTitle'), msg = maybeById('appDialogMsg'), ok = maybeById('appDialogOk'), cancel = maybeById('appDialogCancel');
-        if (!dialog || !scrim || !title || !msg || !ok || !cancel) {
-            if (kind === 'alert') { window.alert(message); resolve(true); }
-            else resolve(window.confirm(message));
-            return;
-        }
-        const priorFocus = document.activeElement;
-        read?.releaseRecorder('focus');
-        releaseLiveInput();
-        pushModalState('dialog');
-        dialog.dataset.kind = kind;
-        dialog.dataset.seq = String(++appDialogSeq);
-        title.textContent = kind === 'alert' ? localize('dialog_notice_title', 'Notice') : localize('dialog_confirm_title', 'Please confirm');
-        msg.textContent = message;
-        ok.textContent = kind === 'alert' ? localize('dialog_ok', 'OK') : localize('dialog_confirm', 'Continue');
-        cancel.textContent = localize('dialog_cancel', 'Cancel');
-        cancel.hidden = kind === 'alert';
-        dialog.classList.add('on');
-        dialog.setAttribute('aria-hidden', 'false');
-        scrim.classList.add('on');
-        syncScrim();
-        const firstFocus = kind === 'confirm' ? cancel : ok;
-        firstFocus.focus({ preventScroll: true });
-        requestAnimationFrame(() => { if (dialog.classList.contains('on')) firstFocus.focus({ preventScroll: true }); });
-        appDialogClose = (accepted: boolean, fromPop = false) => {
-            appDialogClose = null;
-            const hadFocus = dialog.contains(document.activeElement);
-            dialog.classList.remove('on');
-            dialog.setAttribute('aria-hidden', 'true');
-            scrim.classList.remove('on');
-            if (!fromPop) popModalState('dialog');
-            syncScrim();
-            if (hadFocus && priorFocus && priorFocus.isConnected && (priorFocus instanceof HTMLElement || priorFocus instanceof SVGElement) && priorFocus.getClientRects().length > 0 && !priorFocus.closest('[inert]'))
-                priorFocus.focus({ preventScroll: true });
-            resolve(kind === 'alert' ? true : accepted);
-        };
-    }));
-    appDialogQueue = task.catch(() => {});
-    return task;
-}
-function appAlert(message: string): Promise<void> { return appDialogOpen('alert', message).then(() => {}); }
-function appConfirm(message: string): Promise<boolean> { return appDialogOpen('confirm', message); }
-function overlaysOpen() { return byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || !!maybeById('appDialog')?.classList.contains('on'); }
-function syncScrim() {
-    const drawer = byId('drawer'), help = byId('helpBox'), dialog = maybeById('appDialog');
-    const dialogOn = !!dialog?.classList.contains('on'), helpOn = help.classList.contains('on'), drawerOn = drawer.classList.contains('on');
-    const open = dialogOn || helpOn || drawerOn;
-    byId('scrim').classList.toggle('on', drawerOn || helpOn);
-    queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > #bottomNav, body > #locale-load-error, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
-    if (dialog) dialog.inert = !dialogOn;
-    help.inert = !helpOn || dialogOn;
-    drawer.inert = !drawerOn || helpOn || dialogOn;
-}
-// Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
-// opening moves focus inside, closing returns it to whatever opened the overlay.
-const overlayReturn = new Map<HTMLElement, Element | null>();
-function setOverlay(el: HTMLElement, o: boolean, firstId: string) {
-    const was = el.classList.contains('on'), hadFocus = el.contains(document.activeElement);
-    if (o !== was) {
-        if (o) read?.releaseRecorder('focus');
-        releaseLiveInput();
-    }
-    el.classList.toggle('on', o);
-    el.setAttribute('aria-hidden', o ? 'false' : 'true');
-    syncScrim();
-    if (o && !was) {
-        overlayReturn.set(el, document.activeElement);
-        byId(firstId).focus();
-        requestAnimationFrame(() => { if (el.classList.contains('on') && !el.inert)
-            byId(firstId).focus(); });
-    }
-    else if (!o && was) {
-        const r = overlayReturn.get(el);
-        overlayReturn.delete(el);
-        if (hadFocus && r && r.isConnected && (r instanceof HTMLElement || r instanceof SVGElement) && r.getClientRects().length > 0 && !r.closest('[inert]'))
-            r.focus();
-    }
-}
-function trapFocus(e: KeyboardEvent) {
-    if (e.key !== 'Tab' || !(e.currentTarget instanceof Element))
-        return;
-    const f = [...e.currentTarget.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x): x is HTMLElement | SVGElement => (x instanceof HTMLElement || x instanceof SVGElement) && !('disabled' in x && x.disabled) && x.getClientRects().length > 0);
-    if (!f.length)
-        return;
-    const a = f[0], z = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === a) {
-        e.preventDefault();
-        z.focus();
-    }
-    else if (!e.shiftKey && document.activeElement === z) {
-        e.preventDefault();
-        a.focus();
-    }
-}
-function openDrawer(o: boolean, fromPop = false) {
-    if (o) {
-        if (!fromPop)
-            pushModalState('drawer');
-    }
-    else {
-        if (CAL.on) {
-            calStop();
-            calSay('');
-        }
-        if (!fromPop) popModalState('drawer');
-    }
-    setOverlay(byId('drawer'), o, 'drawerClose');
-}
-function openHelp(o: boolean, fromPop = false) {
-    if (o) {
-        kbdLayoutLabels();
-        if (!fromPop)
-            pushModalState('help');
-    }
-    else {
-        if (!fromPop) popModalState('help');
-    }
-    setOverlay(byId('helpBox'), o, 'helpClose');
-}
-function applyNotation() {
-    const sr = selectById('song-root').value, pk = selectById('pr-key').value;
-    fillRoots(byId('song-root'), false);
-    fillRoots(byId('pr-key'), true);
-    selectById('song-root').value = String(sr || 0);
-    selectById('pr-key').value = pk || 'all';
-    practice?.renderSetup();
-    localizeLoadedFeatures();
-    buildKeyboard();
-    repaintHeld();
-    if (view0() === 'practice')
-        practice?.updateAccompChain();
-    read?.onNotation();
-    scorePlayer?.relocalize();
-    practice?.refreshSessionCopy();
-    const labelCBtn = document.querySelector('#set-labels button[data-v="c"]');
-    if (labelCBtn) labelCBtn.textContent = notation === 'solfege' ? 'Do' : 'C';
-    read?.onLocale();
-    coachRefresh();
-}
-/* ---------- ACCOMPANIMENT UI moved to src/features/practice/accompaniment.ts ---------- */
-/** The text field, slider or select an input/change event fired on. */
-function wiringField(e: Event): HTMLInputElement | HTMLSelectElement {
-    const el = e.target;
-    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement)
-        return el;
-    throw new Error('Étude: expected an <input> or <select> event target');
-}
-/** The checkbox or file `<input>` a change event fired on. */
-function wiringInput(e: Event): HTMLInputElement {
-    const el = e.target;
-    if (el instanceof HTMLInputElement)
-        return el;
-    throw new Error('Étude: expected an <input> event target');
-}
-/** The buttons of the segmented control a click was delegated to. */
-function wiringSegment(e: Event): HTMLElement[] {
-    return e.currentTarget instanceof Element ? [...e.currentTarget.children].filter((x): x is HTMLElement => x instanceof HTMLElement) : [];
-}
-function wiringDisabled(b: HTMLElement): boolean { return b instanceof HTMLButtonElement && b.disabled; }
-function initControls() {
-    labelSettingsControls();
-    initLatencyCalibration(); // Settings → MIDI keyboard → Timing
-    byId('skipLink').addEventListener('click', (e) => { e.preventDefault(); byId('main').focus({ preventScroll: true }); });
-    // nav
-    byId('nav').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
-        show(b.dataset.view); });
-    byId('modeNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
-        show(b.dataset.view); });
-    byId('bottomNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
-        show(b.dataset.view); });
-    document.querySelector('.brand')?.addEventListener('click', (e) => { e.preventDefault(); show('today'); });
-    // midi chip + settings
-    byId('midiChip').addEventListener('click', connectMidi);
-    maybeById('bleChip')?.addEventListener('click', bleClick);
-    byId('audioLockBtn').addEventListener('click', audioUnlock);
-    byId('syncNoteBtn').addEventListener('click', () => syncNote(false));
-    byId('set-connect').addEventListener('click', connectMidi);
-    byId('deviceSelect').addEventListener('change', (e) => attachInput(wiringField(e).value));
-    byId('set-ble').addEventListener('click', bleClick);
-    byId('set-ble-re').addEventListener('click', bleReconnect);
-    // installed app & screen
-    byId('set-wake').addEventListener('change', (e) => wakeSet(wiringInput(e).checked));
-    byId('set-full').addEventListener('click', fsToggle);
-    queryAllHtml(document, '.stage-fs:not(.score-expand)').forEach((b) => b.addEventListener('click', fsToggle));
-    for (const id of ['rd-fs', 'rd-top-fs']) byId(id).addEventListener('click', () => scoreFocusToggle('read', byId('rd-fs')));
-    byId('rd-focus-disp-btn').addEventListener('click', () => rdFocusDispSet(Boolean(byId('rd-focus-tools').hidden)));
-    byId('rd-focus-out').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom - .1));
-    byId('rd-focus-in').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom + .1));
-    byId('rd-focus-fit').addEventListener('click', () => { readScoreZoom(1); read?.fit(); });
-    byId('rd-focus-kb').addEventListener('click', () => { STAGE.kb = !dockOpen(); dockSync(); scoreFocusUi(); });
-    // The Read focus display menu closes on a press anywhere outside it.
-    document.addEventListener('pointerdown', (e) => {
-        const el = eventElement(e);
-        const rdTools = maybeById('rd-focus-tools');
-        if (el && rdTools && !rdTools.hidden && !el.closest('#rd-focus-tools,#rd-focus-disp-btn'))
-            rdFocusDispSet(false);
-    });
-    scoreFocusUi();
-    byId('set-install').addEventListener('click', pwaInstall);
-    byId('set-pwa-retry').addEventListener('click', () => { void pwaRegister(); });
-    document.addEventListener('fullscreenchange', scoreFocusFullscreenChanged);
-    window.addEventListener('resize', () => read?.stageResize());
-    byId('settingsBtn').addEventListener('click', () => openDrawer(true));
-    byId('scrim').addEventListener('click', () => { openDrawer(false); openHelp(false); });
-    byId('drawerClose').addEventListener('click', () => openDrawer(false));
-    byId('helpBtn').addEventListener('click', () => openHelp(true));
-    byId('helpClose').addEventListener('click', () => openHelp(false));
-    byId('drawer').addEventListener('keydown', trapFocus);
-    byId('helpBox').addEventListener('keydown', trapFocus);
-    // theme
-    byId('set-theme').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_THEMES, v))
-        return; theme = v; applyTheme(); saveAll(); });
-    // mobile menu
-    byId('menuBtn').addEventListener('click', () => {
-        const mm = byId('mobileMenu');
-        if (mm.hidden) {
-            openMobileMenu();
-        }
-        else
-            closeMobileMenu(true);
-    });
-    document.addEventListener('click', (e) => { const mm = byId('mobileMenu'), el = eventElement(e); if (mm && !mm.hidden && el && !el.closest('#mobileMenu') && !el.closest('#menuBtn'))
-        closeMobileMenu(); });
-    // Refit when the bar's width or the MIDI chip's label changes, or a web font lands; fitHeader never resizes either.
-    const headerFit = new ResizeObserver(fitHeader), hdrBar = byId('nav').parentElement;
-    if (hdrBar)
-        headerFit.observe(hdrBar);
-    headerFit.observe(byId('midiChip'));
-    const bleChipEl = maybeById('bleChip');
-    if (bleChipEl) headerFit.observe(bleChipEl);
-    const bnavEl = maybeById('bottomNav');
-    if (bnavEl && typeof ResizeObserver === 'function')
-        new ResizeObserver(anLayoutVars).observe(bnavEl);
-    document.fonts.addEventListener('loadingdone', fitHeader);
-    // backup export / import
-    byId('exportBtn').addEventListener('click', () => {
-        saveAll();
-        const raw = backupJson();
-        const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0');
-        downloadBlob('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
-        storeExported();
-    });
-    byId('importBtn').addEventListener('click', () => byId('importFile').click());
-    byId('importFile').addEventListener('change', async (e) => {
-        const input = wiringInput(e), file = input.files?.[0];
-        input.value = '';
-        if (!file || progressRestorePending || reloadingForRestore) return;
-        if (file.size > MAX_PROGRESS_IMPORT_BYTES) {
-            await appAlert(t('import_size'));
-            return;
-        }
-        progressRestorePending = true;
-        try {
-            if (storeBackupBlocked()) {
-                await appAlert(t('store_too_new'));
-                return;
-            }
-            const backup = parsePttV3(await file.text());
-            if (backup && (storage.pttSchema(backup) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(backup))) {
-                await appAlert(t('import_too_new'));
-                return;
-            }
-            if (!storage.isImportableBackup(backup)) {
-                await appAlert(t('import_bad'));
-                return;
-            }
-            if (await appConfirm(t('import_confirm')))
-                await storeApplyBackup(backup, 'before-import');
-        }
-        catch (_) { await appAlert(t('import_bad')); }
-        finally { progressRestorePending = false; }
-    });
-    byId('set-diag').addEventListener('toggle', () => { if (byId('set-diag').hasAttribute('open'))
-        void storeRefresh(); });
-    byId('set-diag-copy').addEventListener('click', () => { void storeDiagnostics().then((text) => { if (!navigator.clipboard)
-        throw new Error('no clipboard'); return navigator.clipboard.writeText(text); }).then(() => { const b = byId('set-diag-copy'); b.textContent = t('set_diag_copied'); setTimeout(() => { b.textContent = t('set_diag_copy'); }, 1500); }).catch(() => { }); });
-    byId('storeNoteExport').addEventListener('click', () => byId('exportBtn').click());
-    byId('storeNoteReload').addEventListener('click', () => location.reload());
-    byId('storeNoteOk').addEventListener('click', () => { STORE.unreadable = false; storeNote(); });
-    byId('storeNoteRestore').addEventListener('click', () => { void storeRestore(STORE.snaps.find(x => x.reason !== 'unreadable')?.id); });
-    selectById('set-snaps').addEventListener('change', (event) => {
-        if (event.currentTarget instanceof HTMLSelectElement) event.currentTarget.dataset.selected = event.currentTarget.value;
-    });
-    byId('set-snap-restore').addEventListener('click', () => { const sel = byId('set-snaps'); if (sel instanceof HTMLSelectElement && Number(sel.value))
-        void storeRestore(Number(sel.value)); });
-    // session
-    byId('tools').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
-        show(b.dataset.view); });
-    byId('startBtn').addEventListener('click', () => withPractice((p) => p.startSession(null)));
-    byId('placeBtn').addEventListener('click', () => withPractice((p) => p.startPlacement()));
-    const goMethod = (e: Event) => { e.preventDefault(); show('method'); };
-    byId('whyLink').addEventListener('click', goMethod);
-    byId('footMethod').addEventListener('click', goMethod);
-    byId('method-start').addEventListener('click', () => { show('today'); withPractice((p) => p.startSession(null)); });
-    // practice, session and accompaniment controls are wired on mount in src/features/practice/index.ts
-    // read & play, drills and the Read home are wired on mount in src/features/read/index.ts
-    // voice / transcribe / sight-singing (wired lazily on mount in src/features/voice/index.ts)
-    // explore (wired lazily on mount in src/features/explore/index.ts)
-    // Pieces (Score & analysis) wires its own controls on mount in src/features/score-player/index.ts. The header, dock and
-    // bottom bar sizes, and the window size, feed the layout variables every view reads.
-    // border-box: a safe-area inset only changes padding, which a content-box observer would miss
-    const layoutRo = new ResizeObserver(layoutVarsSoon);
-    [document.querySelector('header'), byId('dock'), byId('bottomNav')].forEach((el) => { if (el)
-        layoutRo.observe(el, { box: 'border-box' }); });
-    window.addEventListener('resize', layoutVarsSoon);
-    anLayoutVars();
-    // songs
-    // progress (wired on mount in src/features/progress/index.ts)
-    byId('resetBtn').addEventListener('click', () => { void storeReset(); });
-    // keyboard dock
-    byId('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
-    byId('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
-    byId('panicBtn').addEventListener('click', panic);
-    byId('dock-kb-toggle').addEventListener('click', () => dockSet(!dockOpen()));
-    byId('kb-pan').addEventListener('input', (e) => { byId('dock-keys').scrollLeft = +wiringField(e).value; });
-    byId('dock-keys').addEventListener('scroll', () => { inputById('kb-pan').value = String(byId('dock-keys').scrollLeft); });
-    // settings: notation/tone/audio/learning
-    byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v) || notation === v)
-        return; notation = v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
-    byId('set-lang').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
-        void setLang(b.dataset.v).catch(() => localeLoadError(() => setLang(b.dataset.v))); });
-    byId('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); const v = wiringField(e).value; if (syncOneOf(SYNC_TONES, v))
-        audioEngine.tone = v; ensureAudio(); pianoStatus(); saveAll(); });
-    byId('volume').addEventListener('input', (e) => { audioEngine.setMasterVolume(Number(wiringField(e).value) / 100); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
-    byId('set-synth').addEventListener('change', (e) => { audioEngine.localSynth = wiringInput(e).checked; if (!audioEngine.localSynth) {
-        liveVoices.forEach((v) => v.stop());
-        liveVoices.clear();
-    } saveAll(); });
-    byId('reverb').addEventListener('input', (e) => { audioEngine.setReverbWet(Number(wiringField(e).value) / 100 * 0.5); saveSoon(); });
-    byId('set-labels').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
-        return; labelMode = b.dataset.v ?? labelMode; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
-    byId('bpm').addEventListener('input', (e) => { metro.bpm = +wiringField(e).value; byId('bpmLbl').textContent = wiringField(e).value; saveSoon(); });
-    for (const id of ['volume', 'reverb', 'bpm']) byId(id).addEventListener('change', flushSaveSoon);
-    window.addEventListener('pagehide', flushSaveSoon);
-    byId('set-drone').addEventListener('change', (e) => { data.settings.drone = wiringInput(e).checked; saveAll(); });
-    byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = wiringInput(e).checked; saveAll(); });
-    byId('set-inv').addEventListener('change', (e) => {
-        const checked = wiringInput(e).checked;
-        data.settings.allowInv = checked;
-        const prChordInv = maybeById('pr-chord-inv');
-        if (prChordInv instanceof HTMLInputElement) prChordInv.checked = checked;
-        saveAll();
-    });
-    byId('set-any-octave').addEventListener('change', (e) => {
-        const checked = wiringInput(e).checked;
-        data.settings.anyOctave = checked;
-        read?.setAnyOctave(checked);
-        const rdOct = maybeById('rd-any-octave');
-        if (rdOct instanceof HTMLInputElement)
-            rdOct.checked = checked;
-        saveAll();
-    });
-    byId('set-weak-inject').addEventListener('change', (e) => { setWeakSpotInjection(wiringInput(e).checked); });
-    byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +wiringField(e).value; saveAll(); refreshToday(); });
-    byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +wiringField(e).value; saveAll(); refreshToday(); });
-    // global
-    // Keep audio unlock listeners active across scroll/touchstart until an interactive gesture actually reaches running state.
-    const unlockEvents = ['pointerdown', 'keydown', 'touchend', 'click'] as const;
-    const onUnlockGesture = () => {
-        const ctx = ensureAudio();
-        if (ctx?.state === 'running') {
-            unlockEvents.forEach((ev) => window.removeEventListener(ev, onUnlockGesture));
-        }
-    };
-    unlockEvents.forEach((ev) => window.addEventListener(ev, onUnlockGesture));
-    // keyup/pointerup never reach an unfocused window, so focus loss only lets go of what the computer keyboard and pointer hold;
-    // playback, recording, accompaniment and drills keep running
-    window.addEventListener('blur', releaseFocusInput);
-    // a hidden tab throttles timers and stops animation frames: timed playback, accompaniment, mic capture and drills stop cleanly (score playback pauses resumably)
-    document.addEventListener('visibilitychange', () => { if (document.hidden)
-        panic(); });
-    // coming back: restart audio the phone suspended in the background. The notice asks for a tap while it stays locked.
-    onPageReturn(() => {
-        void audioEngine.resumeOnReturn().then((state) => { if (state === 'running') audioLockSync(); else if (state) audioLockCheck(); });
-    });
-    window.addEventListener('storage', (e) => {
-        if (e.storageArea && e.storageArea !== localStorage) return;
-        if (e.key === STORE_SNAPSHOTS_CHANGED || e.key === STORE_LAST_EXPORT || e.key === null) void storeRefresh();
-        if (e.key !== null && e.key !== KEY) return;
-        const got = syncPull();
-        if (got === 'old' || got === 'merge-save') syncWrite();
-        if (got) syncAfter(got);
-    }); // another tab saved
-    registerViewEvent('keydown', (e) => { if (e.key === 'Escape') {
-        if (appDialogClose) {
-            e.preventDefault();
-            appDialogClose(false);
-            return;
-        }
-        if (closeMobileMenu(true)) {
-            e.preventDefault();
-            return;
-        }
-        if (byId('helpBox').classList.contains('on')) {
-            openHelp(false);
-            return;
-        }
-        openDrawer(false);
-    } });
-    let rz: ReturnType<typeof setTimeout> | null = null;
-    let lastPortrait = window.innerHeight >= window.innerWidth;
-    function handleScreenChange() {
-        clearTimeout(rz ?? undefined);
-        rz = setTimeout(() => {
-            const portrait = window.innerHeight >= window.innerWidth;
-            const flipped = portrait !== lastPortrait;
-            lastPortrait = portrait;
-            if (!byId('mobileMenu').hidden && getComputedStyle(byId('menuBtn')).display === 'none') {
-                const hadFocus = byId('mobileMenu').contains(document.activeElement);
-                closeMobileMenu();
-                if (hadFocus) {
-                    const current = queryHtml(byId('nav'), '[aria-current="page"]');
-                    if (current)
-                        current.focus({ preventScroll: true });
-                }
-            }
-            const o = view.oct;
-            chooseView();
-            if (view.oct !== o) {
-                buildKeyboard();
-                repaintHeld();
-            }
-            else
-                positionBlacks();
-            if (dockShown())
-                reflowKeys();
-            read?.redraw();
-            if (view0() === 'analysis') {
-                anLayoutVars();
-                scorePlayer?.onScreenChange(flipped);
-            }
-        }, 100);
-    }
-    window.addEventListener('resize', handleScreenChange);
-    if (window.screen && window.screen.orientation) {
-        window.screen.orientation.addEventListener('change', handleScreenChange);
-    }
-    else {
-        window.addEventListener('orientationchange', handleScreenChange);
     }
 }
 /* boot */
@@ -3353,7 +1917,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "_modalBackPending": () => _modalBackPending,
   "_noiseBuf": () => _noiseBuf,
   "_routed": () => _routed,
-  "_saveT": () => _saveT,
+  "_saveT": () => persistence.saveTimer,
   "_view": () => _view,
   "activeInputId": () => midiController.state.activeInputId,
   "actx": () => audioEngine.context,
@@ -3616,7 +2180,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "syncPair": () => syncPair,
   "syncPick": () => syncPick,
   "syncPref": () => syncPref,
-  "syncPull": () => syncPull,
   "syncRefresh": () => syncRefresh,
   "syncRemember": () => syncRemember,
   "syncSame": () => syncSame,
@@ -3747,7 +2310,7 @@ __etudeRegistry.defineMutable("pianoDecode", () => pianoDecode, (value) => { pia
 __etudeRegistry.defineMutable("playInterval", () => playInterval, (value) => { playInterval = value; });
 __etudeRegistry.defineMutable("preparePiano", () => preparePiano, (value) => { preparePiano = value; });
 __etudeRegistry.defineMutable("previewNote", () => previewNote, (value) => { previewNote = value; });
-__etudeRegistry.defineMutable("syncPull", () => syncPull, (value) => { syncPull = value; });
+__etudeRegistry.defineMutable("syncPull", () => persistence.syncPull, (value) => { persistence.syncPull = value; });
 __etudeRegistry.defineMutable("actx", () => audioEngine.context, (value) => { audioEngine.context = value; });
 __etudeRegistry.defineMutable("localSynth", () => audioEngine.localSynth, (value) => { audioEngine.localSynth = value; });
 __etudeRegistry.defineMutable("notation", () => notation, (value) => { notation = value; });
