@@ -140,7 +140,7 @@ async function printReport() {
     {
       Asset: 'Self-hosted Fonts (WOFF2)',
       Location: `src/assets/fonts/ (${fontFiles.length} WOFF2 files)`,
-      Includes: 'Bodoni Moda & Mr De Haviland (latin + latin-ext)',
+      Includes: 'Bodoni Moda & Etude Script (Mr De Haviland with Romanian glyphs)',
       UpdateCmd: 'src/styles/fonts.css',
     },
   ]);

@@ -67,7 +67,10 @@ test('the single-file build decodes its piano samples and loads embedded fonts',
   await page.waitForFunction(() => typeof window.__etude?.preparePiano === 'function');
   const result = await page.evaluate(async () => {
     const app = window.__etude;
-    const fonts = await Promise.all(['Bodoni Moda', 'Mr De Haviland'].map(family => document.fonts.load(`16px "${family}"`)));
+    const fonts = await Promise.all([
+      document.fonts.load('16px "Bodoni Moda"'),
+      document.fonts.load('16px "Etude Script"', 'ĂăÂâÎîȘșȚț'),
+    ]);
     app.ensureAudio();
     const ready = await app.preparePiano();
     app.handleNoteOn(60, 100);
