@@ -1511,7 +1511,7 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       // folded under "Drill options": they are settings kept between sessions, so they stay one tap away. The panel keeps
       // its open state when the hero is drawn again.
       const prevOpts = maybeById('rdx-opts'), optsOpen = prevOpts instanceof HTMLDetailsElement && prevOpts.open;
-      byId('rdx-hero').innerHTML =`<div class="rdx-hero-l"><div><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${deps.t('rdx_hero_stars')}</div></div>
+      byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${deps.t('rdx_hero_stars')}</div></div>
       <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${deps.t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${deps.t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${deps.t('rdx_st_time')}</span></div></div></div>
       <div class="rdx-next"><div class="rdx-next-pic" aria-hidden="true">${sample || `<span class="rdx-next-ic">${unit ? unit.icon : '🎯'}</span>`}</div>
         <div class="rdx-next-txt"><span class="rdx-next-eye">${deps.t(d.prefs.last ? 'rdx_hero_next' : 'rdx_hero_first')}</span><b class="rdx-next-name" id="rdx-next-name">${deps.rdEsc(deps.rdLvName(cont))}</b><span class="rdx-next-d" id="rdx-next-d">${deps.rdEsc(rdLvDetail(cont))}</span></div>

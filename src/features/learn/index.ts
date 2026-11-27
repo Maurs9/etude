@@ -638,6 +638,7 @@ export function createLearnFeature(host: AppHost): FeatureController {
       loading.dataset.lazyLoading = '';
       loading.textContent = host.i18n.localize('loading', 'Loading…');
       body.append(loading);
+      learnRailRender(); // the body has no sections while it loads, so this empties the rail of the previous lesson
       const requestedLanguage = lang;
       const request = ++learnRequest;
       learnLoading = Promise.all([loadLearn(requestedLanguage), loadLearnStaves()]).then(([payload]) => {

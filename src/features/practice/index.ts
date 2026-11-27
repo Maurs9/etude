@@ -2150,7 +2150,8 @@ export function createPracticeFeature(host: AppHost, shell: PracticeShell): Prac
         e.preventDefault();
         const n = e.key === 'Home' ? tabs[0] : e.key === 'End' ? tabs[tabs.length - 1] : tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
         prSetMode(n.dataset.v === 'along' ? 'along' : prProgLastDrill);
-        n.focus();
+        // Focus follows the selection only: a mode that cannot be chosen now leaves focus where it was.
+        if (n.getAttribute('aria-selected') === 'true') n.focus();
     });
     byId('pr-cat').addEventListener('change', syncPracticeCatAndMode);
     byId('pr-key').addEventListener('change', () => { renderPracticeKeys(); updatePracticeModeHint(); });
