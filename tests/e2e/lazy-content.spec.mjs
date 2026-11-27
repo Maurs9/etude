@@ -43,8 +43,12 @@ for (const language of LANGUAGES) {
     expect(catalog.count).toBeGreaterThan(10);
     expect(catalog.containsBodies).toBe(false);
     await expect(page.locator('[data-plan="learn"]')).toContainText(catalog.firstTitle);
+    // Test-surface builds also load the lazy feature chunks at boot to register their window.__etude hooks; production
+    // Today never requests them, so they stay out of the startup budget (the production smoke test in deploy.spec.mjs
+    // covers their lazy paths).
     const decodedJs = await page.evaluate(() => performance.getEntriesByType('resource')
       .filter(entry => /\.(?:m?js|ts)$/.test(new URL(entry.name).pathname))
+      .filter(entry => !/\/(?:explore|voice|learn|score-player|practice|test-surface-wiring)-[\w-]{8}\.js$/.test(new URL(entry.name).pathname))
       .reduce((sum, entry) => sum + entry.decodedBodySize, 0));
     expect(decodedJs).toBeGreaterThan(0);
     // Compare minified production bytes, never Vite's unminified development modules.
@@ -178,11 +182,10 @@ test('all language and Learn chunks open offline after warming only Today @sw', 
 for (const view of ['today', 'explore']) {
   test(`Progress and lesson staves load on demand from ${view}`, async ({ app, page }) => {
     await app.open({ hash: view });
-    const loaded = name => page.evaluate(name => performance.getEntriesByType('resource').some(entry => {
-      const path = new URL(entry.name).pathname;
-      // Dev serves the source module by its exact name. The built site serves a hashed chunk.
-      return path.endsWith(`/src/domain/${name}.ts`) || new RegExp(`/assets/${name}-[\\w-]+\\.js$`).test(path);
-    }), name);
+    // The module itself: `name.ts` from the dev server or `name-<8-char hash>.js` from the build. A longer file name that only
+    // starts with it (learn-staves-and-demos.ts, eager in dev) is a different module.
+    const loaded = name => page.evaluate(name => performance.getEntriesByType('resource').some(entry =>
+      new RegExp(`/${name}(?:-[\\w-]{8})?\\.(?:js|ts)$`).test(new URL(entry.name).pathname)), name);
     expect(await loaded('progress-view')).toBe(false);
     expect(await loaded('learn-staves')).toBe(false);
     await page.locator('#nav [data-view=progress]').click();

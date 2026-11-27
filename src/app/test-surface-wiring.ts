@@ -3,7 +3,7 @@ import type { FeatureController, TestSurfaceRegistry } from '../domain/views.js'
 
 export type EnsureFeatureFn = (view: AppView) => Promise<FeatureController | null>;
 
-const TEST_SURFACE_FEATURES: readonly AppView[] = ['explore', 'sing', 'learn'];
+const TEST_SURFACE_FEATURES: readonly AppView[] = ['explore', 'sing', 'learn', 'analysis', 'practice', 'today', 'read'];
 
 /**
  * Loaded exclusively via dynamic `import()` under `import.meta.env.DEV || __ETUDE_TEST_SURFACE__`.

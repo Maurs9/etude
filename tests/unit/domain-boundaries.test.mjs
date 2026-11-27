@@ -10,11 +10,24 @@ const runtimePath = new URL('../../src/domain/views.ts', import.meta.url);
 const runtimeImplementationPath = new URL('../../src/domain/views-runtime.ts', import.meta.url);
 const theoryPath = new URL('../../src/domain/theory.ts', import.meta.url);
 const notationPath = new URL('../../src/domain/notation.ts', import.meta.url);
+const scorePlayerDir = new URL('../../src/features/score-player/', import.meta.url);
 const execFileAsync = promisify(execFile);
+
+// The Score Player moved out of views-runtime.ts into src/features/score-player/ (Phase 4B); its source is held to the same
+// view-layer rules, so these checks read the runtime and every Score Player module together.
+async function scorePlayerPaths() {
+  const names = (await readdir(scorePlayerDir)).filter((name) => name.endsWith('.ts')).sort();
+  return names.map((name) => new URL(name, scorePlayerDir));
+}
+
+async function viewLayerSources() {
+  const paths = [runtimeImplementationPath, ...await scorePlayerPaths()];
+  return Promise.all(paths.map(async (path) => ({ path: fileURLToPath(path), text: await readFile(path, 'utf8') })));
+}
 
 describe('domain boundaries', () => {
   it('keeps Web Audio node construction in the audio domain', async () => {
-    for (const targetPath of [runtimePath, runtimeImplementationPath]) {
+    for (const targetPath of [runtimePath, runtimeImplementationPath, ...await scorePlayerPaths()]) {
       const runtime = await readFile(targetPath, 'utf8');
       expect(runtime).not.toMatch(/\bcreate(?:Oscillator|Gain|BiquadFilter|BufferSource)\s*\(/);
       expect(runtime).not.toMatch(/\bnew\s+AudioContext\b/);
@@ -27,11 +40,13 @@ describe('domain boundaries', () => {
     expect(runtime).not.toMatch(/function\s+(?:srClick|rdClick)[\s\S]*?createOscillator/);
   });
 
-  it('does not reach into OSMD vendor members from the view runtime', async () => {
-    const runtime = await readFile(runtimeImplementationPath, 'utf8');
-    expect(runtime).not.toMatch(/engine\.(?:EngravingRules|GraphicSheet|Sheet|cursor|Zoom)\b/);
-    expect(runtime).not.toMatch(/engine\.get(?:Rules|GraphicSheet|Sheet|Cursor|GraphicalNote)\b/);
-    expect(runtime).toMatch(/engine\.(?:updateRules|readLayout|readCursor|forEachRenderedNote)\b/);
+  it('does not reach into OSMD vendor members from the view runtime or the Score Player', async () => {
+    const sources = await viewLayerSources();
+    for (const { path, text } of sources) {
+      expect(text, path).not.toMatch(/engine\.(?:EngravingRules|GraphicSheet|Sheet|cursor|Zoom)\b/);
+      expect(text, path).not.toMatch(/engine\.get(?:Rules|GraphicSheet|Sheet|Cursor|GraphicalNote)\b/);
+    }
+    expect(sources.map(({ text }) => text).join('\n')).toMatch(/engine\.(?:updateRules|readLayout|readCursor|forEachRenderedNote)\b/);
   });
 
   it('keeps extracted pure exercise and score calculations out of views', async () => {
@@ -55,7 +70,7 @@ describe('domain boundaries', () => {
   });
 
   it('names the coach tip function from the chord root, not the segment', async () => {
-    const runtime = await readFile(runtimeImplementationPath, 'utf8');
+    const runtime = (await viewLayerSources()).map(({ text }) => text).join('\n');
     const calls = [...runtime.matchAll(/anFnKey\([^,]+,\s*([^,]+),/g)].map(m => m[1].trim());
     expect(calls.length).toBeGreaterThan(0);
     for (const root of calls) expect(root).toMatch(/\.ch\.root$/);
@@ -69,7 +84,7 @@ describe('domain boundaries', () => {
   });
 
   it('keeps the view runtime free of compiler-bypass comments', async () => {
-    for (const targetPath of [runtimePath, runtimeImplementationPath]) {
+    for (const targetPath of [runtimePath, runtimeImplementationPath, ...await scorePlayerPaths()]) {
       const runtime = await readFile(targetPath, 'utf8');
       expect(runtime).not.toMatch(/@ts-(?:nocheck|ignore)\b/);
       expect(runtime).not.toMatch(/@ts-expect-error\b/);

@@ -1,4 +1,5 @@
 import type { SightReadingExpected } from './model.js';
+import { pitchKey as pitchKeyOf, samePitch as samePitchOf } from '../core/pitch-match.js';
 
 export type SightReadingPerformed = {
   readonly id: string;
@@ -51,8 +52,7 @@ function associationWindow(
   windowMs: number,
   anyOctave = false,
 ): number {
-  const isSamePitch = (a: number, b: number) =>
-    anyOctave ? ((a % 12 + 12) % 12 === (b % 12 + 12) % 12) : a === b;
+  const isSamePitch = (a: number, b: number) => samePitchOf(a, b, anyOctave);
   const samePitch = expected
     .filter((candidate) => isSamePitch(candidate.midi, note.midi))
     .sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
@@ -175,7 +175,7 @@ export function srtEvaluate(
   const chordWindow = effectiveChordWindowMs(config.chordWindowMs);
   if (expected.length === 0) return emptyResult();
   const anyOctave = !!config.anyOctave;
-  const pitchKey = (midi: number) => (anyOctave ? ((midi % 12 + 12) % 12) : midi);
+  const pitchKey = (midi: number) => pitchKeyOf(midi, anyOctave);
   const byMidi = new Map<number, SightReadingExpected[]>();
   const inputByMidi = new Map<number, SightReadingPerformed[]>();
   for (const note of expected) {

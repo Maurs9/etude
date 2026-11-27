@@ -6,7 +6,7 @@ test('German notation distinguishes B-flat from B-natural and survives reload', 
   await page.locator('#set-notation button[data-v="german"]').click();
   expect(await page.evaluate(() => [window.__etude.pcName(10,true), window.__etude.pcName(10,false), window.__etude.pcName(11,false), window.__etude.noteName(71,false)])).toEqual(['B','A#','H','H4']);
   await page.reload();
-  await page.waitForFunction(() => typeof window.__etude?.noteName === 'function');
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function');
   await expect(page.locator('#set-notation button[data-v="german"]')).toHaveAttribute('aria-pressed', 'true');
   expect(await page.evaluate(() => window.__etude.noteName(70,true))).toBe('B4');
 });

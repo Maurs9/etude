@@ -57,7 +57,11 @@ Use a full-history checkout for unit tests: `tests/unit/split-etude.test.mjs` re
 | Location | Ownership |
 | --- | --- |
 | `etude.html` | Stable HTML shell, view containers, semantic markup, localization attributes. Preserve existing IDs and routing hooks. |
-| `src/domain/views-runtime.ts` | Browser entry, view orchestration, application state, event wiring, and feature integration. |
+| `src/domain/views-runtime.ts` | Browser entry (shell): `show()` and routing, the progress write gateway (`syncWrite`, `storeApplyBackup`, `syncPayload`), feature loading, the shell services objects, boot, and the test surface. |
+| `src/core/` | Browser-free logic shared by the shell and features (sync merge, SRS, trainer items, reading curriculum, pitch matching, Learn progress). |
+| `src/infra/` | Browser and device adapters (PWA lifecycle, MIDI controller). |
+| `src/app/` | Shell modules created by `views-runtime.ts` as factories with getter-based deps: keyboard dock, input bus, persistence, settings and control wiring, devices, shared helpers, coaching, test-surface wiring. |
+| `src/features/<name>/` | Lazy feature slices (`explore`, `voice`, `learn`, `score-library`, `score-player`, `practice`, `read`, `today`, `progress`): `mount(host)` once, `enter(params, signal)`, no import-time side effects, test hooks through `registerTestSurface`. |
 | `src/domain/views.ts` | Typed DOM, state, event, callback, and browser-surface contracts. |
 | `src/domain/dom.ts` | Typed DOM access and browser lifecycle helpers. |
 | `src/domain/theory.ts`, `router.ts` | Browser-independent music calculations and route resolution. |

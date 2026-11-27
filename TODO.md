@@ -74,10 +74,10 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - [x] **Faza 1:** [x] PR 1A `src/core/sync-merge.ts`, [x] PR 1B `src/infra/pwa-lifecycle.ts`, [x] PR 1C `src/infra/midi-controller.ts`.
   - [x] **Faza 2:** Pilot #1 `src/features/explore/` (lazy).
   - [x] **Faza 3:** [x] PR 3A `src/features/voice/`, [x] PR 3B `src/features/learn/`, [x] PR 3C `accompaniment` + `song-book`.
-  - [ ] **Faza 4:** [x] PR 4A `src/features/score-library/`, [ ] PR 4B `src/features/score-player/` (lazy pe `#analysis`).
-  - [ ] **Faza 5:** `src/core/srs.ts`, `src/features/practice/`, `src/app/coaching.ts`, `today`, `progress`.
-  - [ ] **Faza 6:** `src/features/read/` + `src/core/pitch-match.ts` (păstrând `ledger`/`flow` + oglinda `pendingSave` eager).
-  - [ ] **Faza 7:** `src/app/{keyboard-dock,input-bus}.ts`, subțiere finală `views-runtime.ts`, opțional curățare selectori feature din `etude.css`.
+  - [x] **Faza 4:** [x] PR 4A `src/features/score-library/`, [x] PR 4B `src/features/score-player/` (lazy pe `#analysis`; modulele `score-*` se încarcă doar din `ensureScoreModules()`, preferințele partiturii rămân în shell).
+  - [x] **Faza 5:** [x] PR 5A `src/core/srs.ts`, [x] PR 5B `src/features/practice/` (lazy; Today pornește sesiunea prin `withPractice`), [x] PR 5C `src/app/coaching.ts`, `today`, `progress` (lazy).
+  - [x] **Faza 6:** [x] PR 6A `src/core/pitch-match.ts`, [x] PR 6B `src/features/read/` lazy (Read & play, exerciții, Read home, încălzire) + `src/core/reading-curriculum.ts`; doar `ledger` rămâne eager.
+  - [ ] **Faza 7:** [x] PR 7A `src/app/{keyboard-dock,input-bus}.ts`, [~] PR 7B `src/app/{persistence,shell-controls,devices,shell-helpers}.ts` (`views-runtime.ts` ~2.350 linii; sub 1.500 nu se poate fără a muta suprafața de test, `show()` și obiectele de servicii), [x] PR 7C (opțional): blocul barei de unelte din Pieces mutat din `etude.css` în `score-toolbar.css`, aceeași poziție în cascadă; restul selectorilor de feature sunt amestecați cu reguli comune în aceleași media query și rămân pe loc.
 
 ---
 

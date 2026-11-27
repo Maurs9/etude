@@ -1,6 +1,13 @@
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import type { AppSettings, StoredSrsEntry } from './storage.js';
-import type { AudioTone, PianoStatus, PianoVoiceOptions } from './audio.js';
+import type { AudioEngine, AudioTone, AudioVoice, PianoStatus, PianoVoiceOptions } from './audio.js';
+import type { identifyChord as identifyChordFn } from './theory.js';
+import type { Localised } from '../locales/content-types.js';
+import type { TechniqueKind } from './technique.js';
+import type { TrainerItem } from '../core/trainer-items.js';
+import type { ReadDrillLevel } from '../core/reading-curriculum.js';
+import type { buildPracticeReport } from './progress-report.js';
+import type { LibraryItem } from './score-library-types.js';
 import type { AnalysisRoute, AppView } from './router.js';
 import type { NotationSystem } from './score-types.js';
 import type { ChordTemplate, ProgressionTemplate, ScaleDefinitions } from './view-contracts.js';
@@ -447,6 +454,387 @@ export interface AppHost {
   };
   readonly reduceMotion: () => boolean;
   readonly testSurface: TestSurfaceRegistry | null;
+}
+
+export type IntervalStyle = 'both' | 'melodic' | 'harmonic';
+export type ChordTier = 'triads' | 'sevenths' | 'all';
+export type ScaleTier = 'core' | 'modes' | 'all';
+export type MelodyDifficulty = 'easy' | 'medium' | 'advanced';
+/** What a targeted Practice session drills (topic, mode, key and the topic's own options). */
+export interface TrainerSessionTarget {
+  cat: string;
+  mode: string;
+  key: string;
+  dir?: IntervalDirection;
+  ivStyle?: IntervalStyle;
+  chordTier?: ChordTier;
+  scaleTier?: ScaleTier;
+  melDiff?: MelodyDifficulty;
+  melLen?: number | 'auto';
+  melScale?: string;
+  techKind?: TechniqueKind;
+  techOctaves?: 1 | 2;
+}
+
+/** The Score Player's side-panel tabs, in order; the shell validates restored `anSide.tab` against it without loading the feature. */
+export const SCORE_SIDE_TABS: readonly string[] = ['now', 'piece', 'practice'];
+
+/** A coaching tip: a string key with what fills it in, and optionally an action (a button label and what it does). */
+export interface CoachTip {
+  k: string;
+  args?: () => (string | number)[];
+  act?: { k: string; args?: () => (string | number)[]; run: () => void } | null;
+}
+
+/** The shell's full-window score focus (Pieces and Read share it); the shell owns and mutates it. */
+export interface ScoreFocusState {
+  owner: 'analysis' | 'read' | null;
+  native: boolean;
+  token: number;
+  returnTo: HTMLElement | null;
+  scroll: number;
+  readOverride: boolean | null;
+  zoom: number;
+}
+
+/**
+ * Shell services the lazy Score Player (`src/features/score-player/`) needs beyond `AppHost`: live keyboard/dock state,
+ * the shared audio engine, score focus, layout CSS variables and shared spelling/coaching helpers that stay in the shell.
+ * Mutable shell values are exposed as getters so the feature never caches a stale binding.
+ */
+export interface ScorePlayerShell {
+  readonly audioEngine: AudioEngine;
+  readonly scoreClicks: Set<AudioVoice>;
+  readonly keyboardView: { low: number; oct: number };
+  readonly keyEl: Map<number, HTMLButtonElement>;
+  readonly held: Set<number>;
+  readonly scoreFocus: ScoreFocusState;
+  readonly baseLow: number;
+  readonly baseHigh: number;
+  readonly view0: () => string;
+  readonly kbState: (midi: number, state: string | null, fold: boolean) => void;
+  readonly labelMode: () => string;
+  readonly strings: () => Readonly<Record<string, Readonly<Record<string, string>>>>;
+  readonly navigationToken: () => number;
+  readonly bumpNavigation: () => number;
+  readonly ensureAudio: (warm?: boolean) => AudioContext | null;
+  readonly pianoEnsure: (midis: readonly number[]) => Promise<unknown>;
+  readonly stopClicks: (clicks: Set<AudioVoice>) => void;
+  readonly buildKeyboard: () => void;
+  readonly repaintHeld: () => void;
+  readonly foldToView: (midi: number) => number;
+  readonly dockOpen: (view?: string) => boolean;
+  readonly layoutVars: () => void;
+  readonly layoutVarsSoon: () => void;
+  readonly handleNoteOn: (midi: number, velocity: number, source?: string) => void;
+  readonly handleNoteOff: (midi: number, source?: string, releaseKind?: InputReleaseKind, silence?: boolean) => void;
+  readonly touchInput: (event: Event, fn: () => void) => void;
+  readonly inField: () => boolean;
+  readonly blurInputField: () => void;
+  readonly touchDay: () => void;
+  readonly scoreFocusExit: (quiet?: boolean) => void;
+  readonly scoreFocusToggle: (owner: 'analysis' | 'read', target: HTMLElement) => void;
+  readonly appConfirm: (message: string) => Promise<boolean>;
+  readonly learnGoId: (id: string) => void;
+  readonly showNotationReloadPrompt: (message?: (lang: InterfaceLanguage) => { message: string; button: string }) => void;
+  readonly defaultScoreLayoutForViewport: (viewportWidth: number) => ScoreLayoutPref;
+  readonly savedScoreView: (view: unknown, explicit: unknown) => ScoreLayoutPref | 'fall' | null;
+  readonly identifyChord: (notes: readonly number[], expected?: number) => ReturnType<typeof identifyChordFn>;
+  readonly srPieceTitle: (piece: { id?: string; t?: Localised<string> }) => string;
+  readonly spelledName: (sys: NotationSystem, letter: number, accidental: number, ascii?: boolean) => string;
+  readonly tl: (lang: string, key: string, a?: string | number | null, b?: string | number | null) => string;
+  readonly anNum: (x: number, digits: number) => string;
+  readonly tf: (key: string, ...args: unknown[]) => string;
+  readonly coachList: (items: string[]) => string;
+  readonly coachHTML: (lead: string, tip: CoachTip, actId?: string) => string;
+}
+
+/** The Score Player controller: `FeatureController` plus the synchronous hooks the shell calls while it is loaded. */
+export interface ScorePlayerController extends FeatureController {
+  ensureModules(): Promise<void>;
+  modulesReady(): boolean;
+  currentRoute(): AnalysisRoute;
+  onPopRoute(route: AnalysisRoute): void;
+  /** Live score preferences, pushed to the shell before every save. */
+  prefs(): UiPrefsSnapshot;
+  /** Applies shell-held score preferences (boot restore or another tab's save). */
+  applyPrefs(prefs: UiPrefsSnapshot): void;
+  layoutVars(): void;
+  stageOn(): boolean;
+  setStage(on: boolean, quiet?: boolean): void;
+  hasNotes(): boolean;
+  sideOpen(): boolean;
+  setSide(open: boolean): void;
+  closeSheet(quiet?: boolean): void;
+  dockWanted(): boolean;
+  keysCenterIfPending(): void;
+  keysPaint(force?: boolean): void;
+  keysClear(): void;
+  keepPlace(): () => void;
+  updateControls(): void;
+  practiceInput(kind: 'on' | 'off', midi: number, source: string): void;
+  sustainInput(down: boolean): void;
+  syncPracticeLine(): void;
+  /** Clears the falling-notes keyboard's held keys. */
+  releaseInput(): void;
+  /** Releases focus-owned falling-notes keys; `fell` says a falling-notes key was released. */
+  releaseFocus(fell: boolean): void;
+  relocalize(): void;
+  /** Re-words the practice summary's next-step tip (language or note names changed). */
+  refreshCoach(): void;
+  localizeLibrary(): void;
+  onScreenChange(flipped: boolean): void;
+}
+
+/**
+ * Shell services the lazy Practice feature (`src/features/practice/`: session engine, ear-on-keys, technique, setup,
+ * hints, summary, accompaniment and the song book) needs beyond `AppHost`. Item data and SRS math come from
+ * `src/core/`; mutable shell values are getters.
+ */
+export interface PracticeShell {
+  readonly audioEngine: AudioEngine;
+  readonly keyboardView: { low: number; oct: number };
+  readonly keyEl: Map<number, HTMLButtonElement>;
+  readonly held: Set<number>;
+  readonly baseLow: number;
+  readonly baseHigh: number;
+  readonly view0: () => string;
+  readonly todayN: () => number;
+  readonly ensureAudio: (warm?: boolean) => AudioContext | null;
+  readonly pianoEnsure: (midis: readonly number[]) => Promise<boolean>;
+  readonly kbState: (midi: number, state: string | null, fold: boolean) => void;
+  readonly kbClear: (state: string) => void;
+  readonly kbClearAll: () => void;
+  readonly buildKeyboard: () => void;
+  readonly repaintHeld: () => void;
+  readonly reflowKeys: () => void;
+  readonly foldToView: (midi: number) => number;
+  readonly viewHigh: () => number;
+  readonly dockKeyInSight: (midi: number) => void;
+  readonly syncMobileStartBars: () => void;
+  readonly refreshToday: () => void;
+  readonly playIvDir: (root: number, semitones: number, direction: string, style?: IntervalStyle) => void;
+  readonly rootName: (pc: number) => string;
+  readonly ivName: (semitones: number) => string;
+  readonly catLabel: (cat: string) => string;
+  readonly progDisp: (name: string) => string;
+  readonly feelDisp: (symbol: string | number) => string;
+  readonly chordFormula: (chord: { intervals: readonly number[] }) => string;
+  readonly scaleFormula: (offsets: readonly number[]) => string;
+  readonly songsFor: (semitones: number, dir: string) => string[];
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly rdEsc: (value: string | number | undefined) => string;
+  readonly spelledName: (sys: NotationSystem, letter: number, accidental: number, ascii?: boolean) => string;
+  readonly isFlatKey: (pc: number) => boolean;
+  readonly identifyChord: (notes: readonly number[], expected?: number) => ReturnType<typeof identifyChordFn<ChordTemplate>>;
+  readonly chordTargetPcs: (rootPc: number, chord: ChordTemplate | undefined) => number[];
+  readonly inversionOf: (rootPc: number, chord: { symbol: string; idx?: number; pcset?: readonly number[]; intervals?: readonly number[] }, bassMidi: number) => number;
+  readonly boxOf: (id: string | number) => number;
+  readonly isDue: (id: string | number) => boolean;
+  readonly isNew: (id: string | number) => boolean;
+  readonly dueItems: () => TrainerItem[];
+  readonly newItemsAvail: () => TrainerItem[];
+  readonly newQuotaLeft: () => number;
+  readonly seedPlacement: (id: string, known: boolean) => void;
+  readonly reviewItem: (id: string, correct: boolean) => void;
+  readonly creditReview: (correct: boolean) => void;
+  readonly currentStreak: () => number;
+}
+
+/** The Practice controller: `FeatureController` plus the synchronous hooks the shell calls while it is loaded. */
+export interface PracticeController extends FeatureController {
+  sesActive(): boolean;
+  sesHome(): 'today' | 'practice';
+  startSession(target: TrainerSessionTarget | null): void;
+  startPlacement(): void;
+  endSession(toSummary: boolean): void;
+  /** Session keyboard shortcuts (digits answer, R replays, N advances); true when the key was used. */
+  sessionKey(key: string, event: KeyboardEvent): boolean;
+  sessionInput(kind: 'on' | 'off', midi: number): void;
+  /** True while the open session question is answered on the keys and needs them shown. */
+  sessionNeedsKeys(view: string): boolean;
+  alongWanted(view: string): boolean;
+  /** The hint preview's keyboard choice (null: no preview, or it leaves the keyboard alone). */
+  hintKeys(): boolean | null;
+  setHintKeys(open: boolean): void;
+  hintPreviewActive(): boolean;
+  onKeyboardBuilt(): void;
+  stopPrompts(): void;
+  stopAccompaniment(): void;
+  openMoved(view: string, moveFocus: boolean, fromHistory: boolean): void;
+  setTopic(topic: string): void;
+  setMode(mode: PracticeModePref): void;
+  setKey(key: string): void;
+  earCheck(): void;
+  /** The phone's start bar text for Practice: the chosen drill and the button label. */
+  mobileBar(): { summary: string; label: string };
+  reflectSettings(): void;
+  renderSetup(): void;
+  renderMelodyScales(): void;
+  renderAccompany(full: boolean): void;
+  localizeAccompaniment(): void;
+  updateAccompChain(): void;
+  refreshSessionCopy(): void;
+}
+
+/** One line of Today's daily plan. */
+export interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
+
+/** Shell services the lazy Today feature needs: review counts and labels, Learn's plan lines and the Practice session. */
+export interface TodayShell {
+  readonly todayN: () => number;
+  readonly currentStreak: () => number;
+  readonly dueItems: () => TrainerItem[];
+  readonly newItemsAvail: () => TrainerItem[];
+  readonly newQuotaLeft: () => number;
+  readonly masteredCount: () => number;
+  readonly isNew: (id: string | number) => boolean;
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly catLabel: (cat: string) => string;
+  readonly learnPlanItems: (today: number) => DailyPlanTask[];
+  readonly sesActive: () => boolean;
+  readonly startReview: () => void;
+  readonly earCheck: () => void;
+}
+
+export interface TodayController extends FeatureController {
+  refresh(): void;
+}
+
+/** Shell services the lazy Progress feature needs; the report's reading and piece facts stay in the shell until Read moves. */
+export interface ProgressShell {
+  readonly collectPracticeReport: (buildReport: typeof buildPracticeReport, libraryItems?: readonly LibraryItem[]) => ReturnType<typeof buildPracticeReport>;
+  readonly storeHasProgress: () => boolean;
+  readonly todayN: () => number;
+  readonly currentStreak: () => number;
+  readonly masteredCount: () => number;
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly catLabel: (cat: string) => string;
+  readonly statHTML: (value: string | number, label: string) => string;
+  readonly rdRenderStats: () => void;
+  readonly localeTag: () => string;
+  readonly startReview: () => void;
+  readonly prepareReport: () => Promise<void>;
+}
+
+export interface ProgressController extends FeatureController {
+  render(): void;
+}
+
+/**
+ * Shell services the lazy Read feature (Read & play, reading drills, the Read home, warm-up and level pieces) needs beyond
+ * `AppHost`: keyboard and dock state, score focus and the full-screen stage, persistence checks for the attempt ledger,
+ * coaching, and the shared helpers that stay in the shell.
+ */
+export interface ReadShell {
+  readonly audioEngine: AudioEngine;
+  readonly keyboardView: { low: number; oct: number };
+  readonly keyEl: Map<number, HTMLButtonElement>;
+  readonly held: Set<number>;
+  readonly inputOwners: Map<number, Set<string>>;
+  readonly baseLow: number;
+  readonly baseHigh: number;
+  readonly metroState: { bpm: number; on: boolean; timer: unknown };
+  readonly scoreFocus: ScoreFocusState;
+  readonly stage: { on: boolean; kb: boolean | null; rz: number };
+  readonly letters: Readonly<Record<NotationSystem, readonly string[]>>;
+  readonly view0: () => string;
+  readonly todayN: () => number;
+  readonly labelMode: () => string;
+  readonly strings: () => Readonly<Record<string, Readonly<Record<string, string>>>>;
+  readonly ensureAudio: (warm?: boolean) => AudioContext | null;
+  readonly audioLockCheck: () => void;
+  readonly kbState: (midi: number, state: string | null, fold: boolean) => void;
+  readonly kbClear: (state: string) => void;
+  readonly buildKeyboard: () => void;
+  readonly repaintHeld: () => void;
+  readonly foldToView: (midi: number) => number;
+  readonly dockKeyInSight: (midi: number) => void;
+  readonly dockForced: () => boolean;
+  readonly setDockForced: (on: boolean) => void;
+  readonly anLayoutVars: () => void;
+  readonly syncMobileStartBars: () => void;
+  readonly touchInput: (event: Event, fn: () => void) => void;
+  readonly inField: () => boolean;
+  readonly panic: () => void;
+  readonly appConfirm: (message: string) => Promise<boolean>;
+  readonly scoreFocusUi: () => void;
+  readonly scoreFocusExit: (quiet?: boolean) => void;
+  readonly scoreFocusEnter: (owner: 'analysis' | 'read', target: HTMLElement, manual?: boolean) => void;
+  readonly readScoreZoom: (value?: number) => void;
+  readonly rdFocusDispSet: (open: boolean, focusBack?: boolean) => void;
+  readonly touchDay: () => void;
+  readonly markReadDoneToday: (save?: boolean) => void;
+  readonly storeDaily: () => void;
+  readonly storeBlocked: () => boolean;
+  readonly storeBackupBlocked: () => boolean;
+  readonly progressGeneration: () => string;
+  readonly savedGeneration: () => string;
+  readonly setWeakSpotInjection: (on: boolean) => void;
+  readonly learnLessonsDone: () => number;
+  readonly currentStreak: () => number;
+  readonly masteredCount: () => number;
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly withPractice: (fn: (practice: PracticeController) => void) => void;
+  readonly catLabel: (cat: string) => string;
+  readonly rdData: () => ReadDrillData;
+  readonly rdLvName: (level: ReadDrillLevel) => string;
+  readonly rdStarCount: (value: unknown) => number;
+  readonly rdEsc: (value: string | number | undefined) => string;
+  readonly statHTML: (value: string | number, label: string) => string;
+  readonly srPieceTitle: (piece: { id?: string; t?: Localised<string> }) => string;
+  readonly spelledName: (sys: NotationSystem, letter: number, accidental: number, ascii?: boolean) => string;
+  readonly tl: (lang: string, key: string, a?: string | number | null, b?: string | number | null) => string;
+  readonly anNum: (x: number, digits: number) => string;
+  readonly coachHTML: (lead: string, tip: CoachTip, actId?: string) => string;
+  readonly coachText: (tip: CoachTip) => string;
+  readonly registerCoach: (refresh: () => void) => () => void;
+}
+
+/** The Read controller: `FeatureController` plus the synchronous hooks the shell calls while it is loaded. */
+export interface ReadController extends FeatureController {
+  isPendingSaveProtected(): boolean;
+  isPendingSaveState(): boolean;
+  abandonClaim(): Promise<{ readonly ok: boolean }>;
+  hasPiece(): boolean;
+  svg(): SVGSVGElement | null;
+  firstSightActive(): boolean;
+  autoCancel(): void;
+  stageSync(): void;
+  stageRefit(): void;
+  stageResize(): void;
+  /** Read's keyboard shortcuts (stage, drills, home); true when the key was used. */
+  key(event: KeyboardEvent, key: string): boolean;
+  trackHeldSource(source: string): void;
+  /** Level-piece start and first-sight recording, before view routing; true when the note was consumed. */
+  preInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: InputReleaseKind): boolean;
+  /** Warm-up, rhythm, drill and Read & play input while Read is shown; true when the note was consumed. */
+  viewInput(kind: 'on' | 'off', midi: number, lastHeld: number | undefined): boolean;
+  /** Drop a released key from the current reading step, or clear the input when the device resets. */
+  releaseInput(midi?: number): void;
+  releaseFocus(): void;
+  panicBegin(): void;
+  panicRecorder(): void;
+  panicRhythm(): void;
+  panicStopAll(): void;
+  stopForNavigation(): void;
+  readySync(): void;
+  dockView(): void;
+  dockPaint(): void;
+  watchAudioContext(context: AudioContext): void;
+  relocalizePiece(): void;
+  onNotation(): void;
+  onLocale(): void;
+  forgetBook(book: unknown): void;
+  reflectSettings(): void;
+  releaseRecorder(kind: 'focus'): void;
+  fit(): void;
+  setAnyOctave(on: boolean): void;
+  redraw(): void;
+  /** The phone's start bar for Read & play: whether a piece is ready to start, and its mode and tempo. */
+  mobileBar(): { ready: boolean; summary: string };
+  collectPracticeReport(buildReport: typeof buildPracticeReport, libraryItems?: readonly LibraryItem[]): ReturnType<typeof buildPracticeReport>;
+  renderStats(): void;
 }
 
 declare global {
