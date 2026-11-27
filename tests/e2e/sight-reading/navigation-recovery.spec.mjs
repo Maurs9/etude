@@ -175,6 +175,50 @@ test.describe('Sight-reading iteration 15 regressions', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#read');
   });
 
+  test('resumes the requested Analysis deep link after abandoning a pending save', async ({ app }) => {
+    const page = await startPendingSave(app);
+    await restoreLedger(page);
+    await page.evaluate(() => { location.hash = '#analysis/builtin/w5rh'; });
+
+    await expect(page.locator('#an-panel')).toBeVisible();
+    await expect(page.locator('#an-name')).toHaveText('Five-finger warm-up (right hand)');
+    await expect(page).toHaveURL(/#analysis\/builtin\/w5rh$/);
+  });
+
+  test('preserves Practice options after abandoning a pending save', async ({ app }) => {
+    const page = await startPendingSave(app);
+    await restoreLedger(page);
+    await page.evaluate(() => window.__etude.show('practice', { practiceTopic: 'scale', practiceMode: 'ear' }));
+
+    await expect(page.locator('#view-practice')).toBeVisible();
+    await expect(page.locator('#pr-cat')).toHaveValue('scale');
+    await expect(page.locator('#pr-mode [data-v="ear"]')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('a newer navigation supersedes one waiting on a pending save', async ({ app }) => {
+    const page = await startPendingSave(app);
+    await restoreLedger(page);
+    const lockName = 'etude-sight-ledger-v1';
+    await page.evaluate((name) => new Promise((held) => {
+      void navigator.locks.request(name, () => new Promise((release) => {
+        window.__releaseNavigationLedger = release;
+        held();
+      }));
+    }), lockName);
+    try {
+      await page.locator('#nav button[data-view="today"]').click();
+      await expect.poll(() => page.evaluate(async (name) =>
+        (await navigator.locks.query()).pending.some((lock) => lock.name === name), lockName)).toBe(true);
+      await page.locator('#modeNav button[data-view="read"]').click();
+    } finally {
+      await page.evaluate(() => window.__releaseNavigationLedger());
+    }
+
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('abandoned');
+    await expect(page).toHaveURL(/#read$/);
+    await expect(page.locator('#view-read')).toBeVisible();
+  });
+
   test('keeps the generated melody when a piece switch is refused during pending save', async ({ app }) => {
     const page = await startPendingSave(app);
     const before = await page.evaluate(() => ({
