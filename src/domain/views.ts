@@ -5,6 +5,8 @@ import type { identifyChord as identifyChordFn } from './theory.js';
 import type { Localised } from '../locales/content-types.js';
 import type { TechniqueKind } from './technique.js';
 import type { TrainerItem } from '../core/trainer-items.js';
+import type { buildPracticeReport } from './progress-report.js';
+import type { LibraryItem } from './score-library-types.js';
 import type { AnalysisRoute, AppView } from './router.js';
 import type { NotationSystem } from './score-types.js';
 import type { ChordTemplate, ProgressionTemplate, ScaleDefinitions } from './view-contracts.js';
@@ -672,6 +674,49 @@ export interface PracticeController extends FeatureController {
   localizeAccompaniment(): void;
   updateAccompChain(): void;
   refreshSessionCopy(): void;
+}
+
+/** One line of Today's daily plan. */
+export interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
+
+/** Shell services the lazy Today feature needs: review counts and labels, Learn's plan lines and the Practice session. */
+export interface TodayShell {
+  readonly todayN: () => number;
+  readonly currentStreak: () => number;
+  readonly dueItems: () => TrainerItem[];
+  readonly newItemsAvail: () => TrainerItem[];
+  readonly newQuotaLeft: () => number;
+  readonly masteredCount: () => number;
+  readonly isNew: (id: string | number) => boolean;
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly catLabel: (cat: string) => string;
+  readonly learnPlanItems: (today: number) => DailyPlanTask[];
+  readonly sesActive: () => boolean;
+  readonly startReview: () => void;
+  readonly earCheck: () => void;
+}
+
+export interface TodayController extends FeatureController {
+  refresh(): void;
+}
+
+/** Shell services the lazy Progress feature needs; the report's reading and piece facts stay in the shell until Read moves. */
+export interface ProgressShell {
+  readonly collectPracticeReport: (buildReport: typeof buildPracticeReport, libraryItems?: readonly LibraryItem[]) => ReturnType<typeof buildPracticeReport>;
+  readonly storeHasProgress: () => boolean;
+  readonly todayN: () => number;
+  readonly currentStreak: () => number;
+  readonly masteredCount: () => number;
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly catLabel: (cat: string) => string;
+  readonly statHTML: (value: string | number, label: string) => string;
+  readonly rdRenderStats: () => void;
+  readonly localeTag: () => string;
+  readonly startReview: () => void;
+}
+
+export interface ProgressController extends FeatureController {
+  render(): void;
 }
 
 declare global {

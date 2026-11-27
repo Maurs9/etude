@@ -25,6 +25,7 @@ import {
   learnUnitOf as coreLearnUnitOf,
 } from '../core/learn-progress.js';
 import * as safety from './data-safety.js';
+import { createCoaching } from '../app/coaching.js';
 import { createPwaLifecycle, WAKE_IDLE_MS, type InstallPromptEvent } from '../infra/pwa-lifecycle.js';
 import * as theory from './theory.js';
 import * as audio from './audio.js';
@@ -47,6 +48,10 @@ import {
   type ScorePlayerController,
   type PracticeController,
   type PracticeShell,
+  type ProgressController,
+  type ProgressShell,
+  type TodayController,
+  type TodayShell,
   type ScorePlayerShell,
   type EtudeSurface,
   type FeatureController,
@@ -377,6 +382,9 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     coachRefresh();
     saveAll();
 }
+/* ---------- COACHING (src/app/coaching.ts): tips re-worded on language or notation changes ---------- */
+const coaching = createCoaching({ t: (key, ...args) => t(key, ...args), lang: () => lang, escape: (text) => xmlEsc(text) });
+const { tf, coachList, coachText, coachHTML } = coaching;
 /* ---------- HELPERS ---------- */
 const midiToFreq = midiToFrequency;
 const pc = pitchClass;
@@ -1610,6 +1618,12 @@ let activeFeatureAbort: AbortController | null = null;
 let shellPendingSaveMirror = false;
 let scorePlayer: ScorePlayerController | null = null;
 let practice: PracticeController | null = null;
+let todayFeature: TodayController | null = null;
+let progressFeature: ProgressController | null = null;
+// Today and Progress are lazy features; these keep the shell's own callers (session end, storage sync, language) working.
+function refreshToday() { todayFeature?.refresh(); }
+function renderProgress() { progressFeature?.render(); }
+function startReview() { withPractice((p) => { if (!p.sesActive()) p.startSession(null); }); }
 // Runs `fn` with the Practice feature, loading it first (Today's Start, placement, plan links and Read's warm-up drill).
 function withPractice(fn: (p: PracticeController) => void) {
     if (practice && loadedFeatures.practice) {
@@ -1628,6 +1642,16 @@ const lazyFeatureLoaders: Partial<Record<router.AppView, () => Promise<FeatureCo
     explore: async () => (await import('../features/explore/index.js')).createExploreFeature(appHost),
     sing: async () => (await import('../features/voice/index.js')).createVoiceFeature(appHost),
     learn: async () => (await import('../features/learn/index.js')).createLearnFeature(appHost),
+    today: async () => {
+        const { createTodayFeature } = await import('../features/today/index.js');
+        todayFeature = createTodayFeature(appHost, todayShell);
+        return todayFeature;
+    },
+    progress: async () => {
+        const { createProgressFeature } = await import('../features/progress/index.js');
+        progressFeature = createProgressFeature(appHost, progressShell);
+        return progressFeature;
+    },
     practice: async () => {
         const { createPracticeFeature } = await import('../features/practice/index.js');
         practice = createPracticeFeature(appHost, practiceShell);
@@ -1848,6 +1872,36 @@ const appHost: AppHost = {
     },
     reduceMotion: () => reduceMotion(),
     testSurface: null,
+};
+
+const todayShell: TodayShell = {
+    todayN,
+    currentStreak,
+    dueItems,
+    newItemsAvail,
+    newQuotaLeft,
+    masteredCount,
+    isNew,
+    itemLabel,
+    catLabel,
+    learnPlanItems,
+    sesActive: () => !!practice?.sesActive(),
+    startReview,
+    earCheck: () => withPractice((p) => p.earCheck()),
+};
+
+const progressShell: ProgressShell = {
+    collectPracticeReport: (buildReport, libraryItems) => collectPracticeReport(buildReport, libraryItems),
+    storeHasProgress,
+    todayN,
+    currentStreak,
+    masteredCount,
+    itemLabel,
+    catLabel,
+    statHTML,
+    rdRenderStats,
+    localeTag: () => LOCALE_TAGS[lang] || lang,
+    startReview,
 };
 
 const practiceShell: PracticeShell = {
@@ -2109,11 +2163,6 @@ function showImpl(
         const match = srtReadingKeys().find((k) => k.id === opts.readingKeyId);
         if (match) rdnChoose(rdnBook().level, match.id);
     }
-    if (v === 'today' && !practice?.sesActive()) {
-        byId('today-home').style.display = 'block';
-        byId('summary').style.display = 'none';
-        refreshToday();
-    }
     let pendingViewLoad: Promise<void> | undefined;
     if (lazyFeatureLoaders[v]) {
         const featureParams: Record<string, unknown> = {};
@@ -2166,29 +2215,6 @@ function showImpl(
             rdTab('drills');
             const drillLevel = RD_LV[opts.readingDrillId];
             if (drillLevel) rdOpen(drillLevel);
-        }
-    }
-    if (v === 'progress') {
-        if (progressView) {
-            setViewLoading('view-progress', false);
-            renderProgress();
-        }
-        else {
-            setViewLoading('view-progress', true);
-            pendingViewLoad = import('./progress-view.js').then((module) => {
-                progressView = module;
-                setViewLoading('view-progress', false);
-                document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
-                if (navigation === featureNavigation && _view === 'progress')
-                    renderProgress();
-            }, () => {
-                setViewLoading('view-progress', false);
-                if (navigation === featureNavigation && _view === 'progress') {
-                    localeLoadError(async () => { await show('progress', moveFocus, fromHistory); });
-                    const toast = document.getElementById('locale-load-error');
-                    if (toast) toast.dataset.lazyOwner = 'progress';
-                }
-            });
         }
     }
     renderModeNav();
@@ -2258,39 +2284,6 @@ window.addEventListener('popstate', (e) => {
     if (modal === 'drawer' && !byId('drawer').classList.contains('on'))
         openDrawer(true, true);
 });
-/* ---------- TODAY ---------- */
-function greeting() { const h = new Date().getHours(); return h < 5 ? t('g_late') : h < 12 ? t('g_morning') : h < 18 ? t('g_afternoon') : t('g_evening'); }
-function refreshToday() {
-    const gr = greeting();
-    byId('greet-title').textContent = /[.?!…]$/.test(gr) ? gr : gr + '.';
-    const tn = todayN();
-    byId('streakN').textContent = String(currentStreak());
-    const goal = data.settings.goal, done = Math.min(data.todayDay === tn ? data.todayCount : 0, goal);
-    const gd = byId('goaldots');
-    gd.innerHTML = '';
-    const dots = 5;
-    for (let i = 0; i < dots; i++) {
-        const x = (document).createElement('i');
-        if (i < Math.round(dots * done / goal))
-            x.className = 'on';
-        gd.appendChild(x);
-    }
-    gd.setAttribute('aria-label', t('goal_aria', done, goal));
-    byId('goal-txt').textContent = t('goal_txt', done, goal);
-    const due = dueItems().length, fresh = Math.min(newItemsAvail().length, newQuotaLeft());
-    byId('c-due').textContent = String(due);
-    byId('c-new').textContent = String(fresh);
-    byId('c-mastered').textContent = String(masteredCount());
-    byId('placeBtn').hidden = data.placed || (data.totalReviews > 0 && Object.keys(data.srs).length > 0);
-    const next = dueItems()[0] || (fresh ? newItemsAvail()[0] : null);
-    byId('nextup').innerHTML = next ? (t('nextup') + ' <b>' + itemLabel(next) + '</b> · ' + catLabel(next.cat).toLowerCase()) : t('nextup_none');
-    const caughtUp = due === 0 && fresh === 0;
-    buttonById('startBtn').disabled = caughtUp && !ITEMS.some(it => !isNew(it.id));
-    byId('startBtn').textContent = caughtUp ? t('start_caught') : t('start');
-    byId('hero-title').textContent = caughtUp ? t('hero_caught') : t('hero_session');
-    byId('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
-    renderPlan();
-}
 /* ---------- EXPLORE (lazy feature in src/features/explore/index.ts) ---------- */
 function fillRoots(sel: HTMLElement, withAll: boolean) {
     sel.innerHTML = '';
@@ -8072,20 +8065,7 @@ function rdnRetry() {
    "Next step" when a run ends; reading drills get a focus line for the drill type and a next step in their summary; Score &
    analysis gets "What to notice" in Now and a next step in the practice summary. A tip keeps the facts it was chosen from
    and is re-worded after a language or notation change. */
-function tf(k: string, ...a: unknown[]) { let s = t(k); ['%a', '%b', '%c'].forEach((p, i) => { if (a[i] != null)
-    s = s.split(p).join(String(a[i])); }); return s; }
-function coachList(xs: string[]) { try {
-    return new Intl.ListFormat(lang, { type: 'conjunction' }).format(xs);
-}
-catch (e) {
-    return xs.join(', ');
-} }
-const coachText = (c: CoachTip) => tf(c.k, ...(c.args ? c.args() : []));
-// The lead ("Reading focus:", "Next step:"), the tip, and an optional button that does what the tip suggests.
-function coachHTML(lead: string, c: CoachTip, actId?: string) {
-    const e = xmlEsc, act = c.act ? tf(c.act.k, ...(c.act.args ? c.act.args() : [])) : '';
-    return `<span class="coach-k">${e(lead)}</span> <span class="coach-t">${e(coachText(c))}</span>` + (act ? `<span class="coach-act"><button type="button" class="btn sm" id="${actId}">${e(act)}</button></span>` : '');
-}
+// tf, coachList, coachText and coachHTML come from the shell coaching module (src/app/coaching.ts), created with the helpers.
 /* Read & play */
 const srStepNo = (n: { oct: number; li: number; }) => n.oct * 7 + n.li;
 function srKeyNames(keyN: number) { return (keyN > 0 ? [3, 0, 4, 1, 5, 2, 6] : [6, 2, 5, 1, 4, 0, 3]).slice(0, Math.abs(keyN)).map((li) => spelledName(notation, li, keyN > 0 ? 1 : -1)); }
@@ -8364,9 +8344,13 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
 function rdNextRender() { const box = maybeById('rdx-next'); if (box && RD.next)
     box.innerHTML = coachHTML(t('coach_next'), RD.next, 'rdx-next-act'); }
 // Language or note names changed: re-word every tip on show.
-function coachRefresh() { srCoach(); if (RD.L && !byId('rdx-coach').hidden)
-    rdCoach(true); rdNextRender(); if (!byId('pr-sum').hidden)
-    scorePlayer?.refreshCoach(); }
+coaching.register(() => srCoach());
+coaching.register(() => { if (RD.L && !byId('rdx-coach').hidden)
+    rdCoach(true); });
+coaching.register(() => rdNextRender());
+coaching.register(() => { if (!byId('pr-sum').hidden)
+    scorePlayer?.refreshCoach(); });
+function coachRefresh() { coaching.refresh(); }
 function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) {
     // The table of language L when it is loaded, else the interface language's own (English strings load only for English).
     const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined, base = STRINGS[lang] || STRINGS.en; let v = (own && own[k] != null) ? own[k] : base ? base[k] : undefined; if (v == null)
@@ -8449,8 +8433,6 @@ function syncMobileStartBars() {
     document.body.classList.toggle('has-mobile-start-bar', mobileBarVisible);
 }
 function anNum(x: number, d: number) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
-/* ---------- PROGRESS ---------- */
-let progressView: typeof import('./progress-view.js') | null = null;
 function collectPracticeReport(buildReport: typeof buildPracticeReport, libraryItems: readonly LibraryItem[] = []) {
     const tn = todayN();
     const book = rdnBook();
@@ -8511,122 +8493,8 @@ function collectPracticeReport(buildReport: typeof buildPracticeReport, libraryI
         lessonsDone: Object.keys(learnData().learnDone || {}).length,
     });
 }
-function standingLabelOf(report: ReturnType<typeof buildPracticeReport>): string {
-    const highest = report.milestones.highestId
-        ? report.milestones.milestones.find((m) => m.id === report.milestones.highestId)
-        : null;
-    return highest ? t(highest.labelKey) : t('prog_ms_none');
-}
-function renderPrintSummaryHtml(report: ReturnType<typeof buildPracticeReport>): string {
-    const esc = xmlEsc;
-    const piecesLine = report.pieces.length
-        ? `<p class="prog-print-pieces"><b>${esc(t('prog_rep_pieces'))}:</b> ${report.pieces.map((p) => {
-            const marks = [p.learned ? '✓ ' + t('prog_rep_learned') : '', p.bestPct !== null ? t('prog_rep_best', p.bestPct) : ''].filter(Boolean).join(', ');
-            return marks ? `${esc(p.title)} (${esc(marks)})` : esc(p.title);
-        }).join(' · ')}</p>`
-        : '';
-    return `<h2>Étude — ${esc(t('prog_rep_title'))}</h2>`
-        + `<p class="prog-print-meta">${esc(report.generatedDateIso)} · ${esc(t('prog_ms_standing', standingLabelOf(report)))} · ${esc(t('prog_rep_7d', report.reviews7d, report.activeDays7d))} · ${esc(t('prog_rep_30d', report.reviews30d, report.activeDays30d))}</p>`
-        + piecesLine;
-}
-function updatePrintSummaryHead(buildReport: typeof buildPracticeReport, libraryItems: readonly LibraryItem[] = []): { html: string; report: ReturnType<typeof buildPracticeReport> } {
-    const report = collectPracticeReport(buildReport, libraryItems);
-    const html = renderPrintSummaryHtml(report);
-    const head = maybeById('prog-print-head');
-    if (head) head.innerHTML = html;
-    return { html, report };
-}
-function renderProgress() {
-    if (!progressView) return;
-    const { html: printSummaryHtml, report } = updatePrintSummaryHead(progressView.buildPracticeReport);
-    const log = data.practiceLog ?? {};
-    const melTotal = log.melTotal || 0;
-    const singCleared = Object.values(data.singCleared || {}).filter(Boolean).length;
-    progressView.renderProgress({
-        data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
-        t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
-        printSummaryHtml,
-        milestones: report.milestones,
-        studioSummary: {
-            techRuns: log.techRuns || 0,
-            techClean: log.techClean || 0,
-            techBestBpm: log.techBestBpm || 0,
-            melRuns: log.melRuns || 0,
-            melAcc: melTotal > 0 ? Math.round(100 * (log.melCorrect || 0) / melTotal) : null,
-            singCleared,
-            singTotal: 7, // pinned to SS_LEVELS.length in tests/unit/voice-feature.test.mjs
-        },
-        openStudio(kind) {
-            if (kind === 'sing') {
-                show('sing');
-                return;
-            }
-            const opts: ShowOptions = kind === 'tech' ? { practiceTopic: 'scale', practiceMode: 'tech' } : { practiceTopic: 'melody' };
-            void Promise.resolve(show('practice', opts)).then(() => byId('pr-start').focus());
-        },
-        openDrill(category) {
-            void Promise.resolve(show('practice', { practiceTopic: category })).then(() => byId('pr-start').focus());
-        },
-    });
-}
+/* ---------- PROGRESS and TODAY: lazy features in src/features/progress/ and src/features/today/ ---------- */
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + rdEsc(v) + '</b><span>' + rdEsc(l) + '</span></div>'; }
-/* ---------- TODAY: daily plan ---------- */
-function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : v === 'accompany' ? 'pr_along' : 'nav_' + (isMergedView(v) ? MERGED_VIEWS[v] : v)); }
-interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
-function renderPlan() {
-    const list = byId('plan-list');
-    if (!list)
-        return;
-    const tn = todayN();
-    const goal = data.settings.goal, done = data.todayDay === tn ? (data.todayCount || 0) : 0;
-    const td = data.toolDay || {}, ear = data.earDay === tn ? (data.earToday || 0) : 0;
-    const items: DailyPlanTask[] = [
-        { id: 'review', done: done >= goal, partial: done > 0 && done < goal, prog: goal ? Math.min(1, done / goal) : 0, pill: Math.min(done, goal) + '/' + goal, t: t('plan_review'), d: done >= goal ? t('plan_review_done') : t('plan_review_d', done, goal), go: () => withPractice((p) => { if (!p.sesActive())
-                p.startSession(null); }) },
-        ...learnPlanItems(tn),
-        { id: 'read', done: td.read === tn, t: t('plan_read'), d: t('plan_read_d'), go: () => show('read') },
-        { id: 'piece', done: td.piece === tn, t: t('plan_piece'), d: t('plan_piece_d'), go: () => show('analysis') }, // toolDay.piece: a piece run completed today
-        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: () => withPractice((p) => p.earCheck()) },
-    ];
-    const nextIdx = items.findIndex((i) => !i.done);
-    list.innerHTML = '';
-    items.forEach((it, idx) => {
-        const li = (document).createElement('li'), b = (document).createElement('button'), isNext = idx === nextIdx, isPart = !it.done && !!it.partial;
-        b.type = 'button';
-        b.className = 'plan-item';
-        b.dataset.plan = it.id;
-        b.dataset.done = it.done ? 'true' : 'false';
-        if (isNext)
-            b.dataset.next = 'true';
-        if (isPart)
-            b.dataset.partial = 'true';
-        const ckTxt = it.done ? '✓' : String(idx + 1);
-        const pillHtml = it.pill ? '<span class="plan-pill">' + it.pill + '</span>' : '';
-        const barHtml = (isPart && it.prog !== undefined && it.prog > 0) ? '<span class="plan-bar" aria-hidden="true"><i style="width:' + Math.round(it.prog * 100) + '%"></i></span>' : '';
-        b.innerHTML = '<span class="ck" aria-hidden="true">' + ckTxt + '</span><span class="pt">' + it.t + (it.done ? '<span class="visually-hidden"> — ' + t('done_today') + '</span>' : '') + '</span><span class="pd">' + it.d + '</span><span class="plan-end" aria-hidden="true">' + pillHtml + '<span class="plan-go">→</span></span>' + barHtml;
-        b.addEventListener('click', it.go);
-        li.appendChild(b);
-        list.appendChild(li);
-    });
-    byId('plan-sub').textContent = t('plan_sub', items.filter((i) => i.done).length, items.length);
-    const segs = byId('plan-segs');
-    if (segs) {
-        segs.innerHTML = items.map((it, idx) => '<i data-state="' + (it.done ? 'done' : it.partial ? 'partial' : idx === nextIdx ? 'next' : 'todo') + '"></i>').join('');
-    }
-    const nextIt = nextIdx >= 0 ? items[nextIdx] : null, lt = data.lastTool, cb = byId('plan-continue');
-    if (nextIt) {
-        cb.hidden = false;
-        cb.textContent = t('plan_continue', nextIt.t);
-        cb.onclick = nextIt.go;
-    }
-    else if (lt && lt !== 'today' && (navGroup(lt) || isMovedView(lt) || isMergedView(lt))) {
-        cb.hidden = false;
-        cb.textContent = t('plan_continue', toolName(lt));
-        cb.onclick = () => show(lt);
-    }
-    else
-        cb.hidden = true;
-}
 /* ============================================================================
    PERSISTENCE  (versioned, migrates V2)
    ============================================================================ */
@@ -9906,64 +9774,7 @@ function initControls() {
     window.addEventListener('resize', layoutVarsSoon);
     anLayoutVars();
     // songs
-    // progress
-    byId('prog-report-csv').addEventListener('click', () => {
-        void (async () => {
-            const reportModule = progressView;
-            if (!reportModule) return;
-            const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
-            const report = collectPracticeReport(reportModule.buildPracticeReport, libraryItems);
-            const csv = reportModule.formatPracticeReportCsv(report, {
-                title: t('prog_rep_title'),
-                secSummary: t('prog_rep_sec_summary'),
-                secTopics: t('prog_rep_sec_topics'),
-                secWeak: t('prog_rep_sec_weak'),
-                secReading: t('prog_rep_sec_reading'),
-                secPieces: t('prog_rep_sec_pieces'),
-                period7d: t('prog_rep_period', 7),
-                period30d: t('prog_rep_period', 30),
-                dateLabel: t('prog_rep_date'),
-                streakLabel: t('st_streak'),
-                bestStreakLabel: t('st_best'),
-                masteredLabel: t('st_mastered'),
-                reviewsLabel: t('st_reviews'),
-                accuracyLabel: t('st_acc'),
-                categoryCol: t('cat_col'),
-                conceptCol: t('prog_rep_concept'),
-                repsCol: t('prog_rep_reps'),
-                masteryCol: t('mastery_head'),
-                readingLevelCol: t('rd_level'),
-                readingBookCol: t('prog_rep_book'),
-                readingPiecesCol: t('rdn_stat_read'),
-                readingDrillsCol: t('rdx_st_ans'),
-                readingStarsCol: t('rdx_hero_stars'),
-                pieceCol: t('nav_scores'),
-                sourceCol: t('prog_rep_source'),
-                sourceBuiltin: t('prog_rep_builtin'),
-                sourceLibrary: t('prog_rep_library'),
-                learnedCol: t('prog_rep_learned'),
-                bestCol: t('prog_rep_best_col'),
-                yes: t('yes_word'),
-                no: t('no_word'),
-                standingLabel: t('prog_ms_head'),
-                standingValue: standingLabelOf(report),
-            });
-            downloadBlob(`etude-practice-report-${report.generatedDateIso}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-        })();
-    });
-    byId('prog-report-print').addEventListener('click', () => {
-        void (async () => {
-            const reportModule = progressView;
-            if (!reportModule) return;
-            const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
-            updatePrintSummaryHead(reportModule.buildPracticeReport, libraryItems);
-            if (typeof window.print === 'function')
-                window.print();
-        })();
-    });
-    byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
-    byId('prog-import').addEventListener('click', () => byId('importBtn').click());
-    byId('prog-start').addEventListener('click', () => { show('today'); withPractice((p) => p.startSession(null)); });
+    // progress (wired on mount in src/features/progress/index.ts)
     byId('resetBtn').addEventListener('click', () => { void storeReset(); });
     // keyboard dock
     byId('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
@@ -10237,7 +10048,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "fsCan": () => fsCan,
   "fsToggle": () => fsToggle,
   "fsUi": () => fsUi,
-  "greeting": () => greeting,
   "handleNoteOff": () => handleNoteOff,
   "handleNoteOn": () => handleNoteOn,
   "heldMidis": () => heldMidis,
@@ -10442,7 +10252,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "releaseLiveInput": () => releaseLiveInput,
   "releaseTypingKeys": () => releaseTypingKeys,
   "renderModeNav": () => renderModeNav,
-  "renderPlan": () => renderPlan,
   "renderProgress": () => renderProgress,
   "renderRead": () => renderRead,
   "repaintHeld": () => repaintHeld,
@@ -10569,7 +10378,6 @@ const __etudeGetters: Record<string, () => unknown> = {
   "theme": () => theme,
   "tl": () => tl,
   "tone": () => audioEngine.tone,
-  "toolName": () => toolName,
   "touchDay": () => touchDay,
   "trapFocus": () => trapFocus,
   "typeOctave": () => typeOctave,
