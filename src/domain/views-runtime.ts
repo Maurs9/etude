@@ -36,11 +36,25 @@ import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } f
 import type { ImportedScoreDifficultyOptions } from './score-difficulty-import.js';
 import * as router from './router.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
-import type {
-  EtudeSurface,
-  ViewApplicationState,
-  ViewEventHandler,
-  ViewEventName,
+import {
+  createTestSurfaceRegistry,
+  type EtudeSurface,
+  type IntervalDirection,
+  type ReadDrillCustom,
+  type ReadDrillData,
+  type ReadDrillLevelStat,
+  type ReadDrillNoteStat,
+  type ReadDrillPrefs,
+  type ReadDrillTotals,
+  type StoredLastDrill,
+  type StoredLessonReview,
+  type StoredPracticeLog,
+  type StoredSheetRecord,
+  type StoredTrainerData,
+  type StoredTrainerSettings,
+  type ViewApplicationState,
+  type ViewEventHandler,
+  type ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, useLatencyOffsets, withInputTime } from './midi-timing.js';
@@ -3100,47 +3114,6 @@ INTRO_SC.forEach((nm, i) => { if (SCALES[nm])
     ITEMS.push({ id: 'sc:' + nm, cat: 'scale', name: nm, label: nm, short: nm, intro: 200 + i }); });
 PROGS.forEach((p, i) => { ITEMS.push({ id: 'pr:' + p.name, cat: 'prog', ref: p, label: p.name, short: p.name, intro: 300 + i }); });
 ITEMS.forEach((it) => ITEM_BY_ID[it.id] = it);
-type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: boolean; };
-interface StoredSheetRecord { best?: number; learned?: boolean; }
-interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; dir?: IntervalDirection; }
-interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
-interface StoredPracticeLog {
-    techRuns?: number;
-    techClean?: number;
-    techBestBpm?: number;
-    melRuns?: number;
-    melCorrect?: number;
-    melTotal?: number;
-}
-type StoredTrainerData = {
-    srs: Record<string, storage.StoredSrsEntry>;
-    streak: number;
-    bestStreak: number;
-    lastActive: number;
-    todayDay: number;
-    todayCount: number;
-    newToday: number;
-    totalReviews: number;
-    totalCorrect: number;
-    placed: boolean;
-    history: Record<string, number>;
-    singCleared: Record<string, boolean>;
-    sheet: Record<string, StoredSheetRecord>;
-    settings: StoredTrainerSettings;
-    lastTool?: string;
-    toolDay?: Record<string, number>;
-    earDay?: number;
-    earToday?: number;
-    lastDrill?: StoredLastDrill;
-    lastBuiltinPiece?: { id: string; at: number; measure?: string; speed?: number; elapsed?: number };
-    practiceLog?: StoredPracticeLog;
-    learnDone?: Record<string, number>;
-    learnRev?: Record<string, StoredLessonReview>;
-    learnUnlock?: Record<string, number>;
-    learnSel?: number;
-    learnSelId?: string;
-    reading?: Partial<ReadDrillData>;
-};
 function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false, anyOctave: false } }; }
 function restoreTrainerData(saved: storage.PttV3Payload['data']): StoredTrainerData {
     const { settings, srs, ...rest } = saved;
@@ -3287,7 +3260,6 @@ interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: num
 // A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
 interface TrainerGiven { text: () => string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 // dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
-type IntervalDirection = 'asc' | 'desc' | 'both';
 interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; ivStyle?: IntervalStyle; chordTier?: ChordTier; scaleTier?: ScaleTier; melDiff?: MelodyDifficulty; melLen?: number | 'auto'; melScale?: string; techKind?: TechniqueKind; techOctaves?: 1 | 2; }
 // contrast: a short drill on two items the last session mixed up (its question order, by item id).
 interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
@@ -8852,13 +8824,6 @@ const RD_MAJ = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E'
 const RD_CHQ: Record<ReadDrillChordQuality, number[]> = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6], aug: [0, 4, 8] };
 const RD_TARGET: Partial<Record<ReadDrillType, number>> = { name: 2500, play: 3500, k2s: 4000, iv: 3500, ch: 6000, ks: 5000 };
 // sv, ta: best Survival and Time Attack scores; mn: best Marathon pace in notes per minute.
-interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rush: number; sv?: number; ta?: number; mn?: number; }
-interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
-interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
-interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; autoNext?: boolean; instantFeedback?: boolean; warmDone?: string; }
-/** `book`: the Read home's book, key runs and daily set (src/sight-reading/progress.ts), read through srtNormalizeBookState. */
-interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; book?: ReadingBookState; }
 function rdData(): ReadDrillData {
     if (!data.reading || typeof data.reading !== 'object')
         data.reading = {};
@@ -23510,51 +23475,54 @@ const __etudeGetters: Record<string, () => unknown> = {
   "voice": () => voice,
   "whiteEl": () => whiteEl,
 };
+const __etudeRegistry = createTestSurfaceRegistry(__etude);
 for (const [key, get] of Object.entries(__etudeGetters)) {
-  Object.defineProperty(__etude, key, { configurable: true, get });
+  __etudeRegistry.defineGetter(key, get);
 }
 // These hooks are intentionally mutable because a few browser regressions
 // replace an app dependency in-place and verify the caller's behavior.
-Object.defineProperty(__etude, "anInflatedSize", { configurable: true, get: () => anInflatedSize, set: (value) => { anInflatedSize = value; } });
-Object.defineProperty(__etude, "makePianoVoice", { configurable: true, get: () => makePianoVoice, set: (value) => { makePianoVoice = value; } });
-Object.defineProperty(__etude, "pianoDecode", { configurable: true, get: () => pianoDecode, set: (value) => { pianoDecode = value; } });
-Object.defineProperty(__etude, "playInterval", { configurable: true, get: () => playInterval, set: (value) => { playInterval = value; } });
-Object.defineProperty(__etude, "preparePiano", { configurable: true, get: () => preparePiano, set: (value) => { preparePiano = value; } });
-Object.defineProperty(__etude, "previewNote", { configurable: true, get: () => previewNote, set: (value) => { previewNote = value; } });
-Object.defineProperty(__etude, "scoreFixPedals", { configurable: true, get: () => scoreFixPedals, set: (value) => { scoreFixPedals = value; } });
-Object.defineProperty(__etude, "syncPull", { configurable: true, get: () => syncPull, set: (value) => { syncPull = value; } });
-Object.defineProperty(__etude, "actx", { configurable: true, get: () => audioEngine.context, set: (value) => { audioEngine.context = value; } });
-Object.defineProperty(__etude, "localSynth", { configurable: true, get: () => audioEngine.localSynth, set: (value) => { audioEngine.localSynth = value; } });
-Object.defineProperty(__etude, "notation", { configurable: true, get: () => notation, set: (value) => { notation = value; } });
-Object.defineProperty(__etude, "renderLearn", { configurable: true, get: () => renderLearn, set: (value) => { renderLearn = value; } });
-Object.defineProperty(__etude, "show", { configurable: true, get: () => show, set: (value) => { show = value; } });
-Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme, set: (value) => { theme = value; } });
-Object.defineProperty(__etude, "srtEvaluate", { configurable: true, value: srtEvaluate });
-Object.defineProperty(__etude, "srtGenerate", { configurable: true, value: srtGenerate });
+__etudeRegistry.defineMutable("anInflatedSize", () => anInflatedSize, (value) => { anInflatedSize = value; });
+__etudeRegistry.defineMutable("makePianoVoice", () => makePianoVoice, (value) => { makePianoVoice = value; });
+__etudeRegistry.defineMutable("pianoDecode", () => pianoDecode, (value) => { pianoDecode = value; });
+__etudeRegistry.defineMutable("playInterval", () => playInterval, (value) => { playInterval = value; });
+__etudeRegistry.defineMutable("preparePiano", () => preparePiano, (value) => { preparePiano = value; });
+__etudeRegistry.defineMutable("previewNote", () => previewNote, (value) => { previewNote = value; });
+__etudeRegistry.defineMutable("scoreFixPedals", () => scoreFixPedals, (value) => { scoreFixPedals = value; });
+__etudeRegistry.defineMutable("syncPull", () => syncPull, (value) => { syncPull = value; });
+__etudeRegistry.defineMutable("actx", () => audioEngine.context, (value) => { audioEngine.context = value; });
+__etudeRegistry.defineMutable("localSynth", () => audioEngine.localSynth, (value) => { audioEngine.localSynth = value; });
+__etudeRegistry.defineMutable("notation", () => notation, (value) => { notation = value; });
+__etudeRegistry.defineMutable("renderLearn", () => renderLearn, (value) => { renderLearn = value; });
+__etudeRegistry.defineMutable("show", () => show, (value) => { show = value; });
+__etudeRegistry.defineMutable("theme", () => theme, (value) => { theme = value; });
+__etudeRegistry.defineValue("srtEvaluate", srtEvaluate);
+__etudeRegistry.defineValue("srtGenerate", srtGenerate);
 // For tests: the markup the engraver draws for a score, laid out for the Read paper (or a given layout).
-Object.defineProperty(__etude, "srRenderScore", { configurable: true, value: (score: SrScore, layout?: SrLayout) => srRender(score, layout ?? srPaper()).svg });
-Object.defineProperty(__etude, "srtFingerprint", { configurable: true, value: srtFingerprint });
-Object.defineProperty(__etude, "srtBuildExpected", { configurable: true, value: srtBuildExpected });
-Object.defineProperty(__etude, "RDN", { configurable: true, get: () => RDN });
-Object.defineProperty(__etude, "rdnOpen", { configurable: true, get: () => rdnOpen });
-Object.defineProperty(__etude, "rdnHome", { configurable: true, get: () => rdnHome });
-Object.defineProperty(__etude, "rdnBook", { configurable: true, get: () => rdnBook });
-Object.defineProperty(__etude, "rdnStep", { configurable: true, get: () => rdnStep });
-Object.defineProperty(__etude, "rdnRenderHome", { configurable: true, get: () => rdnRenderHome });
-Object.defineProperty(__etude, "rdnWarmupStart", { configurable: true, get: () => rdnWarmupStart });
-Object.defineProperty(__etude, "rdnToday", { configurable: true, get: () => rdnToday });
-Object.defineProperty(__etude, "rdnEnsureDailyOf", { configurable: true, get: () => rdnEnsureDailyOf, set: (value) => { rdnEnsureDailyOf = value; } });
-Object.defineProperty(__etude, "WARM", { configurable: true, get: () => WARM });
-Object.defineProperty(__etude, "RDN_WARM_MS", { configurable: true, get: () => RDN_WARM_MS });
-Object.defineProperty(__etude, "srtLevelExpected", { configurable: true, value: srtLevelExpected });
-Object.defineProperty(__etude, "srtLedgerUpdate", { configurable: true, value: srtLedgerUpdate });
-Object.defineProperty(__etude, "srtReadLedger", { configurable: true, value: srtReadLedger });
-Object.defineProperty(__etude, "srtCreateLedger", { configurable: true, value: srtCreateLedger });
-Object.defineProperty(__etude, "srtAcquireAttemptLease", { configurable: true, value: srtAcquireAttemptLease });
-Object.defineProperty(__etude, "srtLedgerReadStatus", { configurable: true, value: srtLedgerReadStatus });
-Object.defineProperty(__etude, "isBackupPayload", { configurable: true, value: isBackupPayload });
-Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => srtRecorder });
-Object.defineProperty(__etude, "srNoteStart", { configurable: true, get: () => srNoteStart });
+__etudeRegistry.defineValue("srRenderScore", (score: SrScore, layout?: SrLayout) => srRender(score, layout ?? srPaper()).svg);
+__etudeRegistry.defineValue("srtFingerprint", srtFingerprint);
+__etudeRegistry.defineValue("srtBuildExpected", srtBuildExpected);
+__etudeRegistry.defineGetter("RDN", () => RDN);
+__etudeRegistry.defineGetter("rdnOpen", () => rdnOpen);
+__etudeRegistry.defineGetter("rdnHome", () => rdnHome);
+__etudeRegistry.defineGetter("rdnBook", () => rdnBook);
+__etudeRegistry.defineGetter("rdnStep", () => rdnStep);
+__etudeRegistry.defineGetter("rdnRenderHome", () => rdnRenderHome);
+__etudeRegistry.defineGetter("rdnWarmupStart", () => rdnWarmupStart);
+__etudeRegistry.defineGetter("rdnToday", () => rdnToday);
+__etudeRegistry.defineMutable("rdnEnsureDailyOf", () => rdnEnsureDailyOf, (value) => { rdnEnsureDailyOf = value; });
+__etudeRegistry.defineGetter("WARM", () => WARM);
+__etudeRegistry.defineGetter("RDN_WARM_MS", () => RDN_WARM_MS);
+__etudeRegistry.defineValue("srtLevelExpected", srtLevelExpected);
+__etudeRegistry.defineValue("srtLedgerUpdate", srtLedgerUpdate);
+__etudeRegistry.defineValue("srtReadLedger", srtReadLedger);
+__etudeRegistry.defineValue("srtCreateLedger", srtCreateLedger);
+__etudeRegistry.defineValue("srtAcquireAttemptLease", srtAcquireAttemptLease);
+__etudeRegistry.defineValue("srtLedgerReadStatus", srtLedgerReadStatus);
+__etudeRegistry.defineValue("isBackupPayload", isBackupPayload);
+__etudeRegistry.defineGetter("srtRecorder", () => srtRecorder);
+__etudeRegistry.defineGetter("srNoteStart", () => srNoteStart);
+const { wireFeatureTestSurfaces } = await import('../app/test-surface-wiring.js');
+await wireFeatureTestSurfaces(__etudeRegistry);
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
 }
