@@ -3,6 +3,8 @@ import type { AppSettings, StoredSrsEntry } from './storage.js';
 import type { AudioEngine, AudioTone, AudioVoice, PianoStatus, PianoVoiceOptions } from './audio.js';
 import type { identifyChord as identifyChordFn } from './theory.js';
 import type { Localised } from '../locales/content-types.js';
+import type { TechniqueKind } from './technique.js';
+import type { TrainerItem } from '../core/trainer-items.js';
 import type { AnalysisRoute, AppView } from './router.js';
 import type { NotationSystem } from './score-types.js';
 import type { ChordTemplate, ProgressionTemplate, ScaleDefinitions } from './view-contracts.js';
@@ -451,6 +453,26 @@ export interface AppHost {
   readonly testSurface: TestSurfaceRegistry | null;
 }
 
+export type IntervalStyle = 'both' | 'melodic' | 'harmonic';
+export type ChordTier = 'triads' | 'sevenths' | 'all';
+export type ScaleTier = 'core' | 'modes' | 'all';
+export type MelodyDifficulty = 'easy' | 'medium' | 'advanced';
+/** What a targeted Practice session drills (topic, mode, key and the topic's own options). */
+export interface TrainerSessionTarget {
+  cat: string;
+  mode: string;
+  key: string;
+  dir?: IntervalDirection;
+  ivStyle?: IntervalStyle;
+  chordTier?: ChordTier;
+  scaleTier?: ScaleTier;
+  melDiff?: MelodyDifficulty;
+  melLen?: number | 'auto';
+  melScale?: string;
+  techKind?: TechniqueKind;
+  techOctaves?: 1 | 2;
+}
+
 /** The Score Player's side-panel tabs, in order; the shell validates restored `anSide.tab` against it without loading the feature. */
 export const SCORE_SIDE_TABS: readonly string[] = ['now', 'piece', 'practice'];
 
@@ -559,6 +581,97 @@ export interface ScorePlayerController extends FeatureController {
   refreshCoach(): void;
   localizeLibrary(): void;
   onScreenChange(flipped: boolean): void;
+}
+
+/**
+ * Shell services the lazy Practice feature (`src/features/practice/`: session engine, ear-on-keys, technique, setup,
+ * hints, summary, accompaniment and the song book) needs beyond `AppHost`. Item data and SRS math come from
+ * `src/core/`; mutable shell values are getters.
+ */
+export interface PracticeShell {
+  readonly audioEngine: AudioEngine;
+  readonly keyboardView: { low: number; oct: number };
+  readonly keyEl: Map<number, HTMLButtonElement>;
+  readonly held: Set<number>;
+  readonly baseLow: number;
+  readonly baseHigh: number;
+  readonly view0: () => string;
+  readonly todayN: () => number;
+  readonly ensureAudio: (warm?: boolean) => AudioContext | null;
+  readonly pianoEnsure: (midis: readonly number[]) => Promise<boolean>;
+  readonly kbState: (midi: number, state: string | null, fold: boolean) => void;
+  readonly kbClear: (state: string) => void;
+  readonly kbClearAll: () => void;
+  readonly buildKeyboard: () => void;
+  readonly repaintHeld: () => void;
+  readonly reflowKeys: () => void;
+  readonly foldToView: (midi: number) => number;
+  readonly viewHigh: () => number;
+  readonly dockKeyInSight: (midi: number) => void;
+  readonly syncMobileStartBars: () => void;
+  readonly refreshToday: () => void;
+  readonly playIvDir: (root: number, semitones: number, direction: string, style?: IntervalStyle) => void;
+  readonly rootName: (pc: number) => string;
+  readonly ivName: (semitones: number) => string;
+  readonly catLabel: (cat: string) => string;
+  readonly progDisp: (name: string) => string;
+  readonly feelDisp: (symbol: string | number) => string;
+  readonly chordFormula: (chord: { intervals: readonly number[] }) => string;
+  readonly scaleFormula: (offsets: readonly number[]) => string;
+  readonly songsFor: (semitones: number, dir: string) => string[];
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly rdEsc: (value: string | number | undefined) => string;
+  readonly spelledName: (sys: NotationSystem, letter: number, accidental: number, ascii?: boolean) => string;
+  readonly isFlatKey: (pc: number) => boolean;
+  readonly identifyChord: (notes: readonly number[], expected?: number) => ReturnType<typeof identifyChordFn<ChordTemplate>>;
+  readonly chordTargetPcs: (rootPc: number, chord: ChordTemplate | undefined) => number[];
+  readonly inversionOf: (rootPc: number, chord: { symbol: string; idx?: number; pcset?: readonly number[]; intervals?: readonly number[] }, bassMidi: number) => number;
+  readonly boxOf: (id: string | number) => number;
+  readonly isDue: (id: string | number) => boolean;
+  readonly isNew: (id: string | number) => boolean;
+  readonly dueItems: () => TrainerItem[];
+  readonly newItemsAvail: () => TrainerItem[];
+  readonly newQuotaLeft: () => number;
+  readonly seedPlacement: (id: string, known: boolean) => void;
+  readonly reviewItem: (id: string, correct: boolean) => void;
+  readonly creditReview: (correct: boolean) => void;
+  readonly currentStreak: () => number;
+}
+
+/** The Practice controller: `FeatureController` plus the synchronous hooks the shell calls while it is loaded. */
+export interface PracticeController extends FeatureController {
+  sesActive(): boolean;
+  sesHome(): 'today' | 'practice';
+  startSession(target: TrainerSessionTarget | null): void;
+  startPlacement(): void;
+  endSession(toSummary: boolean): void;
+  /** Session keyboard shortcuts (digits answer, R replays, N advances); true when the key was used. */
+  sessionKey(key: string, event: KeyboardEvent): boolean;
+  sessionInput(kind: 'on' | 'off', midi: number): void;
+  /** True while the open session question is answered on the keys and needs them shown. */
+  sessionNeedsKeys(view: string): boolean;
+  alongWanted(view: string): boolean;
+  /** The hint preview's keyboard choice (null: no preview, or it leaves the keyboard alone). */
+  hintKeys(): boolean | null;
+  setHintKeys(open: boolean): void;
+  hintPreviewActive(): boolean;
+  onKeyboardBuilt(): void;
+  stopPrompts(): void;
+  stopAccompaniment(): void;
+  openMoved(view: string, moveFocus: boolean, fromHistory: boolean): void;
+  setTopic(topic: string): void;
+  setMode(mode: PracticeModePref): void;
+  setKey(key: string): void;
+  earCheck(): void;
+  /** The phone's start bar text for Practice: the chosen drill and the button label. */
+  mobileBar(): { summary: string; label: string };
+  reflectSettings(): void;
+  renderSetup(): void;
+  renderMelodyScales(): void;
+  renderAccompany(full: boolean): void;
+  localizeAccompaniment(): void;
+  updateAccompChain(): void;
+  refreshSessionCopy(): void;
 }
 
 declare global {
