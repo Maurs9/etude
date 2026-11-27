@@ -178,8 +178,11 @@ test('all language and Learn chunks open offline after warming only Today @sw', 
 for (const view of ['today', 'explore']) {
   test(`Progress and lesson staves load on demand from ${view}`, async ({ app, page }) => {
     await app.open({ hash: view });
-    const loaded = name => page.evaluate(name => performance.getEntriesByType('resource').some(entry =>
-      new RegExp(`/${name}(?:-[^/]+)?\\.(?:js|ts)$`).test(new URL(entry.name).pathname)), name);
+    const loaded = name => page.evaluate(name => performance.getEntriesByType('resource').some(entry => {
+      const path = new URL(entry.name).pathname;
+      // Dev serves the source module by its exact name. The built site serves a hashed chunk.
+      return path.endsWith(`/src/domain/${name}.ts`) || new RegExp(`/assets/${name}-[\\w-]+\\.js$`).test(path);
+    }), name);
     expect(await loaded('progress-view')).toBe(false);
     expect(await loaded('learn-staves')).toBe(false);
     await page.locator('#nav [data-view=progress]').click();
