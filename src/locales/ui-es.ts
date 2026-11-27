@@ -1091,6 +1091,7 @@ const payload: UIPayload = {
       "lu_staff_hint": "Toca una nota para escucharla.",
       "lu_stop": "Detener",
       "lu_sum": "Guía resumen",
+      "lu_outline": "En esta página",
       "lu_unit": "Unidad %a de %b",
       "lw_bass": "Bajo (barra /)",
       "lw_blues": "Blues de 12 compases en Do",

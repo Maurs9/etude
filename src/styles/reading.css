@@ -27,7 +27,7 @@
 
 /* ---------- Reading drills home: the hero (etude.html #rdx-hero, drawn by rdRenderHome) ----------
    Wide: the stats on the left, the level to play next beside them (a picture of it, its name, details, stars and the
-   button), and the options in a wrapping grid on their own row. Below 860px the picture sits above the text; phone
+   button), and the options folded under "Drill options", in a wrapping grid on their own row. Below 860px the picture sits above the text; phone
    (680px and below): one column, and the options are 44px tall. */
 .rdx-hero{display:grid; grid-template-columns:minmax(170px,max-content) minmax(0,1fr); grid-template-areas:"stats next" "opts opts"; gap:18px 26px; align-items:stretch}
 .rdx-hero-l{grid-area:stats; display:flex; flex-direction:column; justify-content:center; gap:16px}
@@ -42,7 +42,10 @@
 .rdx-next-go{display:flex; flex-direction:column; align-items:stretch; gap:10px; padding-right:6px}
 .rdx-next .rdx-rec{justify-content:flex-start; gap:4px 12px}
 #rdx-cont{min-height:48px; padding-inline:22px; justify-content:center}
-.rdx-hero-r{grid-area:opts; display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:2px 18px; padding-top:12px; border-top:1px solid var(--line)}
+.rdx-hero-r{grid-area:opts; padding-top:4px; border-top:1px solid var(--line)}
+.rdx-hero-r > summary{box-sizing:border-box; min-height:44px; padding:12px 0; line-height:20px; cursor:pointer; font-weight:650; color:var(--ink2); width:max-content; max-width:100%}
+.rdx-hero-r > summary:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px; border-radius:6px}
+.rdx-opts-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:2px 18px; padding-bottom:4px}
 .rdx-hero-r .switch-inline{min-height:36px; white-space:normal}
 @media (max-width:1100px){
   .rdx-next{grid-template-columns:minmax(0,1.15fr) minmax(220px,1fr)}
@@ -55,7 +58,7 @@
   .rdx-hero-l{flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:space-between}
   .rdx-next-pic{min-height:104px}
   #rdx-cont{width:100%; justify-content:center}
-  .rdx-hero-r{grid-template-columns:minmax(0,1fr)}
+  .rdx-opts-grid{grid-template-columns:minmax(0,1fr)}
   .rdx-hero-r .switch-inline{min-height:44px}
 }
 /* The level ladder: responsive 2-column CSS grid with category filters and orchestral clefs toggle. */

@@ -239,6 +239,7 @@ function applyI18n() {
     midiController.localizeStatus();
     document.documentElement.lang = lang;
     renderModeNav();
+    syncDocTitle();
     pianoStatus();
     dockLabels();
     bleUi();
@@ -1010,6 +1011,12 @@ function renderModeNav() {
     byId('modeBar').hidden = views.length < 2;
     byId('modeNav').innerHTML = views.map((v: string) => `<button type="button" data-view="${v}" aria-current="${v === view0() ? 'page' : 'false'}">${t(v === 'practice' ? 'nav_drills' : 'nav_' + v)}</button>`).join('');
 }
+// The tab title names the screen, in the interface language, so the browser's tab list and a screen reader say where
+// you are. The static title in etude.html stays for crawlers and the first paint.
+function syncDocTitle() {
+    const v = view0();
+    document.title = t(v === 'practice' ? 'nav_drills' : v === 'analysis' ? 'nav_scores' : 'nav_' + v) + ' — Étude';
+}
 function focusView(v: string) {
     const view = byId('view-' + v);
     const target = queryAllHtml(view, 'h1,h2').find((el) => el.getClientRects().length) || view;
@@ -1559,6 +1566,7 @@ function showImpl(
             viewState.view = 'analysis';
             stageSync();
             document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-analysis'));
+            syncDocTitle();
             const targetGroup = navGroup('analysis');
             queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === targetGroup ? 'page' : 'false'));
             byId('modeBar').hidden = true;
@@ -1586,6 +1594,7 @@ function showImpl(
                 }
                 catch (_) { }
                 document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + prevView));
+                syncDocTitle();
                 const prevGroup = navGroup(prevView);
                 queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === prevGroup ? 'page' : 'false'));
                 renderModeNav();
@@ -1654,6 +1663,7 @@ function showImpl(
     _view = v;
     stageSync();
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
+    syncDocTitle();
     const group = navGroup(v);
     queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
     dockSync();

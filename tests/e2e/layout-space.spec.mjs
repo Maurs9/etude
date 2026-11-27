@@ -56,10 +56,37 @@ test.describe('wide window', () => {
     expect(drawn).toBeGreaterThan(0);
     expect(shown).toBeGreaterThan(drawn * 1.2);
     expect(shown).toBeLessThanOrEqual(drawn * 1.35 + 1);
-    expect((await box(page, '#view-learn > .wrap')).width).toBeLessThanOrEqual(1240);
+    // The lesson card stays near its old width (it was at most about 900px), so staves keep their size.
+    expect((await box(page, '#learnBody')).width).toBeLessThanOrEqual(940);
     await page.locator('#learnGlossBtn').click();
     const lefts = await page.locator('#learnBody .lg-it').evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().left))).size);
     expect(lefts).toBe(2);
+  });
+
+  test('Learn: from 1360px a rail holds the section outline and the one cheat sheet; narrower, the cheat sheet stays in the lesson', async ({ app, page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await app.open({ hash: 'learn' });
+    await page.evaluate(() => window.__etude.learnReady);
+    const rail = page.locator('#learnRail');
+    await expect(rail).toBeVisible();
+    await expect(page.locator('#view-learn .lsum')).toHaveCount(1);
+    await expect(rail.locator('.lsum dl')).not.toBeEmpty();
+    expect((await box(page, '#learnRail')).x).toBeGreaterThan((await box(page, '#learnBody')).x + (await box(page, '#learnBody')).width);
+    // An outline entry scrolls to its section and moves focus there.
+    const entries = rail.locator('[data-lsec]');
+    expect(await entries.count()).toBeGreaterThan(0);
+    await entries.last().click();
+    await expect(page.locator('#lq-h')).toBeFocused();
+    // Narrower: no rail, and the same cheat sheet is back in the lesson.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(rail).toBeHidden();
+    await expect(page.locator('#learnBody .lsum dl')).not.toBeEmpty();
+    await expect(page.locator('#view-learn .lsum')).toHaveCount(1);
+    // The glossary has no sections, so it has no rail.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.locator('#learnGlossBtn').click();
+    await expect(rail).toBeHidden();
+    expect(await noSideScroll(page)).toBe(true);
   });
 
   test('Pieces: the empty drop zone is one row, not a tall panel', async ({ app, page }) => {

@@ -1507,14 +1507,17 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       const unit = RD_UNITS.find((u) => u.lv.includes(cont)), rec: Partial<ReadDrillLevelStat> = d.lv[cont.id] || {}, sample = rdLvSample(cont);
       const best = [rec.acc ? deps.t('rdx_best_acc', rec.acc) : '', rec.t ? deps.t('rdx_best_t', (rec.t / 1000).toFixed(1)) : ''].filter(Boolean).map((s) => `<span>${deps.rdEsc(s)}</span>`).join('');
       const opt = (id: string, on: boolean, key: string, off = false) => `<label class="switch-inline"><input type="checkbox" id="${id}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${deps.t(key)}</span></label>`;
-      // Stats, then the level to play next (a picture of it, its name, details and stars, and the button), then the options.
+      // Stats, then the level to play next (a picture of it, its name, details and stars, and the button), then the options,
+      // folded under "Drill options": they are settings kept between sessions, so they stay one tap away. The panel keeps
+      // its open state when the hero is drawn again.
+      const prevOpts = maybeById('rdx-opts'), optsOpen = prevOpts instanceof HTMLDetailsElement && prevOpts.open;
       byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${deps.t('rdx_hero_stars')}</div></div>
       <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${deps.t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${deps.t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${deps.t('rdx_st_time')}</span></div></div></div>
       <div class="rdx-next"><div class="rdx-next-pic" aria-hidden="true">${sample || `<span class="rdx-next-ic">${unit ? unit.icon : '🎯'}</span>`}</div>
         <div class="rdx-next-txt"><span class="rdx-next-eye">${deps.t(d.prefs.last ? 'rdx_hero_next' : 'rdx_hero_first')}</span><b class="rdx-next-name" id="rdx-next-name">${deps.rdEsc(deps.rdLvName(cont))}</b><span class="rdx-next-d" id="rdx-next-d">${deps.rdEsc(rdLvDetail(cont))}</span></div>
         <div class="rdx-next-go"><div class="rdx-rec">${rdStars(rec.s || 0)}${best}</div>
         <button class="btn primary" data-lv="${cont.id}" id="rdx-cont" aria-describedby="rdx-next-name rdx-next-d">▶ ${deps.t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}</button></div></div>
-      <div class="rdx-hero-r" role="group" aria-label="${deps.rdEsc(deps.t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!host.store.data().settings.weakSpotInjection, 'rdx_weak_inject')}</div>`;
+      <details class="rdx-hero-r" id="rdx-opts"${optsOpen ? ' open' : ''}><summary>${deps.rdEsc(deps.t('rdx_hero_opts'))}</summary><div class="rdx-opts-grid" role="group" aria-label="${deps.rdEsc(deps.t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!host.store.data().settings.weakSpotInjection, 'rdx_weak_inject')}</div></details>`;
       const filters = maybeById('rdx-filters');
       if (filters) {
           queryAllHtml(filters, '[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === rdxFilter)));

@@ -99,6 +99,7 @@ test('committing Volume, Room ambience, or Tempo writes the value immediately', 
 test('selecting either the current or a new notation leaves a first-sight count-in intact', async ({ app, page }) => {
   await app.open({ hash: 'read' });
   await page.locator('#rdt-drills').click();
+  await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
   await page.locator('label:has(#rdx-stage-pref)').click();
   await page.locator('#rdt-book').click();
   await page.locator('#rdn-book-go').click();

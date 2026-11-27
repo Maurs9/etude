@@ -10,6 +10,7 @@
     --good:#2f6547; --good-bg:#e3eee7;
     --bad:#943923; --bad-bg:#f4e4dc;
     --line:#dbd7cd; --line2:#c9c3b6;
+    --ctl-line:#8f877a;           /* boundary of an interactive control: at least 3:1 on paper and card (WCAG 1.4.11) */
     --switch-off:#8a8072;
     --shadow:0 1px 0 rgba(22,26,34,.04), 0 12px 30px -18px rgba(22,26,34,.28);
     --headbg:rgba(245,244,239,.88);
@@ -40,6 +41,7 @@
     --good:#8db996; --good-bg:#223229;
     --bad:#d98e71; --bad-bg:#392822;
     --line:#2d3542; --line2:#3d4758;
+    --ctl-line:#6d7685;
     --switch-off:#6d7685;
     --shadow:0 1px 0 rgba(0,0,0,.22), 0 12px 30px -18px rgba(0,0,0,.62);
     --headbg:rgba(19,22,27,.88);
@@ -81,7 +83,9 @@
   .wrap{width:100%; max-width:var(--page-max); margin:0 auto; padding-left:max(var(--page-gutter), env(safe-area-inset-left, 0px)); padding-right:max(var(--page-gutter), env(safe-area-inset-right, 0px))}
   /* Give interactive workspaces more room without stretching reading-heavy pages. */
   header .bar,header .hdr-note .wrap,main > .wrap,#view-today > .wrap,#view-practice > .wrap,
-  #view-read > .wrap,#view-sing > .wrap,#view-explore > .wrap,#dock > .wrap{max-width:var(--work-max)}
+  #view-read > .wrap,#view-sing > .wrap,#view-explore > .wrap,#dock > .wrap,
+  /* Learn and Method line up with the header; their text keeps its 66ch measure, and Learn uses the width for a rail. */
+  #view-learn > .wrap,#view-method > .wrap{max-width:var(--work-max)}
   #view-analysis > .wrap{max-width:1760px}
 
   /* ---------- top bar ---------- */
@@ -98,10 +102,10 @@
   nav.tabs button:hover{color:var(--ink)}
   nav.tabs button[aria-current="page"]{color:var(--ink)}
   nav.tabs button[aria-current="page"]::after{content:""; position:absolute; left:12px; right:12px; bottom:2px; height:2px; background:var(--accent); border-radius:2px}
-  .iconbtn{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink); width:38px; height:38px; border-radius:9px; cursor:pointer; display:grid; place-items:center; font-size:17px; transition:color .15s, border-color .15s, background .15s}
+  .iconbtn{appearance:none; border:1px solid var(--ctl-line); background:var(--card); color:var(--ink); width:38px; height:38px; border-radius:9px; cursor:pointer; display:grid; place-items:center; font-size:17px; transition:color .15s, border-color .15s, background .15s}
   .iconbtn svg{width:17px; height:17px; flex:none}
   .iconbtn:hover{border-color:var(--accent); color:var(--accent)}
-  .midi-chip{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:6px 11px; background:var(--card); cursor:pointer}
+  .midi-chip{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); border:1px solid var(--ctl-line); border-radius:999px; padding:6px 11px; background:var(--card); cursor:pointer}
   .midi-ic{display:none; width:15px; height:15px; flex:none}
   .dot{width:8px; height:8px; border-radius:50%; background:var(--line2)}
   .dot.on{background:var(--good)} .dot.err{background:var(--bad)}
@@ -160,7 +164,7 @@
   .why{font-size:13px; color:var(--muted); font-style:italic; font-family:var(--serif); line-height:1.55}
   #whyLink{white-space:nowrap}
 
-  .btn{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink); font-weight:600; font-size:15px;
+  .btn{appearance:none; border:1px solid var(--ctl-line); background:var(--card); color:var(--ink); font-weight:600; font-size:15px;
     padding:11px 18px; border-radius:10px; cursor:pointer; transition:background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s; display:inline-flex; align-items:center; gap:8px}
   .btn:hover{border-color:var(--accent); color:var(--accent)}
   .btn.lg{padding:14px 26px; font-size:16px}
@@ -190,7 +194,7 @@
   .prompt{font-family:var(--serif); font-size:clamp(34px,6vw,58px); font-weight:900; letter-spacing:-.02em; line-height:1.04; margin:14px 0 2px; text-wrap:balance}
   .prompt .sub{font-weight:600; color:var(--muted); font-size:.5em; font-style:italic}
   .answers{display:flex; flex-wrap:wrap; gap:9px; justify-content:center; max-width:680px; margin-top:18px}
-  .chip{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink2); padding:10px 15px; border-radius:10px; font-size:14.5px; font-weight:600; cursor:pointer; transition:background-color .12s, border-color .12s, color .12s, transform .12s}
+  .chip{appearance:none; border:1px solid var(--ctl-line); background:var(--card); color:var(--ink2); padding:10px 15px; border-radius:10px; font-size:14.5px; font-weight:600; cursor:pointer; transition:background-color .12s, border-color .12s, color .12s, transform .12s}
   .chip:hover{border-color:var(--accent); color:var(--accent)}
   .chip.correct{background:var(--good-bg); border-color:var(--good); color:var(--good)}
   .chip.wrong{background:var(--bad-bg); border-color:var(--bad); color:var(--bad)}
@@ -217,7 +221,7 @@
   .section-head h1{font-size:clamp(44px,5.4vw,58px); line-height:.96; margin:0 0 .08em}
   .panel{border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:var(--shadow); padding:20px}
   .row{display:flex; gap:14px; flex-wrap:wrap; align-items:center}
-  .seg{display:inline-flex; border:1px solid var(--line); border-radius:10px; background:var(--card)}
+  .seg{display:inline-flex; border:1px solid var(--ctl-line); border-radius:10px; background:var(--card)}
   .seg button{appearance:none; border:none; background:none; color:var(--muted); padding:8px 14px; font-size:13.5px; font-weight:600; white-space:nowrap; cursor:pointer}
   .seg button:first-of-type{border-radius:9px 0 0 9px}
   .seg button:last-of-type{border-radius:0 9px 9px 0}
@@ -236,7 +240,7 @@
   :has(#view-analysis.active) .keys{height:clamp(124px, 17dvh, 148px)}
   label.field, .field{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); max-width:100%}
   label.field select, .field select{min-width:0; max-width:100%}
-  select{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:8px 30px 8px 12px; border-radius:9px; font-size:14px; font-family:inherit; cursor:pointer;
+  select{appearance:none; border:1px solid var(--ctl-line); background:var(--card); color:var(--ink); padding:8px 30px 8px 12px; border-radius:9px; font-size:14px; font-family:inherit; cursor:pointer;
     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%); background-position:calc(100% - 16px) 53%,calc(100% - 11px) 53%; background-size:5px 5px; background-repeat:no-repeat}
   @media (pointer:coarse), (max-width:680px){ select:not(#score-speed){font-size:16px} #set-lang button{min-height:44px} }
   input[type=range]{accent-color:var(--accent)}
@@ -485,6 +489,8 @@
   .ss-wrap svg,
   body[data-stage=immersive] #rd-staff,
   body[data-stage=immersive] #rd-staff svg{color-scheme:only light}
+  /* No melody yet: no empty frame under the hint. The box keeps its width, which the first melody is drawn to. */
+  #rd-staff:empty{padding-top:0; padding-bottom:0; border-color:transparent; background:transparent; box-shadow:none}
   .ss-brace{fill:none; stroke:var(--staffink); stroke-width:2.4; stroke-linecap:round}
   .ss-svg{display:block}
   .ss-line{stroke:var(--staffink); stroke-opacity:.62}
@@ -601,7 +607,7 @@
   footer a{color:var(--accent); text-decoration:none} footer a:hover{text-decoration:underline}
   footer{border-top:1px solid var(--line); color:var(--faint); font-size:12px; text-align:center; padding:18px}
   .mode-nav{display:flex; flex-wrap:wrap; gap:8px; margin:-10px 0 24px; padding-bottom:14px; border-bottom:1px solid var(--line)}
-  .mode-nav button{font:600 14px var(--sans); padding:8px 13px; border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--muted); cursor:pointer}
+  .mode-nav button{font:600 14px var(--sans); padding:8px 13px; border:1px solid var(--ctl-line); border-radius:9px; background:var(--card); color:var(--muted); cursor:pointer}
   .mode-nav button:hover{border-color:var(--accent); color:var(--ink)}
   .mode-nav button[aria-current="page"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
   @media(max-width:920px){.brand .tag{display:none}}
@@ -618,6 +624,23 @@
   .learn-toc button:hover{color:var(--ink)}
   .learn-toc button[aria-current="true"]{background:var(--card); border-color:var(--line); color:var(--ink); box-shadow:var(--shadow)}
   .learn-toc .ic{color:var(--accent); margin-right:7px}
+  /* Wide screens: the lesson keeps its measure, and the free width holds the section outline and the cheat sheet. */
+  .learn-rail{display:none; min-width:0}
+  @media (min-width:1360px){
+    #view-learn .learn-grid.has-rail{grid-template-columns:minmax(232px,280px) minmax(0,840px) minmax(260px,1fr)}
+    #view-learn .learn-grid.has-rail .learn-rail{display:flex; flex-direction:column; gap:16px; position:sticky; top:calc(var(--hdr-h) + 12px);
+      max-height:calc(100dvh - var(--hdr-h) - var(--dock-h) - 28px); overflow-y:auto; overscroll-behavior:contain}
+    #view-learn .learn-grid.has-rail .learn-body :is(p,ul,ol){font-size:16.5px; line-height:1.7}
+    .learn-rail .lsum{margin:0}
+  }
+  /* A narrow rail (up to 1600px) stacks each cheat-sheet term above its meaning. */
+  @media (min-width:1360px) and (max-width:1599.98px){ .learn-rail .lsum dl>div{grid-template-columns:1fr; gap:0} }
+  .lrail-out h4{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:2px 0 6px; font-weight:700}
+  .lrail-out ul{list-style:none; margin:0; padding:0 0 0 10px; border-left:2px solid var(--line); display:flex; flex-direction:column; gap:2px}
+  .lrail-out button{appearance:none; border:0; background:none; text-align:left; font:inherit; font-size:13.5px; line-height:1.35; color:var(--muted); padding:6px 4px; min-height:32px; cursor:pointer; border-radius:6px}
+  .lrail-out button:hover{color:var(--ink)}
+  .lrail-out button:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
+  .learn-content h4,#lq-h{scroll-margin-top:calc(var(--hdr-h) + 16px)}
   .learn-body{padding:20px 24px}
   .learn-body h3{font-size:23px; margin:0 0 10px}
   .learn-body h4{font-family:var(--sans); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:20px 0 8px; font-weight:700}
@@ -627,7 +650,7 @@
   .learn-body .fm{display:inline-block; font-family:var(--serif); background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:2px 10px; font-size:14px; font-weight:600; margin:0 2px}
   .learn-note{font-size:13.5px; color:var(--muted); border-top:1px solid var(--line); padding:10px 0 0; margin:4px 0 14px; font-family:var(--serif); font-style:italic; max-width:60ch}
   .demo-row{display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 14px}
-  .demo{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink2); padding:8px 13px; border-radius:9px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit; transition:border-color .12s, color .12s, transform .12s}
+  .demo{appearance:none; border:1px solid var(--ctl-line); background:var(--card); color:var(--ink2); padding:8px 13px; border-radius:9px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit; transition:border-color .12s, color .12s, transform .12s}
   .demo:hover{border-color:var(--accent); color:var(--accent)}
   .demo::before{content:"▶ "; color:var(--accent); font-size:11px}
 
@@ -1086,17 +1109,17 @@
   .plan-item:hover{border-color:var(--accent); background:var(--paper); transform:translateY(-1px)}
   .plan-item[data-next="true"]{border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); background:var(--paper); box-shadow:0 6px 18px -12px rgba(30,66,102,.45)}
   .plan-item[data-partial="true"]:not([data-next="true"]){border-color:color-mix(in srgb, var(--gold) 55%, var(--line))}
-  .plan-item .ck{grid-column:1; grid-row:1 / span 2; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line2); display:grid; place-items:center; font-size:11px; font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums}
-  .plan-item[data-next="true"] .ck{border-color:var(--accent); color:var(--accent)}
-  .plan-item[data-partial="true"] .ck{border-color:var(--gold); color:var(--gold-ink)}
-  .plan-item[data-done="true"] .ck{background:var(--good); border-color:var(--good); color:var(--paper); font-weight:900}
-  .plan-item .pt{grid-column:2; grid-row:1; font-weight:700; font-size:13.5px; line-height:1.2}
-  .plan-item .pd{grid-column:2; grid-row:2; font-size:11.5px; color:var(--muted); line-height:1.25}
-  .plan-item[data-done="true"] .pt{color:var(--muted)}
+  :is(.plan-item,.plan-step) .ck{grid-column:1; grid-row:1 / span 2; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line2); display:grid; place-items:center; font-size:11px; font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums}
+  :is(.plan-item,.plan-step)[data-next="true"] .ck{border-color:var(--accent); color:var(--accent)}
+  :is(.plan-item,.plan-step)[data-partial="true"] .ck{border-color:var(--gold); color:var(--gold-ink)}
+  :is(.plan-item,.plan-step)[data-done="true"] .ck{background:var(--good); border-color:var(--good); color:var(--paper); font-weight:900}
+  :is(.plan-item,.plan-step) .pt{grid-column:2; grid-row:1; font-weight:700; font-size:13.5px; line-height:1.2}
+  :is(.plan-item,.plan-step) .pd{grid-column:2; grid-row:2; font-size:11.5px; color:var(--muted); line-height:1.25}
+  :is(.plan-item,.plan-step)[data-done="true"] .pt{color:var(--muted)}
   .plan-end{grid-column:3; grid-row:1 / span 2; display:inline-flex; align-items:center; gap:6px; padding-left:2px}
   .plan-pill{font-size:10.5px; font-weight:700; color:var(--muted); background:var(--card); border:1px solid var(--line); border-radius:99px; padding:1px 6px; white-space:nowrap; font-variant-numeric:tabular-nums}
-  .plan-item[data-partial="true"] .plan-pill{color:var(--gold-ink); border-color:var(--gold)}
-  .plan-item[data-done="true"] .plan-pill{color:var(--good); border-color:var(--good)}
+  :is(.plan-item,.plan-step)[data-partial="true"] .plan-pill{color:var(--gold-ink); border-color:var(--gold)}
+  :is(.plan-item,.plan-step)[data-done="true"] .plan-pill{color:var(--good); border-color:var(--good)}
   .plan-go{font-size:13px; color:var(--muted); opacity:.45; transition:transform .15s, opacity .15s, color .15s}
   .plan-item:hover .plan-go,.plan-item[data-next="true"] .plan-go{color:var(--accent); opacity:1; transform:translateX(2px); font-weight:700}
   .plan-bar{position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--line); pointer-events:none}
@@ -1371,7 +1394,7 @@
   .rdx-lv.s1 .n,.rdx-lv.s2 .n,.rdx-lv.s3 .n{background:var(--good-bg); border-color:var(--good); color:var(--good)}
   .rdx-lv .d{display:flex; flex-direction:column; min-width:0}
   .rdx-lv .d b{font-size:13px; font-weight:650}
-  .rdx-lv .d i{font-style:normal; font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .rdx-lv .d i{font-style:normal; font-size:11.5px; color:var(--muted); overflow-wrap:anywhere}
   .rdx-lv .st,.rdx-stars{color:var(--gold-ink); letter-spacing:1px; font-size:14px; white-space:nowrap}
   .rdx-lv .st i,.rdx-stars i{font-style:normal; color:var(--line2)}
   .rdx-custom{margin-top:16px}
@@ -1460,12 +1483,19 @@
   .rdx-bar-t i{display:block; height:100%; background:var(--good)}
   .rdx-bar em{font-style:normal; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums}
   @media (max-width:680px){
-    .rdx-tabs{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
-    .rdx-tabs [role=tab]{padding:9px 9px 10px; font-size:13.5px; white-space:nowrap; flex:none}
+    /* Three equal tabs that wrap their label to two lines, so no tab is cut off at the edge of a phone. */
+    .rdx-tabs{flex-wrap:nowrap}
+    .rdx-tabs [role=tab]{flex:1 1 0; min-width:0; min-height:44px; justify-content:center; text-align:center; padding:8px 4px 9px; font-size:13px; line-height:1.2; overflow-wrap:break-word}
     .rdx-a{min-width:44px; font-size:16px; padding:8px 10px}
     .rdx-ty-ch .rdx-a,.rdx-ty-ks .rdx-a{min-width:46%}
     .rdx-a kbd{display:none}
     .rdx-bar{grid-template-columns:84px 1fr 78px}
+  }
+  @media (max-width:479.98px){
+    /* Narrow phones: the tab icons make room for the labels, and the four mode buttons fit one row in every language. */
+    .rdx-tabs .rdx-ic{display:none}
+    .mode-nav{gap:6px}
+    .mode-nav button{padding:8px 10px; font-size:13.5px}
   }
   /* ---------- answering by ear on the keys ---------- */
   .q-ansmode{margin-top:12px}

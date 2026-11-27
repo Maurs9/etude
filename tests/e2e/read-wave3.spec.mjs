@@ -115,9 +115,12 @@ test.describe('Wave 3: Read & play full-width staff, unified navigation & filter
       const gridStyle = await page.locator('#rdx-ladder').evaluate((el) => ({
         display: getComputedStyle(el).display,
         overflow: document.documentElement.scrollWidth - window.innerWidth,
+        // Each drill's description wraps instead of being cut with an ellipsis.
+        cut: [...el.querySelectorAll('.rdx-lv .d i')].filter((i) => i.scrollWidth > i.clientWidth + 1).length,
       }));
       expect(gridStyle.display).toBe('grid');
       expect(gridStyle.overflow).toBeLessThanOrEqual(0);
+      expect(gridStyle.cut).toBe(0);
 
       // Orchestral C-clefs hidden until toggled on
       await expect(page.locator('#rdx-ladder [data-lv="cc1"]')).toHaveCount(0);
