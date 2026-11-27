@@ -177,6 +177,70 @@ export default [
     },
   },
   {
+    files: ['src/core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            LEGACY_IMPORTS,
+            { group: ['**/infra/**', '**/features/**', '**/app/**', '**/domain/audio*', '**/domain/notation*', '**/domain/dom*', '**/domain/views-runtime*'], message: 'Core modules must stay pure and independent of browser, infra, feature, and view-runtime layers.' },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...RESTRICTED_GLOBALS,
+        { name: 'window', message: 'Core modules must be browser-independent.' },
+        { name: 'document', message: 'Core modules must be browser-independent.' },
+        { name: 'localStorage', message: 'Core modules must receive storage adapters explicitly.' },
+      ],
+    },
+  },
+  {
+    files: ['src/infra/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            LEGACY_IMPORTS,
+            { group: ['**/features/**', '**/app/**', '**/domain/views-runtime*'], message: 'Infrastructure adapters must not depend on features, shell modules, or views-runtime.' },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/features/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            LEGACY_IMPORTS,
+            { group: ['**/domain/views-runtime*', '**/app/**'], message: 'Feature modules must communicate with the shell through AppHost, not import views-runtime or src/app/.' },
+            { group: ['../[a-z]*', '../[a-z]*/**', '**/features/**'], message: 'Cross-feature imports are forbidden; communicate through AppHost or shared contracts.' },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            LEGACY_IMPORTS,
+            { group: ['**/domain/views-runtime*'], message: 'Shell helper modules in src/app/ must not import views-runtime directly.' },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/**/*.js', 'scripts/**/*.mjs', 'vite.config.mjs'],
     rules: {
       'no-restricted-imports': ['error', {

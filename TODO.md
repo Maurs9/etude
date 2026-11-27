@@ -69,6 +69,15 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
   - Pașii completi sunt în [docs/runbooks/device-smoke.md](./docs/runbooks/device-smoke.md) (instalare, offline, stocare și copii automate, actualizare, sunet, MIDI).
 - [x] **Integrarea branch-ului `sight-reading-v3` în `main` (Step 6):**
   - Merge realizat cu succes în `main` (`35d51c0`), teste și build-uri validate 100% pe Windows și Linux.
+- [ ] **Descompunere treptată `views-runtime.ts` ([2026-11-27-views-runtime-decomposition.md](./docs/plans/2026-11-27-views-runtime-decomposition.md)):**
+  - [x] **Faza 0:** contracte în `src/domain/views.ts`, `src/app/test-surface-wiring.ts` (dynamic `import()`), reguli de straturi în `eslint.config.mjs`, smoke test de producție fără `--test-surface` în `deploy.spec.mjs`.
+  - [ ] **Faza 1:** `src/core/sync-merge.ts`, `src/infra/pwa-lifecycle.ts`, `src/infra/midi-controller.ts`.
+  - [ ] **Faza 2:** Pilot #1 `src/features/explore/` (lazy).
+  - [ ] **Faza 3:** Pilot #2 `src/features/voice/`, `src/features/learn/`, `accompaniment` + `song-book`.
+  - [ ] **Faza 4:** `src/features/score-library/` + `src/features/score-player/` (lazy pe `#analysis`).
+  - [ ] **Faza 5:** `src/core/srs.ts`, `src/features/practice/`, `src/app/coaching.ts`, `today`, `progress`.
+  - [ ] **Faza 6:** `src/features/read/` + `src/core/pitch-match.ts` (păstrând `ledger`/`flow` + oglinda `pendingSave` eager).
+  - [ ] **Faza 7:** `src/app/{keyboard-dock,input-bus}.ts`, subțiere finală `views-runtime.ts`, opțional curățare selectori feature din `etude.css`.
 
 ---
 

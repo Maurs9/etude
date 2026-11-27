@@ -108,6 +108,28 @@ test('/etude/ opens the app, keeping the query and the hash', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
+test('production build navigates every view cleanly without __etude or test-surface chunks', async ({ page }) => {
+  const assets = await readdir(join(tmp, 'etude', 'assets'));
+  expect(assets.some(file => file.includes('test-surface-wiring'))).toBe(false);
+
+  const errors = [], failed = [];
+  page.on('pageerror', err => errors.push(err.message));
+  page.on('response', res => { if (res.url().startsWith(base) && res.status() >= 400) failed.push(`${res.status()} ${res.url()}`); });
+  page.on('requestfailed', req => { if (req.url().startsWith(base)) failed.push(`failed ${req.url()}`); });
+
+  await page.goto(base + 'etude.html#today');
+  await booted(page);
+  expect(await page.evaluate(() => '__etude' in window)).toBe(false);
+
+  for (const viewId of ['today', 'explore', 'sing', 'learn', 'analysis', 'practice', 'read', 'progress']) {
+    await page.evaluate((id) => { location.hash = '#' + id; }, viewId);
+    await expect(page.locator(`#view-${viewId}`), `#view-${viewId}`).toBeVisible();
+  }
+  expect(await page.evaluate(() => '__etude' in window)).toBe(false);
+  expect(failed).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false });
   test('/etude/ still leads to the app', async ({ page }) => {
