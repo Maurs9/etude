@@ -129,7 +129,7 @@ Rule: **one single owner mutates directly** (with one documented pragmatic excep
   - **PR 6C — `src/features/read/{read-home, read-warmup, read-level-player}.ts` (`L11561–12762`).**
 - **Phase 7 — Input Bus, Keyboard Dock & Cleanup:**
   - **PR 7A — `src/app/{keyboard-dock, input-bus}.ts` (`L1798–2335`).**
-  - **PR 7B — Final shell cleanup:** `views-runtime.ts` (<1,500 lines) retains `syncWrite`, `storeApplyBackup`, `syncPayload`, and `show()`.
+  - **PR 7B — Final shell cleanup:** `views-runtime.ts` retains `syncWrite`, `storeApplyBackup`, `syncPayload`, and `show()`. Target was <1,500 lines; the accepted outcome is 2,344 lines (#130): what remains is the test-surface getter table, `show()` with teardown and `popstate`, the per-feature shell services objects and the factory creation blocks, which other files could only relist.
   - **PR 7C (optional) — Extract remaining feature selectors from `src/styles/etude.css`.**
 
 ---
