@@ -71,7 +71,8 @@ import {
   COF_COL, COF_FING, COF_MAJ, COF_MIN, COF_SCALE, COF_SOL,
   createCircleOfFifths, isCofFlavor, isCofMode,
 } from './circle-of-fifths.js';
-import { pickArturia, selectMidiInput } from './midi-input-selection.js';
+import { createMidiController } from '../infra/midi-controller.js';
+import { pickArturia } from './midi-input-selection.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
 import '../styles/reading.css';
@@ -414,14 +415,7 @@ function applyI18n() {
     queryAllHtml(document, '[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria ?? '')); });
     queryAllHtml(document, '[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle ?? ''); });
     // A status kept as a string key is said again in the new language (a lost piano still waits to come back).
-    if (midiMsg?.key)
-        midiStatus(midiMsg.key, midiMsg.cls, ...(midiMsg.args ?? []));
-    else if (!activeInputId) {
-        midiMsg = null;
-        const ss = byId('set-midi-status');
-        if (ss)
-            ss.textContent = t('midi_off');
-    }
+    midiController.localizeStatus();
     document.documentElement.lang = lang;
     renderModeNav();
     pianoStatus();
@@ -2045,7 +2039,7 @@ function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 interface PracticeStageState { on: boolean; kb: boolean | null; rz: number }
 const STAGE: PracticeStageState = { on: false, kb: null, rz: 0 };
 const SCORE_FOCUS: { owner: 'analysis' | 'read' | null; native: boolean; token: number; returnTo: HTMLElement | null; scroll: number; readOverride: boolean | null; zoom: number } = { owner: null, native: false, token: 0, returnTo: null, scroll: 0, readOverride: null, zoom: 1 };
-function midiLive() { return !!activeInputId || bleLive(); }
+function midiLive() { return !!midiController.state.activeInputId || bleLive(); }
 function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
 function dockOpen(v = view0()) { if (v === 'practice' && practiceHintPreview && practiceHintPreview.keys !== null)
     return practiceHintPreview.keys; if (dockForced(v))
@@ -2071,7 +2065,7 @@ function dockLabels() {
     dk.title = act;
     const label = dk.querySelector('.dock-kb-label');
     if (label) label.textContent = act;
-    const name = STAGE.on && midiLive() ? (activeInputId && midiMsg?.text) || bleName() : null;
+    const name = STAGE.on && midiLive() ? (midiController.state.activeInputId && midiController.state.midiMsg?.text) || bleName() : null;
     byId('dock-rail-note').textContent = name ? t('stage_rail_midi', name) : t('kb_rail_note');
     scoreFocusUi();
 }
@@ -2102,7 +2096,7 @@ function dockSync() {
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
     const exKbBtn = maybeById('ex-open-kb');
-    if (exKbBtn) exKbBtn.hidden = dockShown() || !!activeInputId || bleLive();
+    if (exKbBtn) exKbBtn.hidden = dockShown() || midiLive();
     if (open) {
         if (was && !wasOpen)
             dockReveal();
@@ -2349,169 +2343,43 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
 }
 function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
-let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; key?: string; args?: string[] }|null = null;
-let savedDeviceName: string | null = null;
-// The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
-// name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
-let midiLost: { id: string; name: string }|null = null, activeInputName = '';
-// A status in the user's language: the key and its arguments are kept so applyI18n can say it again after a language change.
-function midiStatus(key: string, cls: string, ...args: string[]) { setMidi(t(key, ...args), cls); if (midiMsg) {
-    midiMsg.key = key;
-    midiMsg.args = args;
-} }
-function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
-    s.textContent = text; midiChipSync(); }
-// The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
-function midiChipSync() {
-    const mt = byId('midiText'), md = byId('midiDot');
-    if (!mt || !md)
-        return;
-    if (!(midiMsg && midiMsg.cls === 'on') && bleLive()) {
-        mt.textContent = t('ble_on', bleName());
-        md.className = 'dot on';
-    }
-    else {
-        mt.textContent = midiMsg ? midiMsg.text : t('midi_connect');
-        md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
-    }
-    rdnReadySync();
-    anSyncPracticeLine();
-    const bleChip = maybeById('bleChip');
-    if (bleChip) bleChip.hidden = !bleCan() || bleLive();
-    const exKbBtn = maybeById('ex-open-kb');
-    if (exKbBtn) exKbBtn.hidden = dockShown() || !!activeInputId || bleLive();
-    if (STAGE.on || SES.active)
-        dockSync(); // a connected piano releases the keys a stage or drill opened
-}
-async function connectMidi()  {
-    ensureAudio();
-    if (!navigator.requestMIDIAccess) {
-        midiStatus('midi_unsupported', 'err');
-        return;
-    }
-    if (!window.isSecureContext)
-        midiStatus('midi_insecure', 'err');
-    try {
-        midiAccess = await navigator.requestMIDIAccess({ sysex: false });
-        midiAccess.onstatechange = onStateChange;
-        refreshDeviceList();
-    }
-    catch (err) {
-        console.error(err);
-        midiStatus(runtimeErrorName(err) === 'SecurityError' ? 'midi_blocked' :
-            runtimeErrorName(err) === 'NotAllowedError' ? 'midi_denied' : 'midi_unavail', 'err');
-    }
-}
-// Chrome keeps an unplugged port in the map with state 'disconnected': it is not an input until it is back.
-function listInputs() { return midiAccess ? [...midiAccess.inputs.values()].filter((i) => i.state !== 'disconnected') : []; }
-function refreshDeviceList() {
-    const sel = selectById('deviceSelect'), ins = listInputs();
-    sel.innerHTML = '';
-    if (!ins.length) {
-        sel.innerHTML = '<option>—</option>';
-        activeInputId = null;
-        if (midiLost)
-            midiStatus('midi_waiting', 'err', midiLost.name || 'MIDI');
-        else
-            midiStatus('midi_noinputs', 'err');
-        return;
-    }
-    ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
-    const preferredName = midiLost?.name || (savedDevice ? midiAccess?.inputs.get(savedDevice)?.name : null) || savedDeviceName;
-    const choice = selectMidiInput(ins, activeInputId, savedDevice, preferredName);
-    if (!choice)
-        return;
-    sel.value = choice.input.id;
-    attachInput(choice.input.id, choice.temporary);
-}
-function attachInput(id: string, temporary = false) {
-    const inputs = listInputs(), input = inputs.find(candidate => candidate.id === id);
-    if (!input) return;
-    if (activeInputId && activeInputId !== id) releaseLiveInput();
-    inputs.forEach(candidate => { candidate.onmidimessage = null; });
-    input.onmidimessage = onMidiMessage;
-    activeInputId = id;
-    activeInputName = input.name || '';
-    if (!temporary) {
-        midiLost = null;
-        savedDevice = id;
-        savedDeviceName = input.name || null;
-    }
-    setMidi(input.name, 'on');
-    saveAll();
-}
-function autoReconnectMidi() {
-    if (!navigator.permissions || !navigator.requestMIDIAccess)
-        return;
-    try {
-        const midiPermission: Parameters<Permissions['query']>[0] & { sysex: boolean } = { name: 'midi', sysex: false };
-        (navigator.permissions).query(midiPermission).then((p) => { if (p.state === 'granted')
-            connectMidi(); }).catch(() => { });
-    }
-    catch (_) { }
-}
-function onStateChange() { const was = activeInputId, ins = listInputs(), present = activeInputId && ins.some((i) => i.id === activeInputId); if (was && !present) {
-    if (!midiLost && was === savedDevice) // a stand-in that goes too leaves the preferred input remembered
-        midiLost = { id: was, name: activeInputName };
-    panic();
-    activeInputId = null;
-} refreshDeviceList(); }
-// A short message leaves the missing bytes NaN, which no comparison below matches (as `undefined` did).
-// The event's own timeStamp (performance.now() clock) is when the key went down; the handler can run a frame or more later.
-function onMidiMessage(e: MIDIMessageEvent) { if (!e.data)
-    return; const [st = NaN, d1 = NaN, d2 = NaN] = e.data; midiIn(st, d1, d2, 'midi', eventTime(e.timeStamp, performance.now())); }
-// One decoder for every transport (Web MIDI, Bluetooth MIDI): notes, sustain (CC64), mod wheel (CC1) and pitch bend.
-// at: when the message happened (performance.now() ms). Judges read it, less the source's calibrated offset, through inputTime().
-function midiIn(st: number, d1: number, d2: number, src: string, at = performance.now()) {
-    withInputTime(at, src === 'ble' ? 'ble' : 'usb', () => midiDispatch(st, d1, d2, src));
-}
-function midiNoteOff(source: string, channel: number, midi: number, mode?: 120 | 123) {
-    const channels = midiChannels.get(source);
-    if (!channels?.get(channel)?.delete(midi) || [...channels.values()].some(notes => notes.has(midi))) return;
-    handleNoteOff(midi, source, mode ? 'reset' : 'physical', mode === 120);
-    if (sustained.has(midi)) midiSustainOwners.set(midi, { source, channel });
-}
-function midiDispatch(st: number, d1: number, d2: number, src: string) {
-    if (!Number.isInteger(st) || st < 0x80 || st > 0xef || !Number.isInteger(d1) || !Number.isInteger(d2) || d1 < 0 || d1 > 127 || d2 < 0 || d2 > 127) return;
-    const cmd = st & 0xf0, channel = st & 0x0f;
-    if (cmd === 0x90 && d2 > 0) {
-        const channels = midiChannels.get(src) ?? new Map<number, Set<number>>();
-        const notes = channels.get(channel) ?? new Set<number>();
-        notes.add(d1);
-        channels.set(channel, notes);
-        midiChannels.set(src, channels);
-        handleNoteOn(d1, d2, src);
-        audioLockCheck();
-    }
-    else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0))
-        midiNoteOff(src, channel, d1);
-    else if (cmd === 0xE0)
-        setBendFromValue(((d2 << 7) | d1) - 8192);
-    else if (cmd === 0xB0) {
-        if (d1 === 64) {
-            const dn = d2 >= 64;
-            const changed = pedalDown !== dn;
-            if (pedalDown && !dn)
-                pedalUp();
-            pedalDown = dn;
-            if (changed && view0() === 'analysis' && !calListening() && !overlaysOpen())
-                pracSustainInput(dn);
-        }
-        else if (d1 === 120 || d1 === 123) {
-            for (const midi of midiChannels.get(src)?.get(channel) ?? []) midiNoteOff(src, channel, midi, d1);
-            if (d1 === 120) {
-                for (const [midi, owner] of midiSustainOwners) {
-                    if (owner.source !== src || owner.channel !== channel) continue;
-                    midiSustainOwners.delete(midi);
-                    sustained.delete(midi);
-                    if (!held.has(midi)) audioEngine.silenceNote(midi);
-                }
-            }
-        }
-        else if (d1 === 1)
-            audioEngine.setModulation((d2 / 127) * 35);
-    }
-}
+const midiController = createMidiController({
+    t,
+    ensureAudio,
+    audioLockCheck,
+    releaseLiveInput,
+    panic,
+    saveAll: () => saveAll(),
+    onNoteOn: (midi, velocity, source) => handleNoteOn(midi, velocity, source),
+    onNoteOff: (midi, source, releaseKind, silence) => handleNoteOff(midi, source, releaseKind, silence),
+    onPitchBend: (value) => setBendFromValue(value),
+    onModulation: (depth) => audioEngine.setModulation(depth),
+    onSustainChange: (dn) => {
+        if (view0() === 'analysis' && !calListening() && !overlaysOpen()) pracSustainInput(dn);
+    },
+    silenceNote: (midi) => audioEngine.silenceNote(midi),
+    getPedalDown: () => pedalDown,
+    setPedalDown: (dn) => { pedalDown = dn; },
+    pedalUp,
+    midiChannels,
+    midiSustainOwners,
+    sustained,
+    held,
+    isBleCan: () => bleCan(),
+    isBleLive: () => bleLive(),
+    getBleName: () => bleName(),
+    isDockShown: () => dockShown(),
+    onChipSync: () => {
+        rdnReadySync();
+        anSyncPracticeLine();
+        if (STAGE.on || SES.active) dockSync(); // a connected piano releases the keys a stage or drill opened
+    },
+    runtimeErrorName,
+});
+const {
+    midiStatus, setMidi, midiChipSync, connectMidi, listInputs, refreshDeviceList,
+    attachInput, autoReconnectMidi, onStateChange, onMidiMessage, midiIn, midiDispatch, midiNoteOff,
+} = midiController;
 /* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ---------- */
 function calRecord(): Record<string, unknown> { return data; }
 useLatencyOffsets(() => calRecord().latency);
@@ -4925,7 +4793,7 @@ function updateExplore() {
     drawExploreStaff(notes, spell, keyCtx, spelledNotes);
     cofNow(notes, chord);
     const exKbBtn = maybeById('ex-open-kb');
-    if (exKbBtn) exKbBtn.hidden = dockShown() || !!activeInputId || bleLive();
+    if (exKbBtn) exKbBtn.hidden = dockShown() || midiLive();
 }
 /* ---------- CIRCLE OF FIFTHS (Explore: the key picker beside the staff) ---------- */
 const cofController = createCircleOfFifths({
@@ -20385,7 +20253,7 @@ function syncRefresh() {
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, scoreViewExplicit: scoreLayoutExplicit, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: midiController.state.savedDevice, deviceName: midiController.state.savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, scoreViewExplicit: scoreLayoutExplicit, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
     if (reloadingForRestore || STORE.blocked) {
         if (replacement)
@@ -20753,7 +20621,6 @@ async function storeDiagnostics(): Promise<string> {
     catch (_) { }
     const standalone = pwaStandalone();
     const u = STORE.usage, snaps = STORE.snaps.filter(x => x.reason !== 'unreadable'), last = storeLastExport();
-    const inputs = midiAccess ? [...midiAccess.inputs.values()].map(i => (i.name || i.id) + (i.id === activeInputId ? ' (active)' : '')) : [];
     const ctx = audioEngine.context;
     return [
         'App version: ' + version,
@@ -20763,7 +20630,7 @@ async function storeDiagnostics(): Promise<string> {
         'Saving: ' + (STORE.blocked ? 'stopped (' + STORE.blocked + ')' : STORE.failed ? 'failing' : 'ok') + (STORE.unreadable ? ', unreadable record kept' : ''),
         'Automatic backups: ' + snaps.length + (snaps[0] ? ', newest ' + new Date(snaps[0].id).toISOString() : ''),
         'Last export: ' + (last ? new Date(last).toISOString() : 'never'),
-        'MIDI: ' + (midiAccess ? (inputs.join(', ') || 'no inputs') : 'not connected'),
+        midiController.describeInputs(),
         'Bluetooth MIDI: ' + (bleLive() ? bleName() : 'not connected'),
         'Audio: ' + (ctx ? ctx.state + ', ' + ctx.sampleRate + ' Hz' + storeMs(', base ', ctx.baseLatency) + storeMs(', output ', ctx.outputLatency) : 'not started'),
         'Browser: ' + navigator.userAgent,
@@ -20803,8 +20670,7 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
     audioEngine.reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, audioEngine.reverbWet);
     audioEngine.applyOutputMix();
     metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
-    savedDevice = typeof raw.device === 'string' && raw.device ? raw.device : null;
-    savedDeviceName = savedDevice && typeof raw.deviceName === 'string' && raw.deviceName ? raw.deviceName : null;
+    midiController.restoreSavedDevice(raw.device, raw.deviceName);
     if (raw.scoreLook === 'paper' || raw.scoreLook === 'night')
         SCORE.look = raw.scoreLook;
     if (typeof raw.scoreHl === 'boolean')
@@ -21981,7 +21847,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "accompTick": () => accompTick,
   "accompTimer": () => accompTimer,
   "accompVoicing": () => accompVoicing,
-  "activeInputId": () => activeInputId,
+  "activeInputId": () => midiController.state.activeInputId,
   "actx": () => audioEngine.context,
   "anAccent": () => scoreFeature?.harmony.anAccent,
   "anActiveChord": () => anActiveChord,
@@ -22397,10 +22263,10 @@ const __etudeGetters: Record<string, () => unknown> = {
   "masteredCount": () => masteredCount,
   "metroClick": () => metroClick,
   "metroSched": () => metroSched,
-  "midiAccess": () => midiAccess,
+  "midiAccess": () => midiController.state.midiAccess,
   "midiChipSync": () => midiChipSync,
   "midiIn": () => midiIn,
-  "midiMsg": () => midiMsg,
+  "midiMsg": () => midiController.state.midiMsg,
   "muted": () => audioEngine.muted,
   "neutral": () => neutral,
   "newItemsAvail": () => newItemsAvail,
@@ -22625,7 +22491,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "sampledPianoVoice": () => sampledPianoVoice,
   "saveAll": () => saveAll,
   "saveSoon": () => saveSoon,
-  "savedDevice": () => savedDevice,
+  "savedDevice": () => midiController.state.savedDevice,
   "scaleDisp": () => scaleDisp,
   "scaleEarOptions": () => scaleEarOptions,
   "scaleFormula": () => scaleFormula,
