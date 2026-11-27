@@ -141,6 +141,14 @@ export function createProgressFeature(host: AppHost, shell: ProgressShell): Prog
 
   // The view module loads on the first visit and is kept; the signal drops a render for a view left meanwhile.
   async function enter(_params: Readonly<Record<string, unknown>> | undefined, signal: AbortSignal): Promise<void> {
+    try {
+      await shell.prepareReport();
+    }
+    catch {
+      if (!signal.aborted) host.overlays.showLoadError(async () => { await show('progress'); });
+      return;
+    }
+    if (signal.aborted) return;
     if (!progressView) {
       let module: typeof import('../../domain/progress-view.js');
       try {

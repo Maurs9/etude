@@ -5,6 +5,7 @@ import type { identifyChord as identifyChordFn } from './theory.js';
 import type { Localised } from '../locales/content-types.js';
 import type { TechniqueKind } from './technique.js';
 import type { TrainerItem } from '../core/trainer-items.js';
+import type { ReadDrillLevel } from '../core/reading-curriculum.js';
 import type { buildPracticeReport } from './progress-report.js';
 import type { LibraryItem } from './score-library-types.js';
 import type { AnalysisRoute, AppView } from './router.js';
@@ -713,10 +714,125 @@ export interface ProgressShell {
   readonly rdRenderStats: () => void;
   readonly localeTag: () => string;
   readonly startReview: () => void;
+  readonly prepareReport: () => Promise<void>;
 }
 
 export interface ProgressController extends FeatureController {
   render(): void;
+}
+
+/**
+ * Shell services the lazy Read feature (Read & play, reading drills, the Read home, warm-up and level pieces) needs beyond
+ * `AppHost`: keyboard and dock state, score focus and the full-screen stage, persistence checks for the attempt ledger,
+ * coaching, and the shared helpers that stay in the shell.
+ */
+export interface ReadShell {
+  readonly audioEngine: AudioEngine;
+  readonly keyboardView: { low: number; oct: number };
+  readonly keyEl: Map<number, HTMLButtonElement>;
+  readonly held: Set<number>;
+  readonly inputOwners: Map<number, Set<string>>;
+  readonly baseLow: number;
+  readonly baseHigh: number;
+  readonly metroState: { bpm: number; on: boolean; timer: unknown };
+  readonly scoreFocus: ScoreFocusState;
+  readonly stage: { on: boolean; kb: boolean | null; rz: number };
+  readonly letters: Readonly<Record<NotationSystem, readonly string[]>>;
+  readonly view0: () => string;
+  readonly todayN: () => number;
+  readonly labelMode: () => string;
+  readonly strings: () => Readonly<Record<string, Readonly<Record<string, string>>>>;
+  readonly ensureAudio: (warm?: boolean) => AudioContext | null;
+  readonly audioLockCheck: () => void;
+  readonly kbState: (midi: number, state: string | null, fold: boolean) => void;
+  readonly kbClear: (state: string) => void;
+  readonly buildKeyboard: () => void;
+  readonly repaintHeld: () => void;
+  readonly foldToView: (midi: number) => number;
+  readonly dockKeyInSight: (midi: number) => void;
+  readonly dockForced: () => boolean;
+  readonly setDockForced: (on: boolean) => void;
+  readonly anLayoutVars: () => void;
+  readonly syncMobileStartBars: () => void;
+  readonly touchInput: (event: Event, fn: () => void) => void;
+  readonly inField: () => boolean;
+  readonly panic: () => void;
+  readonly appConfirm: (message: string) => Promise<boolean>;
+  readonly scoreFocusUi: () => void;
+  readonly scoreFocusExit: (quiet?: boolean) => void;
+  readonly scoreFocusEnter: (owner: 'analysis' | 'read', target: HTMLElement, manual?: boolean) => void;
+  readonly readScoreZoom: (value?: number) => void;
+  readonly rdFocusDispSet: (open: boolean, focusBack?: boolean) => void;
+  readonly touchDay: () => void;
+  readonly markReadDoneToday: (save?: boolean) => void;
+  readonly storeDaily: () => void;
+  readonly storeBlocked: () => boolean;
+  readonly storeBackupBlocked: () => boolean;
+  readonly progressGeneration: () => string;
+  readonly savedGeneration: () => string;
+  readonly setWeakSpotInjection: (on: boolean) => void;
+  readonly learnLessonsDone: () => number;
+  readonly currentStreak: () => number;
+  readonly masteredCount: () => number;
+  readonly itemLabel: (item: { cat: string; semi?: number; ref?: ChordTemplate | ProgressionTemplate; name?: string }) => string;
+  readonly withPractice: (fn: (practice: PracticeController) => void) => void;
+  readonly catLabel: (cat: string) => string;
+  readonly rdData: () => ReadDrillData;
+  readonly rdLvName: (level: ReadDrillLevel) => string;
+  readonly rdStarCount: (value: unknown) => number;
+  readonly rdEsc: (value: string | number | undefined) => string;
+  readonly statHTML: (value: string | number, label: string) => string;
+  readonly srPieceTitle: (piece: { id?: string; t?: Localised<string> }) => string;
+  readonly spelledName: (sys: NotationSystem, letter: number, accidental: number, ascii?: boolean) => string;
+  readonly tl: (lang: string, key: string, a?: string | number | null, b?: string | number | null) => string;
+  readonly anNum: (x: number, digits: number) => string;
+  readonly coachHTML: (lead: string, tip: CoachTip, actId?: string) => string;
+  readonly coachText: (tip: CoachTip) => string;
+  readonly registerCoach: (refresh: () => void) => () => void;
+}
+
+/** The Read controller: `FeatureController` plus the synchronous hooks the shell calls while it is loaded. */
+export interface ReadController extends FeatureController {
+  isPendingSaveProtected(): boolean;
+  isPendingSaveState(): boolean;
+  abandonClaim(): Promise<{ readonly ok: boolean }>;
+  hasPiece(): boolean;
+  svg(): SVGSVGElement | null;
+  firstSightActive(): boolean;
+  autoCancel(): void;
+  stageSync(): void;
+  stageRefit(): void;
+  stageResize(): void;
+  /** Read's keyboard shortcuts (stage, drills, home); true when the key was used. */
+  key(event: KeyboardEvent, key: string): boolean;
+  trackHeldSource(source: string): void;
+  /** Level-piece start and first-sight recording, before view routing; true when the note was consumed. */
+  preInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: InputReleaseKind): boolean;
+  /** Warm-up, rhythm, drill and Read & play input while Read is shown; true when the note was consumed. */
+  viewInput(kind: 'on' | 'off', midi: number, lastHeld: number | undefined): boolean;
+  releaseFocus(): void;
+  panicBegin(): void;
+  panicRecorder(): void;
+  panicRhythm(): void;
+  panicStopAll(): void;
+  stopForNavigation(): void;
+  readySync(): void;
+  dockView(): void;
+  dockPaint(): void;
+  watchAudioContext(context: AudioContext): void;
+  relocalizePiece(): void;
+  onNotation(): void;
+  onLocale(): void;
+  forgetBook(book: unknown): void;
+  reflectSettings(): void;
+  releaseRecorder(kind: 'focus'): void;
+  fit(): void;
+  setAnyOctave(on: boolean): void;
+  redraw(): void;
+  /** The phone's start bar for Read & play: whether a piece is ready to start, and its mode and tempo. */
+  mobileBar(): { ready: boolean; summary: string };
+  collectPracticeReport(buildReport: typeof buildPracticeReport, libraryItems?: readonly LibraryItem[]): ReturnType<typeof buildPracticeReport>;
+  renderStats(): void;
 }
 
 declare global {
