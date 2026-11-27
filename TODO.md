@@ -87,39 +87,42 @@ main/
 │   ├── manifest.webmanifest
 │   ├── icons/
 │   └── vendor/
-│       └── osmd-2.3.1.min.js   # OpenSheetMusicDisplay 2.3.1 (lazy-loaded)
+│       └── osmd-3.0.0.min.js   # OpenSheetMusicDisplay 3.0.0 (lazy-loaded)
 ├── src/                        # Codul sursă al aplicației
 │   ├── assets/
-│   │   ├── fonts/              # 8 subseturi WOFF2 (Fraunces + Hanken Grotesk)
+│   │   ├── fonts/              # 6 subseturi WOFF2 (Bodoni Moda + Mr De Haviland)
 │   │   └── piano/              # 30 sample-uri MP3 Salamander Grand Piano v3
-│   ├── domain/                 # Module TypeScript stricte (audio, dom, notation, router, storage, theory, views, views-runtime)
-│   ├── locales/                # Traduceri și conținut EN / RO sincron
-│   └── styles/                 # etude.css + fonts.css
+│   ├── domain/                 # Module TypeScript stricte pe domenii (audio, dom, notation, router, storage, theory, views, views-runtime, score-*, practice-*, technique*, etc.)
+│   ├── sight-reading/          # Generatoare, niveluri, evaluare, progresie și încălzire Read
+│   ├── locales/                # Traduceri și conținut multi-limbă (agregate + payload-uri generate)
+│   └── styles/                 # CSS partajat și pe funcționalități + fonts.css
 ├── i18n/                       # Pachetul suplimentar multi-limbă (DE, ES, FR, IT, PT-BR)
 │   ├── i18n-extra.js
 │   ├── framework/              # Runtime și loader i18n
 │   ├── tests/                  # Teste pentru pachetul i18n (npm run test:i18n)
 │   └── {de,es,fr,it,pt-BR}/
-├── scripts/                    # Scripturi de build, verificare și actualizare automată
+├── scripts/                    # Scripturi de build, verificare, performanță și actualizare automată
 │   ├── build.mjs
 │   ├── build-standalone.mjs
 │   ├── check-ts-suppressions.mjs
 │   ├── generate-sw.mjs
+│   ├── perf-baseline.mjs
 │   ├── split-etude.mjs
 │   ├── sw-kill-switch.js
 │   ├── update-deps.mjs
 │   └── update-osmd.mjs
 ├── tests/                      # Suita de teste organizată pe categorii
-│   ├── unit/                   # 15 fișiere de teste unitare Vitest (*.test.mjs)
-│   ├── e2e/                    # 10 fișiere E2E generale Playwright (*.spec.mjs)
-│   │   └── sight-reading/      # 14 fișiere E2E dedicate Sight-Reading (*.spec.mjs)
+│   ├── unit/                   # 73 fișiere de teste unitare Vitest (*.test.mjs)
+│   ├── e2e/                    # 67 fișiere E2E generale Playwright (*.spec.mjs)
+│   │   └── sight-reading/      # 15 fișiere E2E dedicate Sight-Reading (*.spec.mjs)
 │   ├── helpers/                # Fixture-uri Playwright și helperi de audit
 │   ├── fixtures/               # Fișiere MusicXML / MXL și save-uri de test
 │   └── golden/                 # Hash-uri golden MP3 și layout-uri partituri pe OS
 └── docs/                       # Documentație esențială
     ├── i18n/                   # Documentație i18n
-    ├── plans/                  # Planul activ de arhitectură și migrare
-    └── runbooks/               # Runbook-uri operaționale (sw-kill-switch.md)
+    ├── performance/            # Dovezi și proceduri de benchmark
+    ├── plans/                  # Planuri active de arhitectură și migrare
+    └── runbooks/               # Runbook-uri operaționale (device-smoke, android-twa, dependency-audit, sw-kill-switch)
 ```
 
 ---
@@ -128,27 +131,27 @@ main/
 
 ### A. Dependențe de Build, Lint, Typecheck & Test (`package.json` → `devDependencies`)
 
-| # | Pachet npm | Versiune la zi | Rol în proiect | Observații |
+| # | Pachet npm | Versiune în `package.json` | Rol în proiect | Observații |
 |---:|---|---|---|---|
-| **1** | `vite` | `^8.3.6` (`8.3.6`) | Bundler aplicație și dev server (`base: './'`) | Ultima versiune stabilă |
+| **1** | `vite` | `^8.3.8` (`8.3.8`) | Bundler aplicație și dev server (`base: './'`) | Lockfile autoritar (`npm run deps:check`) |
 | **2** | `typescript` | `^6.0.3` (`6.0.3`) | Typechecker strict (`tsc --noEmit`) + AST checker | Ultima versiune 6.x (`7.0.x` elimină API-ul JS cerut de `typescript-eslint`) |
-| **3** | `vitest` | `^5.1.0` (`5.1.0`) | Runner pentru testele unitare (`tests/unit/`) | Ultima versiune stabilă |
-| **4** | `@playwright/test` | `1.65.0` (`1.65.0`) | Runner E2E, Service Worker (`@sw`) și teste golden | Actualizat de la `1.64.1` → `1.65.0` |
-| **5** | `eslint` | `^10.14.0` (`10.14.0`) | Linter static pentru granițele dintre domenii | Ultima versiune stabilă |
+| **3** | `vitest` | `^5.1.1` (`5.1.1`) | Runner pentru testele unitare (`tests/unit/`) | Lockfile autoritar |
+| **4** | `@playwright/test` | `1.65.0` (`1.65.0`) | Runner E2E, Service Worker (`@sw`) și teste golden | Fixat exact la `1.65.0` |
+| **5** | `eslint` | `^10.15.0` (`10.15.0`) | Linter static pentru granițele dintre domenii | Ultima versiune stabilă |
 | **6** | `@eslint/js` | `^10.0.1` (`10.0.1`) | Regulile recomandate ECMAScript pentru ESLint | Ultima versiune stabilă |
-| **7** | `typescript-eslint` | `^8.72.1` (`8.72.1`) | Parser și reguli TypeScript (`no-explicit-any`) | Ultima versiune stabilă |
-| **8** | `eslint-plugin-import-x` | `^4.18.1` (`4.18.1`) | Previne ciclurile de import (`import-x/no-cycle`) | Actualizat de la `4.18.0` → `4.18.1` |
+| **7** | `typescript-eslint` | `^8.73.0` (`8.73.0`) | Parser și reguli TypeScript (`no-explicit-any`) | Lockfile autoritar |
+| **8** | `eslint-plugin-import-x` | `^4.18.1` (`4.18.1`) | Previne ciclurile de import (`import-x/no-cycle`) | Ultima versiune stabilă |
 | **9** | `globals` | `^17.14.0` (`17.14.0`) | Definițiile globalelor de browser și Node pentru ESLint | Ultima versiune stabilă |
 | **10** | `acorn` | `^8.19.0` (`8.19.0`) | Parser AST ECMAScript folosit în scripturi și teste | Ultima versiune stabilă |
-| **11** | `@types/node` | `^26.6.6` (`26.6.6`) | Tipuri Node.js pentru scripturile și testele din repo | Ultima versiune stabilă |
+| **11** | `@types/node` | `^26.6.6` (`26.6.6`) | Tipuri Node.js pentru scripturile și testele din repo | Lockfile autoritar |
 
 ### B. Dependențe Runtime / Vendor (care ajung în browserul utilizatorului)
 
 | # | Componentă | Versiune actuală | Locație în proiect | Sub-dependențe / Detalii | Licență |
 |---:|---|---|---|---|---|
-| **1** | **OpenSheetMusicDisplay (OSMD)** | `2.3.1` | `public/vendor/osmd-2.3.1.min.js` (încărcat la cerere prin `src/domain/notation.ts`) | Include intern 4 biblioteci: **VexFlow** (`1.2.93` fork OSMD), **JSZip** (`3.10.2`), **loglevel** (`^1.8.0`), **typescript-collections** (`^1.3.3`) | BSD-3-Clause (PhonicScore) + MIT (sub-dependențe) |
+| **1** | **OpenSheetMusicDisplay (OSMD)** | `3.0.0` | `public/vendor/osmd-3.0.0.min.js` (încărcat la cerere prin `src/domain/notation.ts`) | Include intern 4 biblioteci: **VexFlow** (`1.2.93` fork OSMD), **JSZip** (`3.10.2`), **loglevel** (`^1.8.0`), **typescript-collections** (`^1.3.3`) | BSD-3-Clause (PhonicScore) + MIT (sub-dependențe) |
 | **2** | **Salamander Grand Piano v3** | `v3` | `src/assets/piano/21.mp3` … `108.mp3` (30 fișiere) | Note din 3 în 3 semitonuri; integritate păzită de `tests/golden/piano-recordings.json` | CC BY 3.0 (Alexander Holm / Tone.js) |
-| **3** | **Fonturi WOFF2 auto-găzduite** | Static (`v1`) | `src/assets/fonts/*.woff2` + `src/styles/fonts.css` | **Fraunces** (normal + italic, `latin` + `latin-ext`) și **Hanken Grotesk** (`latin` + `latin-ext`) | SIL Open Font License 1.1 |
+| **3** | **Fonturi WOFF2 auto-găzduite** | Static (`v2`) | `src/assets/fonts/*.woff2` (6 fișiere) + `src/styles/fonts.css` | **Bodoni Moda** (normal + italic, `latin` + `latin-ext`) și **Mr De Haviland** (`latin` + `latin-ext`) | SIL Open Font License 1.1 |
 | **4** | **Glife SMuFL Bravura** | Static | Contururi SVG `CLEF_G` și `CLEF_F` în cod | Cheia Sol și cheia Fa pentru portativul rapid SVG | SIL Open Font License 1.1 |
 
 ---
