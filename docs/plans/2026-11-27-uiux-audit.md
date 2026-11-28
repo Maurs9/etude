@@ -237,18 +237,27 @@ Fiecare pas se implementează separat, cu `npm run lint`, `npm run test:unit` ș
 - Variantele din Învață sunt simulări CSS. Nu au fost testate lecții cu widget-uri late.
 
 ## 10. Stare implementare
-- 2026-11-28: top 1-5 implementate și mergeuite în `main` prin PR https://github.com/Maurs9/etude/pull/139 (merge commit `58bf389`).
-- Top 3 = varianta C (aliniere + coloană dreaptă), aleasă de owner. Top 4 = doar opțiunile exercițiilor pliate. Comutatoarele din Generator rămân la vedere, pentru că se folosesc în timpul cântatului.
-- Lint, typecheck, test:unit, test:i18n și npm test verzi pe branch. CI verde pe PR.
+- 2026-11-28: top 1-5 au intrat în `main` prin PR #139 (merge `58bf389`). Top 3 = varianta C (aliniere + coloană dreaptă), aleasă de owner. Top 4 = doar opțiunile exercițiilor pliate. Comutatoarele din Generator rămân la vedere, pentru că se folosesc în timpul cântatului.
+- 2026-11-28: lotul S a intrat în `main` prin PR #140 (merge `62a76bb`):
+  - P10: iconițele capitolelor;
+  - R1 și R2: fără accent pe rândul de stare, cuprins fără titlurile widget-urilor;
+  - P7: numele RO ale taburilor („Exerciții de citire”, „Prima vedere”);
+  - P11: restul de accesibilitate;
+  - P2: banda de stare pe toate taburile, cu unitatea „piese”;
+  - P5: Start pe cardul nivelului;
+  - P13: mesajul de microfon vizibil;
+  - P14: lățimea Piese.
+- 2026-11-28: lotul M este în PR #141: P6 (unitățile cărții pliate) și P12 (o singură oprire Tab pentru listele lungi).
+- Lint, typecheck, test:unit și npm test verzi pe fiecare branch. CI verde pe PR-uri.
 
 ## 11. Rămase pentru un PR separat
 
 | # | Ecran | Problemă | Dovadă | Propunere | Cost |
 |---|---|---|---|---|---|
-| R1 | Citește > Carte | După încălzire, accentul „următorul pas” cade pe rândul 2 „Setul de azi”, care nu se poate apăsa. Start este în coloana stângă. | `src/features/read/read-home.ts` (`data-next` pe `.rdn-set-step`) | Accentul trece pe butonul Start, sau rămâne așa dacă e intenționat. Decizia ta. | S |
-| R2 | Învață | Titlurile widget-urilor (Metronom, Gamă, Acord) apar în cuprinsul „Pe această pagină” ca și cum ar fi secțiuni. | `src/features/learn/index.ts` (`learnRailHeads`), `learn-widgets.ts:229, 247, 299` | Exclus `[data-widget] h4` din cuprins, dacă vrei doar secțiuni. | S |
-| R3 | Citește > Generator | Tabul se deschide fără melodie, 4 clicuri până la sunet (rest din P4). | `shots/read-pieces_1280_light_en.png` | Generează o melodie la prima vizită din sesiune, sau arată ultima. | S |
+| R3 | Citește > Generator | Tabul se deschide fără melodie, 4 clicuri până la sunet (rest din P4). | `shots/read-pieces_1280_light_en.png` | Generează o melodie la prima vizită din sesiune, sau arată ultima. Cere o decizie de produs. | S |
 | R4 | Citește > Generator | După generare, „Ambele mâini” și „Mâna stângă” devin gri fără motiv afișat (rest din P4). | `SP/agents/ux/f4_sr.png` | Un rând cu motivul, sau ascunderea opțiunilor indisponibile. | S |
-| R5 | Teste | Două teste e2e pică uneori sub încărcarea suitei complete: `pieces.spec.mjs:673` (pică și pe `main`, 2 din 4) și `sight-reading/claim-races.spec.mjs:33`. | logurile din `SP/e2e-*.log` | Stabilizare separată. | S-M |
+| R5 | Teste | Două teste e2e pică uneori sub încărcarea suitei complete: `pieces.spec.mjs:673` (pică și pe `main`) și `sight-reading/claim-races.spec.mjs:33`. | logurile e2e | Stabilizare separată. | S-M |
+| R6 | Citește | P2 a păstrat cele două lede-uri. Un lede scurt comun ar cere mutarea descrierii exercițiilor în hero-ul lor. | `etude.html:170-171` | Lede comun și descrierea mutată în hero. | S |
+| R7 | Învață | Unele simboluri muzicale din textul lecțiilor (de exemplu dublu diez) nu au font, la fel ca vechile iconițe. | `src/locales/content.ts` | SVG inline sau un font cu aceste glife. | S-M |
 
-Restul propunerilor din audit care nu au intrat în top 5 rămân valabile: P1 complet, P2, P5, P6, P7, P10, P12, P13, P14 și restul din P11.
+Nu recomand acum P1 complet (P1a a rezolvat partea importantă).
