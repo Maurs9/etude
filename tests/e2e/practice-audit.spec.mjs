@@ -109,8 +109,11 @@ test('Drill again restores an interval direction after reload', async ({ app, pa
   await page.locator('#q-answers button').first().click();
   await page.locator('#ses-end').click();
   await page.reload();
+  // Wait for the app to boot again, as app.open does: on the dev server the modules can still be loading, and a click on
+  // the server-drawn button would then reach no handler (and window.__etude would not exist yet).
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
   await page.locator('#pr-redo').click();
-  expect(await page.evaluate(() => window.__etude.SES.q.dir)).toBe('desc');
+  await expect.poll(() => page.evaluate(() => window.__etude.SES?.q?.dir)).toBe('desc');
 });
 
 test('backgrounding a rhythm round leaves it ungraded and silent input has no timing judgment', async ({ app, page }) => {
