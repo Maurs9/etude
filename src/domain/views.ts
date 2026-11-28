@@ -582,6 +582,9 @@ export interface ScorePlayerController extends FeatureController {
   relocalize(): void;
   /** Re-words the practice summary's next-step tip (language or note names changed). */
   refreshCoach(): void;
+  inspectLibraryFile(file: File): Promise<import('./score-library-types.js').LibraryMetadata>;
+  flushLibrary(): Promise<void>;
+  refreshLibrary(): Promise<void>;
   localizeLibrary(): void;
   onScreenChange(flipped: boolean): void;
 }

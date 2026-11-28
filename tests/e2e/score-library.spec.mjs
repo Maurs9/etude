@@ -28,6 +28,30 @@ async function openRow(page, title) {
   await settled(page);
 }
 
+async function exportFromSettings(page) {
+  await page.locator('#settingsBtn').click();
+  const pending = page.waitForEvent('download');
+  await page.locator('#exportBtn').click();
+  const backup = await pending;
+  const bytes = readFileSync(await backup.path());
+  await page.locator('#drawerClose').click();
+  return bytes;
+}
+
+async function selectBackup(page, bytes) {
+  await page.locator('#settingsBtn').click();
+  const pending = page.waitForEvent('filechooser');
+  await page.locator('#importBtn').click();
+  await (await pending).setFiles({ name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(bytes) });
+}
+
+async function restoreLegacyLibrary(page, bytes) {
+  await selectBackup(page, bytes);
+  expect((await handleAppDialog(page, 'accept', { waitHidden: false })).type).toBe('confirm');
+  expect((await handleAppDialog(page)).type).toBe('alert');
+  await page.locator('#drawerClose').click();
+}
+
 test('library multi-import is persistent, searchable, duplicate-safe, and resumes each piece after reload', async ({ app, page }) => {
   await app.open({ hash: 'analysis', lang: 'ro' });
   await expect(page.locator('#an-tab-builtin')).toHaveAttribute('aria-selected', 'true');
@@ -199,35 +223,59 @@ test('ordinary file opening saves the original once and does not disturb progres
   await page.evaluate(() => window.__etude.anLibraryFlush());
 });
 
-test('library backup transfers originals, favorites and resume state to a separate browser context', async ({ app, page, browser }) => {
-  await app.open({ hash: 'analysis', lang: 'ro' });
+test('Settings backup transfers progress, score originals, favorites, notes and resume state', async ({ app, page, browser }) => {
+  await app.open({ hash: 'analysis', saved: { v: 3, lang: 'ro', data: { totalReviews: 7 } } });
   await library(page);
   await page.locator('#library-files').setInputFiles(file('alpha.xml'));
   await expect(rows(page)).toHaveCount(1);
   await rows(page).locator('[data-library-action=favorite]').click();
   await settled(page);
   await openRow(page, 'Library Alpha');
-  await page.evaluate(async () => { window.__etude.FALL.position = 2; await window.__etude.anLibraryFlush(); });
-  await library(page);
-  const pending = page.waitForEvent('download');
-  await page.locator('#library-backup').click();
-  const backup = await pending;
-  const bytes = readFileSync(await backup.path());
+  await page.evaluate(async () => {
+    const { FALL, scoreLibraryStore } = window.__etude;
+    FALL.position = 2;
+    const [item] = await scoreLibraryStore.libraryList();
+    await scoreLibraryStore.libraryUpdate(item.id, { notes: 'Măsura 2' });
+  });
+  // Opening Settings from the player exports the latest checkpoint.
+  const bytes = await exportFromSettings(page);
   const parsed = JSON.parse(bytes.toString());
-  expect(parsed).toMatchObject({ app: 'etude-score-library', version: 1 });
-  expect(parsed.files).toHaveLength(1);
-  await settled(page);
+  expect(parsed).toMatchObject({
+    app: 'etude-backup', version: 1,
+    progress: { v: 3, data: { totalReviews: 7 } },
+    library: { app: 'etude-score-library', version: 1 },
+  });
+  expect(parsed.library.files).toHaveLength(1);
   const context = await browser.newContext({ serviceWorkers: 'block' });
   try {
     const other = await context.newPage();
-    await other.goto(page.url());
+    await other.goto(new URL('#analysis', page.url()).href);
     await other.waitForFunction(() => !!window.__etude?.show);
     await library(other);
     await expect(rows(other)).toHaveCount(0);
-    await other.locator('#library-restore').setInputFiles({ name: 'etude-library.json', mimeType: 'application/json', buffer: bytes });
+    await expect(other.locator('.score-library-transfer')).toHaveCount(0);
+    for (const invalid of [
+      { ...parsed, progress: { v: 3, data: { totalReviews: 'invalid' } } },
+      { ...parsed, library: { ...parsed.library, files: [{}] } },
+    ]) {
+      await selectBackup(other, JSON.stringify(invalid));
+      expect(await handleAppDialog(other)).toMatchObject({ type: 'alert', message: /doesn’t look like an Étude backup/ });
+      await other.locator('#drawerClose').click();
+      await expect(rows(other)).toHaveCount(0);
+      expect(await other.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(0);
+    }
+    await selectBackup(other, bytes);
+    const reloaded = other.waitForEvent('load');
+    expect((await handleAppDialog(other, 'accept', { waitHidden: false })).type).toBe('confirm');
+    await reloaded;
+    await other.waitForFunction(() => !!document.querySelector('#keys .key'));
+    await expect(other.locator('#drawer')).toHaveAttribute('aria-hidden', 'false');
+    await other.locator('#drawerClose').click();
+    await library(other);
+    expect(await other.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(7);
     await expect(rows(other)).toHaveCount(1);
-    await settled(other);
     await expect(rows(other).locator('[data-library-action=favorite]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(rows(other).locator('.score-library-user-note')).toContainText('Măsura 2');
     await openRow(other, 'Library Alpha');
     expect(await other.evaluate(() => window.__etude.FALL.position)).toBe(2);
     const stored = await other.evaluate(async () => {
@@ -235,9 +283,44 @@ test('library backup transfers originals, favorites and resume state to a separa
       return (await lib.libraryGet((await lib.libraryList())[0].id)).file.text();
     });
     expect(stored).toBe(score());
-    await other.locator('#library-restore').setInputFiles({ name: 'etude-library.json', mimeType: 'application/json', buffer: bytes });
-    await settled(other);
+    await library(other);
+    await restoreLegacyLibrary(other, JSON.stringify(parsed.library));
     await expect(rows(other)).toHaveCount(1);
+  } finally { await context.close(); }
+});
+
+test('Settings reports a partial restore if saving progress fails and retries without duplicate scores', async ({ app, page, browser }) => {
+  await app.open({ hash: 'analysis', saved: { v: 3, data: { totalReviews: 7 } } });
+  await page.locator('#library-files').setInputFiles(file('alpha.xml'));
+  await expect(rows(page)).toHaveCount(1);
+  const bytes = await exportFromSettings(page);
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  try {
+    const other = await context.newPage();
+    await other.goto(new URL('#today', page.url()).href);
+    await other.waitForFunction(() => !!document.querySelector('#keys .key'));
+    await other.evaluate(() => {
+      window.__writeProgress = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3') throw new DOMException('Storage is full', 'QuotaExceededError');
+        return window.__writeProgress.call(this, key, value);
+      };
+    });
+    await selectBackup(other, bytes);
+    expect((await handleAppDialog(other, 'accept', { waitHidden: false })).type).toBe('confirm');
+    expect(await handleAppDialog(other)).toMatchObject({ type: 'alert', message: /imported scores are already in your library/ });
+    const saved = () => other.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews);
+    expect(await saved()).toBe(0);
+    expect(await other.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList()).length)).toBe(1);
+    await other.evaluate(() => { Storage.prototype.setItem = window.__writeProgress; });
+    await other.locator('#drawerClose').click();
+    await selectBackup(other, bytes);
+    const reloaded = other.waitForEvent('load');
+    expect((await handleAppDialog(other, 'accept', { waitHidden: false })).type).toBe('confirm');
+    await reloaded;
+    await other.waitForFunction(() => !!window.__etude?.scoreLibraryStore);
+    expect(await saved()).toBe(7);
+    expect(await other.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList()).length)).toBe(1);
   } finally { await context.close(); }
 });
 
@@ -246,8 +329,9 @@ test('malformed restore and deletion preserve the open score and never resurrect
   await page.locator('#an-file').setInputFiles(file('alpha.xml'));
   await expect(rows(page)).toHaveCount(1);
   await library(page);
-  await page.locator('#library-restore').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{broken') });
-  await expect(page.locator('#library-status')).toContainText('Could not merge');
+  await selectBackup(page, '{broken');
+  expect(await handleAppDialog(page)).toMatchObject({ type: 'alert', message: /doesn’t look like an Étude backup/ });
+  await page.locator('#drawerClose').click();
   await expect(rows(page)).toHaveCount(1);
   await rows(page).locator('[data-library-action=more]').click();
   await rows(page).locator('[data-library-action=delete]').click();
@@ -278,7 +362,7 @@ for (const width of [320, 600, 1024]) {
     await expect(rows(page).locator('h3')).toHaveText(title);
     expect(await rows(page).locator('img,script').count()).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controls = await page.locator('#score-library button:visible,#an-drop button:visible,#library-search,#library-sort,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
+    const controls = await page.locator('#score-library button:visible,#an-drop button:visible,#library-search,#library-sort').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
     expect(controls.every(control => control.height >= 43 && control.right <= width + 1)).toBe(true);
     await page.locator('#library-toggle-filters').click();
     const secondaryControls = await page.locator('#library-filter,#library-composer-filter,#library-tag-filter,#library-group').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
@@ -419,11 +503,7 @@ test('library supports inline organization, study status, progress, notes, sorti
   await expect(row(page, 'Prelude in C').locator('.score-library-user-note')).toContainText('Măsurile 1-4 mâna stângă lent');
   await expect(row(page, 'Warmup Study').locator('p').first()).toHaveText('J. S. Bach');
 
-  const pending = page.waitForEvent('download');
-  await page.locator('#library-backup').click();
-  const backup = await pending;
-  const bytes = readFileSync(await backup.path());
-  await settled(page);
+  const { library: legacyLibrary } = JSON.parse((await exportFromSettings(page)).toString());
 
   const context = await browser.newContext({ serviceWorkers: 'block' });
   try {
@@ -431,8 +511,7 @@ test('library supports inline organization, study status, progress, notes, sorti
     await other.goto(page.url());
     await other.waitForFunction(() => !!window.__etude?.show);
     await library(other);
-    await other.locator('#library-restore').setInputFiles({ name: 'etude-library.json', mimeType: 'application/json', buffer: bytes });
-    await settled(other);
+    await restoreLegacyLibrary(other, JSON.stringify(legacyLibrary));
     await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('In progress');
     await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Progress: 65%');
     await expect(row(other, 'Prelude in C')).not.toContainText('Nivel 2');

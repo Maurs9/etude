@@ -1,6 +1,10 @@
 import { byId, downloadBlob, maybeById, inputById, selectById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from '../domain/dom.js';
 import * as storage from '../domain/storage.js';
 import * as safety from '../domain/data-safety.js';
+import { createBackupFile, readBackupFile } from '../domain/backup-transfer.js';
+import { libraryExportWithReport, libraryPrepareRestore } from '../domain/score-library-store.js';
+import type { LibraryMetadata, LibraryRestoreResult } from '../domain/score-library-types.js';
+import { libraryText } from '../locales/library-runtime.js';
 import type * as audio from '../domain/audio.js';
 import type { TimingCalibration } from '../domain/midi-calibration.js';
 import type { InterfaceLanguage } from '../types/architecture.js';
@@ -49,12 +53,11 @@ export interface ShellControlsDeps {
   readonly localeLoadError: (retry: () => Promise<unknown>, target?: HTMLElement) => void;
   readonly localize: (key: string, fallback: string) => string;
   readonly localizeLoadedFeatures: () => void;
-  readonly MAX_PROGRESS_IMPORT_BYTES: number;
+  readonly inspectLibraryFile: (file: File) => Promise<LibraryMetadata>;
   readonly metro: { on: boolean; bpm: number; next: number; beat: number; timer: boolean | null };
   notation: "letter" | "solfege" | "german";
   readonly openMobileMenu: (fromPop?: boolean) => void;
   readonly panic: () => void;
-  readonly parsePttV3: (raw: string | null) => storage.PttV3Payload | null;
   readonly persistence: ReturnType<typeof createPersistence>;
   readonly pianoStatus: () => void;
   readonly popModalState: (id: string) => void;
@@ -89,7 +92,8 @@ export interface ShellControlsDeps {
   readonly STORE: { blocked: "" | "too-new" | "quarantine" | "upgrade"; failed: boolean; unreadable: boolean; persist: safety.PersistState; usage: { usage: number; quota: number; } | null; snaps: safety.SnapshotInfo[]; snapDay: number; snapPending: boolean; };
   readonly STORE_LAST_EXPORT: string;
   readonly STORE_SNAPSHOTS_CHANGED: string;
-  readonly storeApplyBackup: (p: storage.PttV3Payload, reason: safety.SnapshotReason) => Promise<void>;
+  readonly storeApplyBackup: (p: storage.PttV3Payload, reason: safety.SnapshotReason,
+    mergeLibrary?: () => Promise<LibraryRestoreResult>) => Promise<void>;
   readonly storeBackupBlocked: () => boolean;
   readonly storeDiagnostics: () => Promise<string>;
   readonly storeExported: () => void;
@@ -427,39 +431,79 @@ export function createShellControls(deps: ShellControlsDeps) {
           new ResizeObserver(deps.anLayoutVars).observe(bnavEl);
       document.fonts.addEventListener('loadingdone', deps.fitHeader);
       // backup export / import
-      byId('exportBtn').addEventListener('click', () => {
-          deps.saveAll();
-          const raw = deps.backupJson();
+      const exportBackup = (blob: Blob) => {
           const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0');
-          downloadBlob('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
+          downloadBlob('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', blob);
           deps.storeExported();
+      };
+      let exportingBackup = false;
+      byId('exportBtn').addEventListener('click', async () => {
+          if (exportingBackup) return;
+          exportingBackup = true;
+          const button = byId('exportBtn');
+          button.setAttribute('aria-busy', 'true');
+          try {
+              deps.saveAll();
+              let library: Awaited<ReturnType<typeof libraryExportWithReport>> | undefined;
+              try {
+                  await deps.scorePlayer?.flushLibrary();
+                  library = await libraryExportWithReport();
+              } catch {
+                  if (!await appConfirm(deps.t('backup_progress_only'))) return;
+              }
+              exportBackup(createBackupFile(deps.backupJson(), library?.count ? library.blob : undefined));
+              if (library?.skipped)
+                  await appAlert(libraryText(deps.lang, 'lib_export_skipped', { count: library.skipped }));
+          } catch {
+              await appAlert(deps.t('backup_export_failed'));
+          } finally {
+              exportingBackup = false;
+              button.removeAttribute('aria-busy');
+          }
       });
       byId('importBtn').addEventListener('click', () => byId('importFile').click());
       byId('importFile').addEventListener('change', async (e) => {
           const input = wiringInput(e), file = input.files?.[0];
           input.value = '';
           if (!file || deps.persistence.progressRestorePending || deps.reloadingForRestore) return;
-          if (file.size > deps.MAX_PROGRESS_IMPORT_BYTES) {
-              await appAlert(deps.t('import_size'));
-              return;
-          }
           deps.persistence.progressRestorePending = true;
           try {
               if (deps.storeBackupBlocked()) {
                   await appAlert(deps.t('store_too_new'));
                   return;
               }
-              const backup = deps.parsePttV3(await file.text());
-              if (backup && (storage.pttSchema(backup) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(backup))) {
-                  await appAlert(deps.t('import_too_new'));
+              const transfer = await readBackupFile(file);
+              if (transfer.kind === 'too-large' || transfer.kind === 'too-new') {
+                  await appAlert(transfer.kind === 'too-large' ? deps.t('import_size', transfer.limitMiB) : deps.t('import_too_new'));
                   return;
               }
-              if (!storage.isImportableBackup(backup)) {
-                  await appAlert(deps.t('import_bad'));
-                  return;
+              const backup = 'progress' in transfer ? storage.readPttV3Value(transfer.progress) : null;
+              if (transfer.kind !== 'library') {
+                  if (backup && (storage.pttSchema(backup) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(backup))) {
+                      await appAlert(deps.t('import_too_new'));
+                      return;
+                  }
+                  if (!storage.isImportableBackup(backup)) {
+                      await appAlert(deps.t('import_bad'));
+                      return;
+                  }
               }
-              if (await appConfirm(deps.t('import_confirm')))
-                  await deps.storeApplyBackup(backup, 'before-import');
+              const merge = 'library' in transfer
+                  ? await libraryPrepareRestore(transfer.library, deps.inspectLibraryFile) : undefined;
+              const confirm = transfer.kind === 'complete' ? 'import_complete_confirm'
+                  : transfer.kind === 'library' ? 'import_library_confirm' : 'import_confirm';
+              if (!await appConfirm(deps.t(confirm))) return;
+              if (backup) await deps.storeApplyBackup(backup, 'before-import', merge);
+              else if (merge) {
+                  try {
+                      await deps.scorePlayer?.flushLibrary();
+                      const result = await merge();
+                      await deps.scorePlayer?.refreshLibrary();
+                      await appAlert(libraryText(deps.lang, 'restore_result', { ...result }));
+                  } catch {
+                      await appAlert(libraryText(deps.lang, 'restore_failed'));
+                  }
+              }
           }
           catch (_) { await appAlert(deps.t('import_bad')); }
           finally { deps.persistence.progressRestorePending = false; }
@@ -468,7 +512,12 @@ export function createShellControls(deps: ShellControlsDeps) {
           void deps.storeRefresh(); });
       byId('set-diag-copy').addEventListener('click', () => { void deps.storeDiagnostics().then((text) => { if (!navigator.clipboard)
           throw new Error('no clipboard'); return navigator.clipboard.writeText(text); }).then(() => { const b = byId('set-diag-copy'); b.textContent = deps.t('set_diag_copied'); setTimeout(() => { b.textContent = deps.t('set_diag_copy'); }, 1500); }).catch(() => { }); });
-      byId('storeNoteExport').addEventListener('click', () => byId('exportBtn').click());
+      const exportProgress = () => {
+          deps.saveAll();
+          exportBackup(createBackupFile(deps.backupJson()));
+      };
+      byId('storeNoteExport').addEventListener('click', exportProgress);
+      byId('prog-export').addEventListener('click', exportProgress);
       byId('storeNoteReload').addEventListener('click', () => location.reload());
       byId('storeNoteOk').addEventListener('click', () => { deps.STORE.unreadable = false; deps.storeNote(); });
       byId('storeNoteRestore').addEventListener('click', () => { void deps.storeRestore(deps.STORE.snaps.find(x => x.reason !== 'unreadable')?.id); });

@@ -3,7 +3,7 @@ import type { LibraryDifficultyRating, LibraryImportResult, LibraryItem, Library
 
 const DB_NAME = 'etude-score-library-v1';
 const MAX_FILE = 2 * 1024 * 1024;
-const MAX_TRANSFER = 64 * 1024 * 1024;
+export const MAX_LIBRARY_TRANSFER_BYTES = 64 * 1024 * 1024;
 const MAX_ITEMS = 1000;
 const STORES = ['metadata', 'blobs'];
 const parseUnknownJson: (text: string, reviver: (key: string, value: unknown) => unknown) => unknown = JSON.parse;
@@ -491,7 +491,7 @@ function decode(value: unknown, size: number): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(value as number[]);
 }
 interface BackupEntry { item: LibraryItem; data: number[] }
-export interface LibraryExportReport { blob: Blob; skipped: number }
+export interface LibraryExportReport { blob: Blob; skipped: number; count: number }
 export async function libraryExportWithReport(): Promise<LibraryExportReport> {
   // Capture both stores in one snapshot; do not race separate per-item reads with deletes.
   let skipped = 0;
@@ -517,7 +517,7 @@ export async function libraryExportWithReport(): Promise<LibraryExportReport> {
         continue;
       }
       total += blob.size;
-      if (total > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
+      if (total > MAX_LIBRARY_TRANSFER_BYTES) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
       entries.push({ item, blob });
     }
     return entries;
@@ -539,22 +539,24 @@ export async function libraryExportWithReport(): Promise<LibraryExportReport> {
         encodedSize += b >= 100 ? 3 : b >= 10 ? 2 : 1;
       }
     }
-    if (encodedSize > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
+    if (encodedSize > MAX_LIBRARY_TRANSFER_BYTES) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
     files.push({ item, data: Array.from(bytes) });
   }
   const backup = new Blob([JSON.stringify({ app: 'etude-score-library', version: 1, files })], { type: 'application/json' });
-  if (backup.size > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
-  return { blob: backup, skipped };
+  if (backup.size > MAX_LIBRARY_TRANSFER_BYTES) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
+  return { blob: backup, skipped, count: files.length };
 }
 export async function libraryExport(): Promise<Blob> {
   return (await libraryExportWithReport()).blob;
 }
-export async function libraryRestore(blob: Blob, validate: (file: File) => Promise<LibraryMetadata>): Promise<LibraryRestoreResult> {
+export async function libraryPrepareRestore(
+  backup: unknown,
+  validate: (file: File) => Promise<LibraryMetadata>,
+): Promise<() => Promise<LibraryRestoreResult>> {
   const staged: { item: LibraryItem; file: File }[] = [];
   try {
-    if (!(blob instanceof Blob) || blob.size === 0 || blob.size > MAX_TRANSFER) invalid('Backup exceeds the transfer limit.');
     if (typeof validate !== 'function') invalid('A score parser is required.');
-    const root = record(parseJson(await blob.text()));
+    const root = record(backup);
     if (root.app !== 'etude-score-library' || root.version !== 1 || !Array.isArray(root.files) || root.files.length > MAX_ITEMS) invalid('Unsupported score backup.');
     let total = 0;
     // Validate every entry (including duplicates) before opening any write transaction.
@@ -562,7 +564,7 @@ export async function libraryRestore(blob: Blob, validate: (file: File) => Promi
       const v = record(entry);
       const item = itemValue(v.item);
       total += item.size;
-      if (total > MAX_TRANSFER) invalid('Backup exceeds the transfer limit.');
+      if (total > MAX_LIBRARY_TRANSFER_BYTES) invalid('Backup exceeds the transfer limit.');
       const bytes = decode(v.data, item.size);
       const file = new File([bytes], item.name, { lastModified: item.addedAt });
       if (await digest(bytes.buffer) !== item.id) invalid('Backup score hash mismatch.');
@@ -572,7 +574,7 @@ export async function libraryRestore(blob: Blob, validate: (file: File) => Promi
   } catch (error) {
     throw new LibraryError('backup', 'Invalid or unreadable score backup.', { cause: error });
   }
-  return transaction('readwrite', async tx => {
+  return () => transaction('readwrite', async tx => {
     const store = tx.objectStore('metadata');
     const count = await request(store.count());
     let added = 0;
@@ -586,4 +588,15 @@ export async function libraryRestore(blob: Blob, validate: (file: File) => Promi
     }
     return { added, duplicates };
   });
+}
+
+export async function libraryRestore(blob: Blob, validate: (file: File) => Promise<LibraryMetadata>): Promise<LibraryRestoreResult> {
+  let backup: unknown;
+  try {
+    if (!(blob instanceof Blob) || blob.size === 0 || blob.size > MAX_LIBRARY_TRANSFER_BYTES) invalid('Backup exceeds the transfer limit.');
+    backup = parseJson(await blob.text());
+  } catch (error) {
+    throw new LibraryError('backup', 'Invalid or unreadable score backup.', { cause: error });
+  }
+  return (await libraryPrepareRestore(backup, validate))();
 }

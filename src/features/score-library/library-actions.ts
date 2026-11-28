@@ -1,10 +1,7 @@
-import { downloadBlob } from '../../domain/dom.js';
 import { ESTIMATOR_VERSION } from '../../domain/score-difficulty.js';
 import type { ImportedDifficultyEstimate } from '../../domain/score-difficulty-import.js';
 import type { LibraryHost, LibraryItem, OpenedScoreEstimator } from '../../domain/score-library-types.js';
-import {
-  libraryExportWithReport, libraryGet, libraryRestore, librarySave, libraryUpdateLevels,
-} from '../../domain/score-library-store.js';
+import { libraryGet, librarySave, libraryUpdateLevels } from '../../domain/score-library-store.js';
 import type { LibraryTextKey } from '../../locales/library-runtime.js';
 import {
   currentEstimateFor, makeRating, needsRating, referenceTempo, type LibraryEstimate,
@@ -46,23 +43,6 @@ export async function importLibraryFiles(
     }
   }
   return { added, duplicates, errors };
-}
-
-export async function restoreLibraryBackup(
-  file: File,
-  host: LibraryHost,
-): Promise<{ added: number; duplicates: number }> {
-  await host.flush();
-  return libraryRestore(file, (candidate) => host.inspect(candidate));
-}
-
-export async function exportLibraryBackup(
-  host: LibraryHost,
-): Promise<{ skipped: number }> {
-  await host.flush();
-  const { blob, skipped } = await libraryExportWithReport();
-  downloadBlob('etude-library.json', blob);
-  return { skipped };
 }
 
 export interface AutoRatingController {

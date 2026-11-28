@@ -435,7 +435,6 @@ export function createPersistence(deps: PersistenceDeps) {
       storeBlock();
       return true;
   }
-  const MAX_PROGRESS_IMPORT_BYTES = 16 * 1024 * 1024;
   let progressRestorePending = false;
   async function storeRestore(id: number | undefined) {
       if (!id || progressRestorePending || deps.reloadingForRestore)
@@ -819,7 +818,6 @@ export function createPersistence(deps: PersistenceDeps) {
     storeSnapshot,
     storeQuarantine,
     storeBackupBlocked,
-    MAX_PROGRESS_IMPORT_BYTES,
     get progressRestorePending() { return progressRestorePending; },
     set progressRestorePending(value: boolean) { progressRestorePending = value; },
     /** The pending saveSoon() timer (the restore path clears it before replacing the record). */

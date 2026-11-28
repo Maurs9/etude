@@ -6756,6 +6756,9 @@ export function createScorePlayerFeature(host: AppHost, shell: ScorePlayerShell)
           if (view0() === 'analysis')
               anDraw();
       },
+      inspectLibraryFile: anLibraryInspect,
+      flushLibrary: () => anLibraryFlush(),
+      refreshLibrary: async () => { await scoreLibrary?.refresh(); },
       localizeLibrary: () => { scoreLibrary?.localize(); },
       refreshCoach: pracNextRender,
       onScreenChange,

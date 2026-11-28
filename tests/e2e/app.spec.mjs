@@ -52,9 +52,11 @@ test('retries Progress after a mount failure without duplicating handlers', asyn
   await error.locator('[data-lazy-retry]').click();
   await expect(page.locator('#progStats .s')).toHaveCount(5);
   await expect(error).toHaveCount(0);
-  expect(await page.locator('#prog-export').evaluate((button) => {
+  // Progress forwards its Import button to Settings' Import once, not once per mount attempt. (Its Export button calls
+  // exportProgress from the shell controls, outside the Progress mount.)
+  expect(await page.locator('#prog-import').evaluate((button) => {
     let forwarded = 0;
-    document.getElementById('exportBtn').addEventListener('click', (event) => {
+    document.getElementById('importBtn').addEventListener('click', (event) => {
       event.stopImmediatePropagation();
       forwarded++;
     }, { capture: true });

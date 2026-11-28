@@ -144,7 +144,6 @@ export function createProgressFeature(host: AppHost, shell: ProgressShell): Prog
                   window.print();
           })();
       }, options);
-      byId('prog-export').addEventListener('click', () => byId('exportBtn').click(), options);
       byId('prog-import').addEventListener('click', () => byId('importBtn').click(), options);
       byId('prog-start').addEventListener('click', () => { show('today'); shell.startReview(); }, options);
   }
