@@ -1,5 +1,5 @@
 import * as theory from '../../domain/theory.js';
-import { byId, eventClosest, eventElement, maybeById, queryAllHtml, queryHtml } from '../../domain/dom.js';
+import { byId, eventClosest, eventElement, maybeById, queryAllHtml, queryHtml, rovingFocus } from '../../domain/dom.js';
 import type { LStaffSpec } from '../../domain/score-types.js';
 import type { AppHost, FeatureController, TestSurfaceRegistry } from '../../domain/views.js';
 import {
@@ -229,6 +229,8 @@ export function createLearnFeature(host: AppHost): FeatureController {
       opt += '</optgroup>';
     });
     toc.innerHTML = h;
+    // One Tab stop for the chapter list (the open chapter); the arrow keys move between chapters.
+    rovingFocus(toc, 'button[data-li]', (b) => b.getAttribute('aria-current') === 'true');
     byId('learnExtra').innerHTML = '<label class="learn-pick"><span>' + host.i18n.t('lu_pick') + '</span><select id="learnPick">' + opt +
       '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + host.i18n.t('lu_gloss') + '</button>';
   }

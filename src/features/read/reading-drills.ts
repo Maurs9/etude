@@ -5,7 +5,7 @@ import { RD_ALL, RD_ALLIV, RD_LV, RD_UNITS, isReadClef, isReadDrillType, type Re
 import { samePitch } from '../../core/pitch-match.js';
 import { SR_LET, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNotehead, ssSharp, ssStepOf, type SrToken } from '../../domain/score-types.js';
 import { srClef, srLedger2 } from '../../domain/grand-staff.js';
-import { byId, maybeById, inputById, selectById, eventElement, queryHtml, queryAllHtml } from '../../domain/dom.js';
+import { byId, maybeById, inputById, selectById, eventElement, queryHtml, queryAllHtml, rovingFocus } from '../../domain/dom.js';
 import { type CoachTip, type ReadDrillCustom, type ReadDrillLevelStat } from '../../domain/views.js';
 import { inputTime } from '../../domain/midi-timing.js';
 import { type SightReadingPiece, type SightReadingProfile } from '../../sight-reading/model.js';
@@ -1539,6 +1539,8 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
               return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${deps.rdEsc(rdLvDetail(L))}" aria-label="${deps.rdEsc(deps.rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + deps.t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${deps.t('rdx_ty_' + L.ty)}</b><i>${deps.rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
           }).join('')}</div></section>`;
       }).join('');
+      // One Tab stop for the drill grid; the arrow keys move between levels.
+      rovingFocus(byId('rdx-ladder'), '.rdx-lv');
       rdCustomFill();
   }
     const RD_CDEF: Record<string, [string, string]> = { treble: ['C4', 'G5'], bass: ['F2', 'C4'], grand: ['C3', 'C5'], alto: ['D3', 'B4'], tenor: ['A2', 'G4'] };
