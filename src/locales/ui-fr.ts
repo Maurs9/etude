@@ -1092,6 +1092,7 @@ const payload: UIPayload = {
       "lu_stop": "Arrêter",
       "lu_sum": "Fiche mémo",
       "lu_outline": "Sur cette page",
+      "rdn_goal_txt": "%a / %b morceaux aujourd’hui",
       "lu_unit": "Unité %a sur %b",
       "lw_bass": "Basse (slash)",
       "lw_blues": "Blues à 12 mesures en Do",

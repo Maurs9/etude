@@ -1009,6 +1009,8 @@ function fitHeader() {
 function renderModeNav() {
     const group = navGroup(view0()), views: readonly string[] = group ? NAV_GROUPS[group] : [];
     byId('modeBar').hidden = views.length < 2;
+    // Its own landmark name ("Practice", "Learn"), so a screen reader's landmark list does not show three "Sections".
+    byId('modeNav').setAttribute('aria-label', t(group ? 'nav_' + group : 'nav_sections'));
     byId('modeNav').innerHTML = views.map((v: string) => `<button type="button" data-view="${v}" aria-current="${v === view0() ? 'page' : 'false'}">${t(v === 'practice' ? 'nav_drills' : 'nav_' + v)}</button>`).join('');
 }
 // The tab title names the screen, in the interface language, so the browser's tab list and a screen reader say where

@@ -80,6 +80,8 @@
     background:var(--paper2); border-top:1px solid var(--line); box-shadow:0 -6px 20px -12px rgba(0,0,0,.22)}
   #rd-mobile-bar:not([hidden]){bottom:calc(var(--bnav-h, 62px) + var(--dock-h, 0px))}
   body.has-mobile-start-bar #dock.is-rail{display:none}
+  /* A focused control scrolls clear of the start bar and the bottom navigation (WCAG 2.4.11). */
+  html:has(body.has-mobile-start-bar){scroll-padding-bottom:calc(var(--dock-h, 0px) + var(--bnav-h, 62px) + 66px)}
   .mobile-start-summary{flex:1 1 auto; min-width:0; font-size:13px; font-weight:600; line-height:1.3; color:var(--ink2);
     overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
   .mobile-start-btn{flex:none; min-width:96px; min-height:44px; padding-inline:18px; justify-content:center}

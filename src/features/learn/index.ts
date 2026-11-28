@@ -587,7 +587,8 @@ export function createLearnFeature(host: AppHost): FeatureController {
     return !!learnRailMq?.matches;
   }
   function learnRailHeads(): HTMLElement[] {
-    return queryAllHtml(byId('learnBody'), '.learn-content h4, #lq-h');
+    // Sections only: a lesson widget's own heading (metronome, scale, chord) is not a section.
+    return queryAllHtml(byId('learnBody'), '.learn-content h4, #lq-h').filter((h) => !h.closest('[data-widget]'));
   }
   function learnRailPlace(): void {
     const rail = maybeById('learnRail'), body = byId('learnBody');

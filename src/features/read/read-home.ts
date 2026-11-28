@@ -279,7 +279,7 @@ export function createReadHome(deps: ReadHomeDeps) {
               // With a set, the visible "Today's set · 0/5" is read as one sentence ("Today's set: 0 of 5 pieces read").
               // Without one, the title and "No set today." are read as they are shown.
               const title = it.pill ? `<span aria-hidden="true">${e(it.t)}</span><span class="visually-hidden">${e(deps.t('rdn_goal_aria', played, total))}</span>` : e(it.t);
-              return `<li class="plan-step rdn-set-step" data-done="${it.done}"${it.partial ? ' data-partial="true"' : ''}${idx === nextIdx ? ' data-next="true"' : ''}>` +
+              return `<li class="plan-step rdn-set-step" data-done="${it.done}"${it.partial ? ' data-partial="true"' : ''}>` +
                   `<span class="ck" aria-hidden="true">${mark}</span><span class="pt">${title}</span>` +
                   (it.pill ? `<span class="plan-end" aria-hidden="true"><span class="plan-pill">${e(it.pill)}</span></span>` : `<span class="pd">${e(it.d)}</span>`) + '</li>';
           }
@@ -331,7 +331,7 @@ export function createReadHome(deps: ReadHomeDeps) {
       const daily = deps.RDN.noDaily ? null : state.daily, total = daily ? daily.slots.length : SRT_DAILY_PIECES, played = daily ? daily.done.filter((x) => x !== null).length : 0;
       const dots = Array.from({ length: total }, (_, i) => `<i${i < played ? ' class="on"' : ''}></i>`).join('');
       box.innerHTML = `<div><span class="big num" id="rdn-streak-n">${srtStreak(state, today)}</span><small class="streak-l">${deps.rdEsc(deps.t('streak_label'))}</small></div>` +
-          `<div class="goaldots" role="img" aria-label="${deps.rdEsc(deps.t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${deps.rdEsc(deps.t('goal_txt', played, total))}</small>`;
+          `<div class="goaldots" role="img" aria-label="${deps.rdEsc(deps.t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${deps.rdEsc(deps.t('rdn_goal_txt', played, total))}</small>`;
       box.hidden = false;
   }
     function rdnNumChip(n: number, stat: PieceStat | undefined, next: boolean) {

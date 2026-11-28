@@ -1081,6 +1081,7 @@ const payload: UIPayload = {
       "lu_due": "Da ripassare",
       "lu_sum": "Promemoria",
       "lu_outline": "In questa pagina",
+      "rdn_goal_txt": "%a / %b brani oggi",
       "lu_quiz": "Mettiti alla prova",
       "lu_quiz_d": "%a domande — rispondi correttamente a %b per completare il capitolo.",
       "lu_q_start": "Inizia il quiz",

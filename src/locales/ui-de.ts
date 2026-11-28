@@ -1715,6 +1715,7 @@ const payload: UIPayload = {
       "lu_due": "Fällig zur Wiederholung",
       "lu_sum": "Spickzettel",
       "lu_outline": "Auf dieser Seite",
+      "rdn_goal_txt": "%a / %b Stücke heute",
       "lu_quiz": "Wissen testen",
       "lu_quiz_d": "%a Fragen — beantworte %b richtig, um das Kapitel abzuschließen.",
       "lu_q_start": "Test starten",
