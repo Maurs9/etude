@@ -106,6 +106,12 @@
 .rdn-uh{display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; margin-bottom:6px; font-size:14px}
 .rdn-uh span{color:var(--muted)}
 .rdn-uh .rdn-uc{margin-left:auto}
+/* A unit folds under its header: a ▸/▾ cue (flex hides the native marker) and a 44px header. */
+summary.rdn-uh{align-items:center; min-height:44px; margin-bottom:0; cursor:pointer; border-radius:8px}
+summary.rdn-uh::before{content:'▸'; color:var(--muted); width:12px; flex:none}
+.rdn-unit[open] > summary.rdn-uh{margin-bottom:6px}
+.rdn-unit[open] > summary.rdn-uh::before{content:'▾'}
+summary.rdn-uh::-webkit-details-marker{display:none}
 .rdn-tag{font-size:11px; background:var(--good-bg); color:var(--good) !important; border-radius:99px; padding:1px 8px}
 .rdn-nums8{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:5px}
 @container (max-width:479.98px){ .rdn-nums8{grid-template-columns:repeat(4,minmax(0,1fr))} }
