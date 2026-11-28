@@ -3,7 +3,8 @@
 .rdn-home{margin-top:6px}
 /* Unified Today hero: Today's set and the daily companion steps live inside one balanced card. */
 /* The day streak and today's set show on all three tabs, not inside a piece or the warm-up. */
-#view-read:is([data-rdn=player],[data-rdn=warmup]) #rdn-streak{display:none}
+#view-read:is([data-rdn=player],[data-rdn=warmup]) #rdn-streak,
+#view-read:has(#rdx-stage:not([hidden]), #rd-stage-top:not([hidden])) #rdn-streak{display:none}
 /* The grid is the positioning box, so the ruled strip at the top of .hero-top spans both columns. */
 .rdn-today-grid{position:relative; display:grid; grid-template-columns:minmax(0,1.35fr) minmax(270px,1fr); gap:16px 24px; align-items:start}
 .rdn-hero .hero-top{position:static}

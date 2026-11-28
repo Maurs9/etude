@@ -69,8 +69,11 @@ test.describe('Read home', () => {
     const main = page.locator('#rdx-body .rdx-mode-main');
     await expect(main).toBeFocused();
     await expect(main.locator('.rdx-mode-go')).toContainText(STRINGS.en.rd_start_short);
+    // Inside a level the strip steps aside, and it comes back on the level list.
+    await expect(page.locator('#rdn-streak')).toBeHidden();
     await page.locator('#rdx-back').click();
     await expect(page.locator('#rdx-ladder')).toBeVisible();
+    await expect(page.locator('#rdn-streak')).toBeVisible();
     await page.locator('#rdt-book').click();
     await expect(page.locator('#rdn-home')).toBeVisible();
     await expect(page.locator('#rdp-drills')).toBeHidden();
