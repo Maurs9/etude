@@ -1,7 +1,7 @@
 <div align="center">
   <img src="public/icons/icon-192.png" alt="Étude icon" width="84" height="84" />
   <h1>Étude</h1>
-  <p><strong>Ear &amp; hand</strong> — piano theory, sight-reading, ear training, and interactive score practice.</p>
+  <p><strong>Note &amp; nuance</strong> — piano theory, sight-reading, ear training, and interactive score practice.</p>
 
   <p>
     <a href="https://maurs9.github.io/etude/etude.html">
@@ -51,14 +51,16 @@
 
 | Area | What you get |
 | --- | --- |
-| **Sight-Reading (`Read`)** | 8 progressive levels across 24 keys (eighths, dotted notes, syncopation, ties). Each level includes a 96-piece generated book, 20-piece key runs, **Today's set** (5 fresh pieces/day), 24–48 bar long pieces, and a 2-minute flash-card warm-up. First-sight attempts are scored for pitch, rhythm, and timing (up to 3 stars). |
-| **Pieces & My Library (`Pieces`)** | 23 built-in pieces plus your own **MIDI** or **MusicXML** files in one unified player with tempo control, passage loops, hands separate, **Wait for me** mode, note names, mistake breakdowns, sustain-pedal grading, automatic 5-axis difficulty stars, and full-window view. |
+| **Sight-Reading (`Read`)** | Three tabs: **Reading book**, **Reading drills**, and a free **Sight-reading** generator. 8 progressive levels across 24 keys (eighths, dotted notes, syncopation, ties). Each level includes a 96-piece generated book in 12 folding units, 20-piece key runs, and a **Today's reading** plan: a 2-minute flash-card warm-up, **Today's set** (5 fresh pieces/day), and a 24–48 bar long piece. First-sight attempts are scored for pitch, rhythm, and timing (up to 3 stars), and step-by-step mode asks for chords played together. |
+| **Pieces & My Library (`Pieces`)** | 23 built-in pieces plus your own **MIDI** or **MusicXML** files (add several files or a whole folder at once) in one unified player with tempo control, passage loops, hands separate, **Wait for me** mode, note names, mistake breakdowns, sustain-pedal grading, automatic 5-axis difficulty stars, and full-window view. |
 | **Explore (`Explore`)** | Free play on a single screen pairing an interactive **Circle of Fifths** with live bass & treble staves. Hold any note or chord to identify it in Roman numerals, inspect scale fingerings, and audition the seven diatonic chords of any key. |
-| **Theory & Targeted Drills** | Open-order theory handbook, spaced-repetition daily sessions, interval drills with song hints, chord progression play-along loops, scale & arpeggio technique drills, and reading challenges (*Time Attack*, *Survival*, *Marathon*). |
+| **Learn (`Learn`)** | 22 short chapters in 8 units, each with play buttons that light up the keyboard, a chapter check, and a cheat sheet. On wide screens a side rail shows the chapter outline and the cheat sheet. Includes a glossary and the **Method** page. |
+| **Targeted Drills** | Spaced-repetition daily sessions, interval drills with song hints, chord progression play-along loops, scale & arpeggio technique drills, and reading challenges (*Time Attack*, *Survival*, *Marathon*). |
 | **Voice (`Voice`)** | Sight-sing a melody from the staff with live pitch feedback, or hum a melody and convert it back to MIDI or text. Keys or MIDI can answer in place of voice. |
 | **Error-Aware Feedback** | Wrong answers compare what you played against the target with a **Hear both** button; repeated mix-ups automatically trigger a short contrast drill at the end of the session. |
 | **Hardware MIDI & Mobile UX** | Wired **USB MIDI** and direct **Web Bluetooth MIDI** with event-time judging, auto-reconnect, and per-input latency calibration (**Settings → MIDI**). Landscape phone mode widens the keyboard dock for comfortable play. |
-| **Offline & Data Safety** | Installable PWA with offline caching, Screen Wake Lock, persistent storage requests, 3 days of automatic local backups, pre-reset/import snapshots, and JSON export/import (**Settings → Your data**). |
+| **Offline & Data Safety** | Installable PWA with offline caching, Screen Wake Lock, persistent storage requests, 3 days of automatic local backups, pre-reset/import snapshots, and one JSON backup with progress, settings, history, and the score library (**Settings → Your data → Backup**). Older progress and library backups still import. |
+| **Accessibility** | Keyboard navigation throughout (the chapter list, the circle of fifths, and the drill grid each take one Tab stop, with arrow keys inside), control borders at 3:1 contrast, small controls of at least 24 px, page titles in the interface language, and focused controls that stay clear of the phone bars. |
 
 ---
 
@@ -69,11 +71,21 @@
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="docs/screenshots/sight-reading.png" alt="Sight-reading view with generated sheet music and keyboard" width="100%" /><br />
-      <sub><strong>Sight-Reading</strong> — engraved daily sets with dynamics, instant feedback, and star grading</sub>
+      <img src="docs/screenshots/read-home.png" alt="Read and play home with Today's set and Today's reading plan" width="100%" /><br />
+      <sub><strong>Read &amp; play</strong> — Today's set, a three-step daily reading plan, and the level book</sub>
     </td>
     <td width="50%" align="center">
-      <img src="docs/screenshots/explore.png" alt="Explore view with Circle of Fifths and live grand staff" width="100%" /><br />
+      <img src="docs/screenshots/sight-reading.png" alt="Sight-reading view with generated sheet music and keyboard" width="100%" /><br />
+      <sub><strong>Sight-Reading</strong> — engraved daily sets with dynamics, reading focus, and star grading</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/learn.png" alt="Learn chapter with chapter list, lesson, outline and cheat sheet" width="100%" /><br />
+      <sub><strong>Learn</strong> — short chapters with play buttons, an outline, and a cheat sheet</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/explore.png" alt="Explore view with Circle of Fifths and a C major chord on the grand staff" width="100%" /><br />
       <sub><strong>Explore</strong> — interactive Circle of Fifths, live chord detection, and scale fingerings</sub>
     </td>
   </tr>
@@ -167,7 +179,12 @@ npm run test:dev
 <br />
 
 - `etude.html` — stable application shell URL
-- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts`, `data-safety.ts`, `midi-timing.ts`, `technique.ts`, `technique-drill.ts`, `feedback.ts`, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`, `practice-mistakes.ts`, `score-library-*.ts`)
+- `src/domain/views-runtime.ts` — browser entry (shell): routing, the progress write gateway, feature loading, and boot
+- `src/app/` — shell modules: keyboard dock, input bus, persistence, settings and control wiring, devices, coaching
+- `src/features/` — lazy feature slices loaded on first visit (`today`, `learn`, `practice`, `read`, `explore`, `voice`, `score-library`, `score-player`, `progress`)
+- `src/core/` — browser-free shared logic (multi-tab sync merge, spaced repetition, trainer items, reading curriculum, pitch matching, Learn progress)
+- `src/infra/` — browser and device adapters (PWA lifecycle, MIDI controller, score file drop)
+- `src/domain/` — strict TypeScript domain modules (`storage.ts` for the `ptt-v3` schema, `data-safety.ts`, `backup-transfer.ts`, `audio.ts`, `notation.ts`, `theory.ts`, `router.ts`, `midi-timing.ts`, `technique*.ts`, `feedback.ts`, `score-library-*.ts`)
 - `src/sight-reading/` — sight-reading generators, evaluation, ledger, and notation (`levels.ts`, `patterns.ts`, `rules.ts`, `melody.ts`, `book.ts`, `progress.ts`, `score.ts`, `warmup.ts`)
 - `src/locales/` — English, Romanian, German, Spanish, French, Italian, and Portuguese (BR) UI strings, lessons, and quizzes
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, modular feature CSS, and hashed piano audio samples
