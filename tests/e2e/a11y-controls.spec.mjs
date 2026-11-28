@@ -94,3 +94,31 @@ test('the Learn outline lists sections, not the headings of lesson widgets', asy
   }
   expect(checked).toBeGreaterThan(0);
 });
+
+test('long lists are one Tab stop with arrow keys inside: Learn chapters, the circle of fifths, the drill grid', async ({ app, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await app.open({ hash: 'learn' });
+  await page.evaluate(() => window.__etude.learnReady);
+  const lists = [
+    { open: async () => {}, items: '#learnToc button[data-li]' },
+    { open: async () => { await page.evaluate(() => window.__etude.show('explore')); }, items: '#view-explore .cof-k' },
+    { open: async () => { await page.evaluate(() => window.__etude.show('read')); await page.locator('#rdt-drills').click(); }, items: '#rdx-ladder .rdx-lv' },
+  ];
+  for (const { open, items } of lists) {
+    await open();
+    const all = page.locator(items);
+    await expect(all.first()).toBeVisible();
+    // Exactly one item is in the Tab order.
+    expect(await all.evaluateAll((els) => els.filter((el) => el.tabIndex === 0).length), items).toBe(1);
+    const start = all.locator('xpath=self::*[@tabindex="0"]').first();
+    await start.focus();
+    const before = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+    await page.keyboard.press('ArrowRight');
+    const after = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+    expect(after, items).not.toBe(before);
+    // The item focused last is now the Tab stop.
+    expect(await all.evaluateAll((els) => els.filter((el) => el.tabIndex === 0).length), items).toBe(1);
+    await page.keyboard.press('Home');
+    expect(await page.evaluate((sel) => document.activeElement === [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length), items), items).toBe(true);
+  }
+});

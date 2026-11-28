@@ -148,6 +148,14 @@ test.describe('Read home', () => {
     await expect(page.locator('.rdn-unit').nth(11)).toContainText(STRINGS.en.rdn_unit_check);
     await expect(page.locator('.rdn-unit .rdn-num').first()).toHaveAttribute('aria-label', fill(STRINGS.en.rdn_num_aria_none, 1));
     await expect(page.locator('.rdn-num.next')).toHaveAttribute('data-rdn-n', '1');
+    // Units fold: only the unit with the next piece is open; any unit opens from its header and stays open on redraw.
+    await expect(page.locator('details.rdn-unit[open]')).toHaveCount(1);
+    await expect(page.locator('details.rdn-unit').nth(0)).toHaveAttribute('open', '');
+    await expect(page.locator('[data-rdn-n="20"]')).toBeHidden();
+    await page.locator('details.rdn-unit').nth(2).locator('summary').click();
+    await expect(page.locator('[data-rdn-n="20"]')).toBeVisible();
+    await page.locator('[data-rdn-lv="1"]').click();   // the same level: the home is drawn again
+    await expect(page.locator('details.rdn-unit').nth(2)).toHaveAttribute('open', '');
 
     await page.locator('[data-rdn-key="G"]').click();
     await expect(page.locator('.rdn-unit')).toHaveCount(0);

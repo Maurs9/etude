@@ -54,6 +54,36 @@ export function queryAllHtml(root: QueryRoot, selector: string): HTMLElement[] {
   return [...root.querySelectorAll(selector)].filter((el): el is HTMLElement => el instanceof HTMLElement);
 }
 
+/**
+ * One Tab stop for a long list of controls (WAI-ARIA roving tabindex): the current item, else the first visible one, has
+ * tabindex 0 and the others -1; the arrow keys, Home and End move focus between the visible items, and the item last
+ * focused stays the Tab stop. Enter and Space keep doing what each item does. Call it again after the list is redrawn.
+ */
+export function rovingFocus(container: Element, itemSelector: string, isCurrent: (el: HTMLElement | SVGElement) => boolean = () => false): void {
+  const visibleItems = () => [...container.querySelectorAll<HTMLElement | SVGElement>(itemSelector)].filter((el) => el.getClientRects().length > 0);
+  const all = [...container.querySelectorAll<HTMLElement | SVGElement>(itemSelector)];
+  const shown = visibleItems();
+  const stop = shown.find(isCurrent) ?? shown[0] ?? all[0];
+  all.forEach((el) => { el.tabIndex = el === stop ? 0 : -1; });
+  if (!(container instanceof HTMLElement || container instanceof SVGElement) || container.dataset.roving) return;
+  container.dataset.roving = '1';
+  container.addEventListener('focusin', (e) => {
+    const item = e.target instanceof Element ? e.target.closest<HTMLElement | SVGElement>(itemSelector) : null;
+    if (!item || !container.contains(item)) return;
+    container.querySelectorAll<HTMLElement | SVGElement>(itemSelector).forEach((el) => { el.tabIndex = el === item ? 0 : -1; });
+  });
+  container.addEventListener('keydown', (e) => {
+    if (!(e instanceof KeyboardEvent)) return;
+    const k = e.key;
+    if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(k)) return;
+    const list = visibleItems(), i = list.findIndex((el) => el === document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const n = k === 'Home' ? 0 : k === 'End' ? list.length - 1 : (i + (k === 'ArrowDown' || k === 'ArrowRight' ? 1 : list.length - 1)) % list.length;
+    list[n].focus();
+  });
+}
+
 type PageDocument = Pick<Document, 'visibilityState' | 'addEventListener'>;
 type PageWindow = Pick<Window, 'addEventListener'>;
 

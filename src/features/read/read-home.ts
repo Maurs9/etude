@@ -222,9 +222,11 @@ export function createReadHome(deps: ReadHomeDeps) {
       const active = document.activeElement, focusKey = active instanceof HTMLElement && box.contains(active) ? active.dataset.rdnFocus ?? '' : '';
       const more = box.querySelector('#rdn-more-keys');
       const moreOpen = more instanceof HTMLDetailsElement && more.open;
+      // Units the reader opened stay open when the home is drawn again.
+      const openUnits = new Set([...box.querySelectorAll('details.rdn-unit[open]')].map((d) => Number(d instanceof HTMLElement ? d.dataset.unit : -1)));
       // Single unified Today hero + companion routine, then the book, then the other ways to practice.
       box.innerHTML = rdnHeroHtml(state, today) +
-          `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-book-sec">${deps.rdEsc(deps.t('rdn_book_eyebrow'))}</h2>${rdnBookHtml(state, moreOpen)}` +
+          `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-book-sec">${deps.rdEsc(deps.t('rdn_book_eyebrow'))}</h2>${rdnBookHtml(state, moreOpen, openUnits)}` +
           `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-tools-h">${deps.rdEsc(deps.t('today_tools'))}</h2>${rdnToolsHtml()}`;
       rdnStreakUi(state, today);
       if (focusKey) {
@@ -350,7 +352,7 @@ export function createReadHome(deps: ReadHomeDeps) {
           return named ? rdnKeyName(srtReadingKey(unit.keys[0])) : deps.t('rdn_unit_newkey');
       return deps.t(unit.kind === 'check' ? 'rdn_unit_check' : 'rdn_unit_mix');
   }
-    function rdnBookHtml(state: ReadingBookState, moreOpen: boolean) {
+    function rdnBookHtml(state: ReadingBookState, moreOpen: boolean, openUnits: ReadonlySet<number> = new Set()) {
       const e = deps.rdEsc, lv = state.level, level = srtLevel(lv), focus = state.focusKey;
       const levels = srtLevels().map((l) => `<button type="button" class="rdn-lv" data-rdn-lv="${l.id}" data-rdn-focus="lv${l.id}" aria-pressed="${l.id === lv}" ` +
           `aria-label="${e(deps.t('rdn_level_aria', l.id, rdnLevelName(l.id)))}">${l.id}</button>`).join('');
@@ -372,14 +374,19 @@ export function createReadHome(deps: ReadHomeDeps) {
           const go = tally.done === 0 ? deps.t('rdn_go_start', 1) : next === null ? deps.t('rdn_go_replay', 1) : deps.t('rdn_go_continue', next);
           head = `<h3>${e(deps.t('rdn_book_head', lv))}</h3><span class="rdn-sub" id="rdn-book-done">${e(deps.t('rdn_done_of', tally.done, SRT_BOOK_PIECES))}</span>` +
               `<span class="rdn-sp"></span><button type="button" class="btn primary" id="rdn-book-go" data-rdn-n="${next ?? 1}" data-rdn-focus="book-go">${e(go)}</button>`;
+          // Each unit folds: the one with the next piece is open, and so is any unit the reader opened. Every piece stays one
+          // tap away, and a phone no longer scrolls past 96 buttons to reach the rest of the page.
+          const nextUnit = Math.floor(((next ?? 1) - 1) / SRT_UNIT_PIECES);
           body = '<div class="rdn-units">' + srtBookUnits(lv).map((unit) => {
               const first = unit.index * SRT_UNIT_PIECES + 1;
               const nums = Array.from({ length: SRT_UNIT_PIECES }, (_, i) => first + i);
               const played = nums.filter((n) => state.pieces[srtBookId(lv, n)]).length;
-              return `<section class="rdn-unit" aria-label="${e(deps.t('rdn_unit', unit.index + 1) + ', ' + rdnUnitLabel(unit, true))}"><div class="rdn-uh"><b>${e(deps.t('rdn_unit', unit.index + 1))}</b>` +
+              const open = unit.index === nextUnit || openUnits.has(unit.index);
+              return `<details class="rdn-unit" data-unit="${unit.index}"${open ? ' open' : ''} aria-label="${e(deps.t('rdn_unit', unit.index + 1) + ', ' + rdnUnitLabel(unit, true))}">` +
+                  `<summary class="rdn-uh" data-rdn-focus="unit${unit.index}"><b>${e(deps.t('rdn_unit', unit.index + 1))}</b>` +
                   `<span>${e(rdnUnitLabel(unit, true))}</span>${unit.kind === 'newKey' ? `<span class="rdn-tag">${e(deps.t('rdn_new_key'))}</span>` : ''}` +
-                  `<span class="rdn-uc">${played}/${SRT_UNIT_PIECES}</span></div><div class="rdn-nums8">` +
-                  nums.map((n) => rdnNumChip(n, state.pieces[srtBookId(lv, n)], n === next)).join('') + '</div></section>';
+                  `<span class="rdn-uc">${played}/${SRT_UNIT_PIECES}</span></summary><div class="rdn-nums8">` +
+                  nums.map((n) => rdnNumChip(n, state.pieces[srtBookId(lv, n)], n === next)).join('') + '</div></details>';
           }).join('') + '</div>';
       }
       else {
