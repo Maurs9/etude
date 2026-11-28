@@ -23,17 +23,30 @@ test.describe('Read home', () => {
     await expect(page.locator('#rdn-today-h')).toHaveCount(1);
     await expect(page.locator('#rdn-book-h')).toHaveCount(1);
     await expect(page.locator('#rdn-plan')).toBeVisible();
-    // Companion routine inside the unified hero: Warm-up and Long piece (no duplicate Today card), with 3 milestone segments.
+    // Companion routine inside the unified hero: Warm-up and Long piece are the only buttons (no duplicate Today card), with 3 milestone segments.
     const steps = page.locator('#rdn-plan .plan-item');
     await expect(steps).toHaveCount(2);
     await expect(steps.nth(0)).toHaveAttribute('data-next', 'true');
     await expect(steps.nth(0).locator('.ck')).toHaveText('1');
+    // The list shows all three steps, numbered 1-3. Today's set (step 2) is a status row without a control of its own.
+    await expect(page.locator('#rdn-plan .ck')).toHaveText(['1', '2', '3']);
+    const setStep = page.locator('#rdn-plan .rdn-set-step');
+    await expect(setStep).toHaveCount(1);
+    await expect(setStep.locator('button, a, [tabindex]')).toHaveCount(0);
+    await expect(setStep.locator('.plan-pill')).toHaveText('0/5');
+    await expect(setStep.locator('.visually-hidden')).toHaveText(fill(STRINGS.en.rdn_goal_aria, 0, 5));
+    // The footer spans the whole card, under both columns.
+    const footer = await page.locator('.rdn-today').evaluate((el) => { const f = el.querySelector(':scope > .hero-why'); return f ? f.getBoundingClientRect().width - el.getBoundingClientRect().width : null; });
+    expect(footer).not.toBeNull();
+    expect(Math.abs(footer)).toBeLessThanOrEqual(2);
     await expect(page.locator('#rdn-long-go')).toHaveCount(0);
     await expect(page.locator('#rdn-plan-sub')).toHaveText(STRINGS.en.plan_sub.replace('%a', '0').replace('%b', '3'));
     await expect(page.locator('#rdn-plan-segs i')).toHaveCount(3);
     // The head's right side: the streak and today's set as five dots.
     await expect(page.locator('#rdn-streak-n')).toHaveText('0');
     await expect(page.locator('#rdn-streak .goaldots i')).toHaveCount(5);
+    // The count names its unit (pieces), unlike the Today screen's review answers.
+    await expect(page.locator('#rdn-streak .goal-txt')).toHaveText(fill(STRINGS.en.rdn_goal_txt, 0, 5));
     // Other ways to practice: scored exercise, pieces, voice (Reading drills is a first-class top tab).
     await expect(page.locator('#rdn-home .tools .tool')).toHaveCount(3);
     await expect(page.locator('#rdn-scored')).toBeVisible();
@@ -49,6 +62,18 @@ test.describe('Read home', () => {
     await page.locator('#rdt-drills').click();
     await expect(page.locator('#rdx-ladder')).toBeVisible();
     await expect(page.locator('#rdn-home')).toBeHidden();
+    // The day streak and today's set stay in view on the other tabs.
+    await expect(page.locator('#rdn-streak')).toBeVisible();
+    // A level opened from the list: its Practice card says Start and has focus, so Enter starts the drill.
+    await page.locator('#rdx-ladder [data-lv="tr2"]').click();
+    const main = page.locator('#rdx-body .rdx-mode-main');
+    await expect(main).toBeFocused();
+    await expect(main.locator('.rdx-mode-go')).toContainText(STRINGS.en.rd_start_short);
+    // Inside a level the strip steps aside, and it comes back on the level list.
+    await expect(page.locator('#rdn-streak')).toBeHidden();
+    await page.locator('#rdx-back').click();
+    await expect(page.locator('#rdx-ladder')).toBeVisible();
+    await expect(page.locator('#rdn-streak')).toBeVisible();
     await page.locator('#rdt-book').click();
     await expect(page.locator('#rdn-home')).toBeVisible();
     await expect(page.locator('#rdp-drills')).toBeHidden();
@@ -123,6 +148,14 @@ test.describe('Read home', () => {
     await expect(page.locator('.rdn-unit').nth(11)).toContainText(STRINGS.en.rdn_unit_check);
     await expect(page.locator('.rdn-unit .rdn-num').first()).toHaveAttribute('aria-label', fill(STRINGS.en.rdn_num_aria_none, 1));
     await expect(page.locator('.rdn-num.next')).toHaveAttribute('data-rdn-n', '1');
+    // Units fold: only the unit with the next piece is open; any unit opens from its header and stays open on redraw.
+    await expect(page.locator('details.rdn-unit[open]')).toHaveCount(1);
+    await expect(page.locator('details.rdn-unit').nth(0)).toHaveAttribute('open', '');
+    await expect(page.locator('[data-rdn-n="20"]')).toBeHidden();
+    await page.locator('details.rdn-unit').nth(2).locator('summary').click();
+    await expect(page.locator('[data-rdn-n="20"]')).toBeVisible();
+    await page.locator('[data-rdn-lv="1"]').click();   // the same level: the home is drawn again
+    await expect(page.locator('details.rdn-unit').nth(2)).toHaveAttribute('open', '');
 
     await page.locator('[data-rdn-key="G"]').click();
     await expect(page.locator('.rdn-unit')).toHaveCount(0);
@@ -267,12 +300,15 @@ test.describe('Read home', () => {
           // The level buttons: two rows of four below 480px, so none is narrower than 44px either.
           narrow: [...document.querySelectorAll('.rdn-lv')].filter((el) => el.getBoundingClientRect().width < 44).map((el) => el.dataset.rdnLv),
           count: controls.length,
+          // The three Read tabs are all inside the viewport: none is cut off at a phone's edge.
+          tabsOut: [...document.querySelectorAll('#rd-tabs [role=tab]')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 0.5).map((el) => el.id),
           today: box('.rdn-today'), main: box('.rdn-today-main'), side: box('.rdn-today-side'), bookCard: box('.rdn-book'), tools: box('#rdn-home .tools'),
         };
       });
       expect(facts.overflow).toBeLessThanOrEqual(0);
       expect(facts.small).toEqual([]);
       expect(facts.narrow).toEqual([]);
+      expect(facts.tabsOut).toEqual([]);
       expect(facts.count).toBeGreaterThan(100);
       // The book and the other ways come after the hero row, full width.
       expect(facts.bookCard.top).toBeGreaterThan(facts.today.bottom - 1);

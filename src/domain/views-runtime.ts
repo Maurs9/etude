@@ -240,6 +240,7 @@ function applyI18n() {
     midiController.localizeStatus();
     document.documentElement.lang = lang;
     renderModeNav();
+    syncDocTitle();
     pianoStatus();
     dockLabels();
     bleUi();
@@ -1012,7 +1013,15 @@ function fitHeader() {
 function renderModeNav() {
     const group = navGroup(view0()), views: readonly string[] = group ? NAV_GROUPS[group] : [];
     byId('modeBar').hidden = views.length < 2;
+    // Its own landmark name ("Practice", "Learn"), so a screen reader's landmark list does not show three "Sections".
+    byId('modeNav').setAttribute('aria-label', t(group ? 'nav_' + group : 'nav_sections'));
     byId('modeNav').innerHTML = views.map((v: string) => `<button type="button" data-view="${v}" aria-current="${v === view0() ? 'page' : 'false'}">${t(v === 'practice' ? 'nav_drills' : 'nav_' + v)}</button>`).join('');
+}
+// The tab title names the screen, in the interface language, so the browser's tab list and a screen reader say where
+// you are. The static title in etude.html stays for crawlers and the first paint.
+function syncDocTitle() {
+    const v = view0();
+    document.title = t(v === 'practice' ? 'nav_drills' : v === 'analysis' ? 'nav_scores' : 'nav_' + v) + ' — Étude';
 }
 function focusView(v: string) {
     const view = byId('view-' + v);
@@ -1128,11 +1137,9 @@ async function ensureFeature(view: router.AppView): Promise<FeatureController | 
     const promise = loader().then((controller) => {
         controller.mount?.(appHost);
         loadedFeatures[view] = controller;
-        delete featureLoadPromises[view];
         return controller;
-    }, (err) => {
+    }).finally(() => {
         delete featureLoadPromises[view];
-        throw err;
     });
     featureLoadPromises[view] = promise;
     return promise;
@@ -1565,6 +1572,7 @@ function showImpl(
             viewState.view = 'analysis';
             stageSync();
             document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-analysis'));
+            syncDocTitle();
             const targetGroup = navGroup('analysis');
             queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === targetGroup ? 'page' : 'false'));
             byId('modeBar').hidden = true;
@@ -1592,6 +1600,7 @@ function showImpl(
                 }
                 catch (_) { }
                 document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + prevView));
+                syncDocTitle();
                 const prevGroup = navGroup(prevView);
                 queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === prevGroup ? 'page' : 'false'));
                 renderModeNav();
@@ -1620,9 +1629,10 @@ function showImpl(
                 }
                 catch (_) { }
             }
-            void reader.abandonClaim().then((result) => {
+            return reader.abandonClaim().then((result) => {
+                if (navigation !== featureNavigation) return;
                 if (result.ok || !reader.isPendingSaveState()) {
-                    show(hum ? 'transcribe' : v, moveFocus, fromHistory);
+                    return show(hum ? 'transcribe' : v, { ...opts, moveFocus, fromHistory, analysisRoute: requestedAnRoute });
                 }
                 else if (location.hash.slice(1) !== prev) {
                     try {
@@ -1659,6 +1669,7 @@ function showImpl(
     _view = v;
     stageSync();
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
+    syncDocTitle();
     const group = navGroup(v);
     queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
     dockSync();

@@ -1,5 +1,5 @@
 import * as theory from '../../domain/theory.js';
-import { byId, eventClosest, eventElement, maybeById, queryAllHtml, queryHtml } from '../../domain/dom.js';
+import { byId, eventClosest, eventElement, maybeById, queryAllHtml, queryHtml, rovingFocus } from '../../domain/dom.js';
 import type { LStaffSpec } from '../../domain/score-types.js';
 import type { AppHost, FeatureController, TestSurfaceRegistry } from '../../domain/views.js';
 import {
@@ -229,6 +229,8 @@ export function createLearnFeature(host: AppHost): FeatureController {
       opt += '</optgroup>';
     });
     toc.innerHTML = h;
+    // One Tab stop for the chapter list (the open chapter); the arrow keys move between chapters.
+    rovingFocus(toc, 'button[data-li]', (b) => b.getAttribute('aria-current') === 'true');
     byId('learnExtra').innerHTML = '<label class="learn-pick"><span>' + host.i18n.t('lu_pick') + '</span><select id="learnPick">' + opt +
       '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + host.i18n.t('lu_gloss') + '</button>';
   }
@@ -565,6 +567,54 @@ export function createLearnFeature(host: AppHost): FeatureController {
       else widgets.lwInput(e);
     });
     body.addEventListener('change', (e) => widgets.lwInput(e));
+    // A rail entry scrolls to its section and moves focus there (buttons, not "#" links, which would change the view).
+    maybeById('learnRail')?.addEventListener('click', (e) => {
+      const b = eventClosest(e, '[data-lsec]');
+      const head = b ? learnRailHeads()[Number(b.dataset.lsec)] : undefined;
+      if (!head) return;
+      head.tabIndex = -1;
+      head.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      head.focus({ preventScroll: true });
+    });
+    learnRailWide();
+    learnRailMq?.addEventListener('change', learnRailPlace);
+  }
+
+  // Wide screens (1360px and up): a right rail beside the lesson with an outline of its sections and the cheat sheet.
+  // The cheat sheet is one node that moves between the lesson and the rail, so it is never shown or read twice.
+  const LEARN_RAIL_MQ = '(min-width: 1360px)';
+  let learnRailMq: MediaQueryList | null = null;
+  function learnRailWide(): boolean {
+    learnRailMq ??= typeof matchMedia === 'function' ? matchMedia(LEARN_RAIL_MQ) : null;
+    return !!learnRailMq?.matches;
+  }
+  function learnRailHeads(): HTMLElement[] {
+    // Sections only: a lesson widget's own heading (metronome, scale, chord) is not a section.
+    return queryAllHtml(byId('learnBody'), '.learn-content h4, #lq-h').filter((h) => !h.closest('[data-widget]'));
+  }
+  function learnRailPlace(): void {
+    const rail = maybeById('learnRail'), body = byId('learnBody');
+    const sum = document.querySelector('#view-learn .lsum');
+    if (!rail || !(sum instanceof HTMLElement)) return;
+    if (learnRailWide() && rail.childElementCount) rail.appendChild(sum);
+    else if (sum.parentElement !== body) body.insertBefore(sum, body.querySelector('#lq, .learn-nav'));
+  }
+  function learnRailRender(): void {
+    const rail = maybeById('learnRail');
+    const grid = rail?.parentElement;
+    if (!rail || !grid) return;
+    const heads = learnRailHeads();
+    if (learnGloss || !heads.length) {
+      rail.innerHTML = '';
+      grid.classList.remove('has-rail');
+      return;
+    }
+    // Section names without their leading icon ("✎ Check yourself" → "Check yourself").
+    const items = heads.map((h, i) => '<li><button type="button" data-lsec="' + i + '">' +
+      escHtml((h.textContent ?? '').replace(/^[^\p{L}\p{N}]+/u, '')) + '</button></li>').join('');
+    rail.innerHTML = '<nav class="lrail-out" aria-labelledby="lrail-h"><h4 id="lrail-h">' + escHtml(host.i18n.t('lu_outline')) + '</h4><ul>' + items + '</ul></nav>';
+    grid.classList.add('has-rail');
+    learnRailPlace();
   }
 
   function learnBodyHTML(L: Lesson): string {
@@ -591,6 +641,7 @@ export function createLearnFeature(host: AppHost): FeatureController {
       loading.dataset.lazyLoading = '';
       loading.textContent = host.i18n.localize('loading', 'Loading…');
       body.append(loading);
+      learnRailRender(); // the body has no sections while it loads, so this empties the rail of the previous lesson
       const requestedLanguage = lang;
       const request = ++learnRequest;
       learnLoading = Promise.all([loadLearn(requestedLanguage), loadLearnStaves()]).then(([payload]) => {
@@ -612,6 +663,7 @@ export function createLearnFeature(host: AppHost): FeatureController {
     if (learnGloss) {
       body.innerHTML = lgHTML();
       lgFilter();
+      learnRailRender();
       return;
     }
     const L = LESSONS[learnSel];
@@ -642,6 +694,7 @@ export function createLearnFeature(host: AppHost): FeatureController {
     });
     if (LQ && LQ.id !== L.id) LQ = null;
     lqRender();
+    learnRailRender();
     learnNavRender();
     const cur = byId('learnToc').querySelector('[aria-current="true"]');
     const toc = byId('learnToc');

@@ -5,7 +5,7 @@ import { RD_ALL, RD_ALLIV, RD_LV, RD_UNITS, isReadClef, isReadDrillType, type Re
 import { samePitch } from '../../core/pitch-match.js';
 import { SR_LET, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNotehead, ssSharp, ssStepOf, type SrToken } from '../../domain/score-types.js';
 import { srClef, srLedger2 } from '../../domain/grand-staff.js';
-import { byId, maybeById, inputById, selectById, eventElement, queryHtml, queryAllHtml } from '../../domain/dom.js';
+import { byId, maybeById, inputById, selectById, eventElement, queryHtml, queryAllHtml, rovingFocus } from '../../domain/dom.js';
 import { type CoachTip, type ReadDrillCustom, type ReadDrillLevelStat } from '../../domain/views.js';
 import { inputTime } from '../../domain/midi-timing.js';
 import { type SightReadingPiece, type SightReadingProfile } from '../../sight-reading/model.js';
@@ -1211,7 +1211,9 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       window.scrollTo({ top: Math.max(0, y), behavior: 'auto' }); }
     function rdOpen(L: ReadDrillLevel) { if (deps.RDN.screen !== 'drills')
       rdTab('drills'); rdAbort(); RD.L = L; if (!L.custom)
-      deps.rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = byId('rdx-back'); if (b)
+      deps.rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll();
+      // Focus on the Practice card, so Enter starts the drill; the back button when the level has no such card.
+      const b = queryHtml(byId('rdx-body'), '.rdx-mode-main') ?? maybeById('rdx-back'); if (b)
       b.focus({ preventScroll: true }); }
     function rdIntro() {
       const L = RD.L;
@@ -1230,7 +1232,8 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       const prev = pool ? `<div class="rdx-staff rdx-preview" aria-hidden="true">${pool}</div>` : '';
       const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${deps.t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${deps.t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
       const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
-      const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${deps.t('rdx_m_' + m)}</b><span>${deps.t('rdx_md_' + m + sfx)}</span></button>`;
+      const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${deps.t('rdx_m_' + m)}</b><span>${deps.t('rdx_md_' + m + sfx)}</span>` +
+          (m === 'practice' ? `<i class="rdx-mode-go">▶ ${deps.t('rd_start_short')}</i>` : '') + '</button>';
       // Each Challenge mode shows its record; Marathon is a group with one item per length.
       const best = (m: ReadDrillMode) => { const b = m === 'timeAttack' ? (r.ta ? deps.t('rdx_best_ta', deps.anNum(r.ta, 0)) : '') : m === 'survival' ? (r.sv ? deps.t('rdx_best_sv', deps.anNum(r.sv, 0)) : '') : r.mn ? deps.t('rdx_best_mn', r.mn) : ''; return b ? `<em>🏆 ${deps.rdEsc(b)}</em>` : ''; };
       const item = (m: ReadDrillMode) => m === 'marathon'
@@ -1507,14 +1510,17 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       const unit = RD_UNITS.find((u) => u.lv.includes(cont)), rec: Partial<ReadDrillLevelStat> = d.lv[cont.id] || {}, sample = rdLvSample(cont);
       const best = [rec.acc ? deps.t('rdx_best_acc', rec.acc) : '', rec.t ? deps.t('rdx_best_t', (rec.t / 1000).toFixed(1)) : ''].filter(Boolean).map((s) => `<span>${deps.rdEsc(s)}</span>`).join('');
       const opt = (id: string, on: boolean, key: string, off = false) => `<label class="switch-inline"><input type="checkbox" id="${id}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${deps.t(key)}</span></label>`;
-      // Stats, then the level to play next (a picture of it, its name, details and stars, and the button), then the options.
+      // Stats, then the level to play next (a picture of it, its name, details and stars, and the button), then the options,
+      // folded under "Drill options": they are settings kept between sessions, so they stay one tap away. The panel keeps
+      // its open state when the hero is drawn again.
+      const prevOpts = maybeById('rdx-opts'), optsOpen = prevOpts instanceof HTMLDetailsElement && prevOpts.open;
       byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${deps.t('rdx_hero_stars')}</div></div>
       <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${deps.t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${deps.t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${deps.t('rdx_st_time')}</span></div></div></div>
       <div class="rdx-next"><div class="rdx-next-pic" aria-hidden="true">${sample || `<span class="rdx-next-ic">${unit ? unit.icon : '🎯'}</span>`}</div>
         <div class="rdx-next-txt"><span class="rdx-next-eye">${deps.t(d.prefs.last ? 'rdx_hero_next' : 'rdx_hero_first')}</span><b class="rdx-next-name" id="rdx-next-name">${deps.rdEsc(deps.rdLvName(cont))}</b><span class="rdx-next-d" id="rdx-next-d">${deps.rdEsc(rdLvDetail(cont))}</span></div>
         <div class="rdx-next-go"><div class="rdx-rec">${rdStars(rec.s || 0)}${best}</div>
         <button class="btn primary" data-lv="${cont.id}" id="rdx-cont" aria-describedby="rdx-next-name rdx-next-d">▶ ${deps.t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}</button></div></div>
-      <div class="rdx-hero-r" role="group" aria-label="${deps.rdEsc(deps.t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!host.store.data().settings.weakSpotInjection, 'rdx_weak_inject')}</div>`;
+      <details class="rdx-hero-r" id="rdx-opts"${optsOpen ? ' open' : ''}><summary>${deps.rdEsc(deps.t('rdx_hero_opts'))}</summary><div class="rdx-opts-grid" role="group" aria-label="${deps.rdEsc(deps.t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!host.store.data().settings.weakSpotInjection, 'rdx_weak_inject')}</div></details>`;
       const filters = maybeById('rdx-filters');
       if (filters) {
           queryAllHtml(filters, '[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === rdxFilter)));
@@ -1533,6 +1539,8 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
               return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${deps.rdEsc(rdLvDetail(L))}" aria-label="${deps.rdEsc(deps.rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + deps.t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${deps.t('rdx_ty_' + L.ty)}</b><i>${deps.rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
           }).join('')}</div></section>`;
       }).join('');
+      // One Tab stop for the drill grid; the arrow keys move between levels.
+      rovingFocus(byId('rdx-ladder'), '.rdx-lv');
       rdCustomFill();
   }
     const RD_CDEF: Record<string, [string, string]> = { treble: ['C4', 'G5'], bass: ['F2', 'C4'], grand: ['C3', 'C5'], alto: ['D3', 'B4'], tenor: ['A2', 'G4'] };

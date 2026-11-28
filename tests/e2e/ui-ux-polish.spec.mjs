@@ -318,7 +318,38 @@ test.describe('Wave 2A UX and localization regressions', () => {
     expect(dark.ctaRatio).toBeGreaterThanOrEqual(4.5);
   });
 
-  test('Urtext Prussian palette and Mr De Haviland / Bodoni Moda typography apply to titles, hero numbers, and body text', async ({ app, page }) => {
+  test('Romanian headings render every accented letter in Etude Script', async ({ app, page }) => {
+    await page.clock.setFixedTime(new Date(2026, 0, 12, 20));
+    await app.open({ hash: 'today', lang: 'ro' });
+    await expect(page.locator('#greet-title')).toHaveText('Bună seara.');
+    const letters = 'ĂăÂâÎîȘșȚț';
+    await page.evaluate(text => {
+      for (const form of ['NFC', 'NFD']) {
+        const heading = document.createElement('h1');
+        heading.id = `romanian-${form}`;
+        heading.textContent = text.normalize(form);
+        document.querySelector('#today-home').append(heading);
+      }
+    }, letters);
+    await page.evaluate(() => document.fonts.ready);
+
+    const session = await page.context().newCDPSession(page);
+    try {
+      await session.send('DOM.enable');
+      await session.send('CSS.enable');
+      const { root } = await session.send('DOM.getDocument');
+      for (const selector of ['#greet-title', '#romanian-NFC', '#romanian-NFD']) {
+        const { nodeId } = await session.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+        const { fonts } = await session.send('CSS.getPlatformFontsForNode', { nodeId });
+        expect(fonts, selector).toMatchObject([{ postScriptName: 'EtudeScript-Regular', isCustomFont: true }]);
+        if (selector !== '#greet-title') expect(fonts[0].glyphCount).toBe(letters.length);
+      }
+    } finally {
+      await session.detach();
+    }
+  });
+
+  test('Urtext Prussian palette and Etude Script / Bodoni Moda typography apply to titles, hero numbers, and body text', async ({ app, page }) => {
     await app.open({ hash: 'today' });
     const today = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
@@ -328,6 +359,7 @@ test.describe('Wave 2A UX and localization regressions', () => {
         markFont: fontOf('.brand .mark'),
         tagFont: fontOf('.brand .tag'),
         h1Font: fontOf('#greet-title'),
+        h1Size: getComputedStyle(document.querySelector('#greet-title')).fontSize,
         streakFont: fontOf('#streakN'),
         countFont: fontOf('#c-due'),
         cardTitleFont: fontOf('#hero-title'),
@@ -337,46 +369,48 @@ test.describe('Wave 2A UX and localization regressions', () => {
     });
     expect(today.bodyFont).toContain('Bodoni Moda');
     expect(today.cardTitleFont).toContain('Bodoni Moda');
-    expect(today.markFont).toContain('Mr De Haviland');
-    expect(today.tagFont).toContain('Mr De Haviland');
-    expect(today.h1Font).toContain('Mr De Haviland');
-    expect(today.streakFont).toContain('Mr De Haviland');
-    expect(today.countFont).toContain('Mr De Haviland');
+    expect(today.markFont).toContain('Etude Script');
+    expect(today.tagFont).toContain('Etude Script');
+    expect(today.h1Font).toContain('Etude Script');
+    expect(today.streakFont).toContain('Etude Script');
+    expect(today.countFont).toContain('Etude Script');
     expect(today.accent).toBe('#1e4266');
     expect(today.paper).toBe('#f5f4ef');
 
     await page.evaluate(() => { window.__etude.show('progress'); });
     await expect(page.locator('#view-progress')).toHaveClass(/active/);
+    await expect(page.locator('#progStats .s b').first()).toBeVisible();
     const prog = await page.evaluate(() => ({
       h1Font: getComputedStyle(document.querySelector('#view-progress h1')).fontFamily,
       statFont: getComputedStyle(document.querySelector('#progStats .s b')).fontFamily,
       statLabelFont: getComputedStyle(document.querySelector('#progStats .s span')).fontFamily,
     }));
-    expect(prog.h1Font).toContain('Mr De Haviland');
-    expect(prog.statFont).toContain('Mr De Haviland');
+    expect(prog.h1Font).toContain('Etude Script');
+    expect(prog.statFont).toContain('Etude Script');
     expect(prog.statLabelFont).toContain('Bodoni Moda');
 
     const bodyOptical = await page.evaluate(() => getComputedStyle(document.body).fontOpticalSizing);
     expect(bodyOptical).toBe('none');
 
-    // Romanian headings use italic Bodoni Moda because Mr De Haviland lacks ă/ș/ț, while the É brand mark, fixed 'note & nuance' tagline, and numerals keep script.
     await expect(page.locator('#brand-tag')).toHaveText('note & nuance');
     await expect(page.locator('#view-today .today-head .eyebrow, #view-learn .section-head .eyebrow, #view-practice .section-head .eyebrow')).toHaveCount(0);
-    await page.evaluate(() => { window.__etude.setLang('ro'); window.__etude.show('today'); });
+    await page.evaluate(async () => { await window.__etude.setLang('ro'); window.__etude.show('today'); });
     await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
     await expect(page.locator('#brand-tag')).toHaveText('note & nuance');
     const ro = await page.evaluate(() => ({
       h1Font: getComputedStyle(document.querySelector('#greet-title')).fontFamily,
       h1Style: getComputedStyle(document.querySelector('#greet-title')).fontStyle,
+      h1Size: getComputedStyle(document.querySelector('#greet-title')).fontSize,
       tagFont: getComputedStyle(document.querySelector('.brand .tag')).fontFamily,
       markFont: getComputedStyle(document.querySelector('.brand .mark')).fontFamily,
       countFont: getComputedStyle(document.querySelector('#c-due')).fontFamily,
     }));
-    expect(ro.h1Font).toContain('Bodoni Moda');
-    expect(ro.h1Style).toBe('italic');
-    expect(ro.tagFont).toContain('Mr De Haviland');
-    expect(ro.markFont).toContain('Mr De Haviland');
-    expect(ro.countFont).toContain('Mr De Haviland');
+    expect(ro.h1Font).toBe(today.h1Font);
+    expect(ro.h1Style).toBe('normal');
+    expect(ro.h1Size).toBe(today.h1Size);
+    expect(ro.tagFont).toBe(today.tagFont);
+    expect(ro.markFont).toBe(today.markFont);
+    expect(ro.countFont).toBe(today.countFont);
 
     // Dark-mode active reading drill filter chip uses --accent-ink instead of low-contrast white.
     await page.evaluate(() => {

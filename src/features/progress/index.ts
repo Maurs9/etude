@@ -78,8 +78,18 @@ export function createProgressFeature(host: AppHost, shell: ProgressShell): Prog
 
   function mount(): void {
     if (mounted) return;
-    mounted = true;
-      // progress
+    const listeners = new AbortController();
+    try {
+      wireControls(listeners.signal);
+      mounted = true;
+    } catch (err) {
+      listeners.abort();
+      throw err;
+    }
+  }
+
+  function wireControls(signal: AbortSignal): void {
+      const options = { signal };
       byId('prog-report-csv').addEventListener('click', () => {
           void (async () => {
               const reportModule = progressView;
@@ -123,7 +133,7 @@ export function createProgressFeature(host: AppHost, shell: ProgressShell): Prog
               });
               downloadBlob(`etude-practice-report-${report.generatedDateIso}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
           })();
-      });
+      }, options);
       byId('prog-report-print').addEventListener('click', () => {
           void (async () => {
               const reportModule = progressView;
@@ -133,9 +143,9 @@ export function createProgressFeature(host: AppHost, shell: ProgressShell): Prog
               if (typeof window.print === 'function')
                   window.print();
           })();
-      });
-      byId('prog-import').addEventListener('click', () => byId('importBtn').click());
-      byId('prog-start').addEventListener('click', () => { show('today'); shell.startReview(); });
+      }, options);
+      byId('prog-import').addEventListener('click', () => byId('importBtn').click(), options);
+      byId('prog-start').addEventListener('click', () => { show('today'); shell.startReview(); }, options);
   }
 
   // The view module loads on the first visit and is kept; the signal drops a render for a view left meanwhile.

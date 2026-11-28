@@ -2,6 +2,7 @@ import {
   byId as defaultById,
   maybeById as defaultMaybeById,
   queryAllHtml as defaultQueryAllHtml,
+  rovingFocus,
   selectById as defaultSelectById,
 } from './dom.js';
 import { srClef, srKeySigG } from './grand-staff.js';
@@ -311,6 +312,8 @@ export function cofBindKeys(box: Element, onPick: (i: number, minor: boolean) =>
       }
     });
   });
+  // One Tab stop for the 24 keys; the arrow keys move between them.
+  rovingFocus(box, '.cof-k', (g) => g.getAttribute('aria-pressed') === 'true');
 }
 
 export function cofWheelSelect(box: Element, index: number, minor: boolean, picked: boolean): void {

@@ -121,9 +121,22 @@ test('production build navigates every view cleanly without __etude or test-surf
   await booted(page);
   expect(await page.evaluate(() => '__etude' in window)).toBe(false);
 
-  for (const viewId of ['today', 'explore', 'sing', 'learn', 'analysis', 'practice', 'read', 'progress']) {
+  const renderedContent = {
+    today: '#goaldots > i',
+    explore: '#refRoot option',
+    sing: '#si-level option',
+    learn: '#learnBody .learn-content',
+    analysis: '#pc-list button[data-piece]',
+    practice: '#pr-keys [role="radio"]',
+    read: '#rdn-today-go',
+    progress: '#progStats .s',
+  };
+  for (const [viewId, content] of Object.entries(renderedContent)) {
     await page.evaluate((id) => { location.hash = '#' + id; }, viewId);
-    await expect(page.locator(`#view-${viewId}`), `#view-${viewId}`).toBeVisible();
+    const view = page.locator(`#view-${viewId}`);
+    await expect(view).toBeVisible();
+    await expect(view.locator(content).first(), `${viewId} renders ${content}`).toBeAttached();
+    await expect(page.locator('#locale-load-error, .notation-reload'), `${viewId} load errors`).toHaveCount(0);
   }
   expect(await page.evaluate(() => '__etude' in window)).toBe(false);
   expect(failed).toEqual([]);

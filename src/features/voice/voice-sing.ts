@@ -132,6 +132,13 @@ export function createSightSingController(
   const ssSvgCache = new WeakMap<SVGSVGElement, SsSvgCacheEntry>();
   const ssBeatPtsCache = new WeakMap<SightSingRender, { b: number; x: number }[]>();
 
+  // The microphone could not start: say so, and bring the message into view, since it sits below the staff and the
+  // button that was pressed (on a phone it was below the fold).
+  function siNoMic(): void {
+    const hint = byId('si-hint');
+    hint.textContent = host.i18n.t('si_nomic');
+    hint.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
   function requireSingExercise(): SightSingExercise {
     if (!sing.ex) throw new Error('Étude: no sight-singing exercise');
     return sing.ex;
@@ -296,7 +303,7 @@ export function createSightSingController(
           if (sing.stream !== tap.stream) return;
           if (sing.mode === 'free') singStopAll();
           else ssMicStop();
-          byId('si-hint').textContent = host.i18n.t('si_nomic');
+          siNoMic();
         }, { once: true });
       }
       return true;
@@ -588,7 +595,7 @@ export function createSightSingController(
     const run = sing.runId;
     void ssMicMaybe().then((ok) => {
       if (run === sing.runId && sing.active && sing.mode === 'note') {
-        if (!ok) byId('si-hint').textContent = host.i18n.t('si_nomic');
+        if (!ok) siNoMic();
         sing.raf = requestAnimationFrame(ssNoteLoop);
       }
     });
@@ -670,7 +677,7 @@ export function createSightSingController(
       if (run !== sing.runId || !sing.active || sing.mode !== 'phrase') return;
       const audible = context && (context.state === 'running' || await host.audio.timedReady(context));
       if (run !== sing.runId || !sing.active || sing.mode !== 'phrase') return;
-      if (!ok) byId('si-hint').textContent = host.i18n.t('si_nomic');
+      if (!ok) siNoMic();
       const [beats, unit] = requireSingExercise().ts;
       const compound = unit === 8 && beats > 3 && beats % 3 === 0;
       const beatSec = 60 / sing.bpm * (compound ? 1.5 : 4 / unit);

@@ -31,6 +31,38 @@ test('boots and visits every view without uncaught errors', async ({ app }) => {
   await expect(page.locator('#view-transcribe')).toHaveCount(0);
 });
 
+test('retries Progress after a mount failure without duplicating handlers', async ({ app }) => {
+  const page = await app.open();
+  await page.evaluate(() => {
+    const addEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (type, ...args) {
+      if (this.id === 'prog-import' && type === 'click') {
+        EventTarget.prototype.addEventListener = addEventListener;
+        throw new Error('One-time failure while wiring Progress controls');
+      }
+      return addEventListener.call(this, type, ...args);
+    };
+  });
+
+  await page.locator('#nav button[data-view="progress"]').click();
+  const error = page.locator('#locale-load-error[data-lazy-owner="progress"]');
+  await expect(error).toBeVisible();
+  await expect(page.locator('#progStats .s')).toHaveCount(0);
+
+  await error.locator('[data-lazy-retry]').click();
+  await expect(page.locator('#progStats .s')).toHaveCount(5);
+  await expect(error).toHaveCount(0);
+  expect(await page.locator('#prog-export').evaluate((button) => {
+    let forwarded = 0;
+    document.getElementById('exportBtn').addEventListener('click', (event) => {
+      event.stopImmediatePropagation();
+      forwarded++;
+    }, { capture: true });
+    button.click();
+    return forwarded;
+  })).toBe(1);
+});
+
 test.describe('i18n', () => {
   for (const [lang, wording] of [['en', 'compatible Bluetooth MIDI pianos and keyboards'], ['ro', 'piane și claviaturi compatibile']]) {
     test(`Bluetooth MIDI description is instrument-neutral (${lang})`, async ({ app }) => {
@@ -1375,8 +1407,24 @@ test('wide practice and score surfaces use available space while Learn text rema
     expect(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth),view).toBe(true);
   }
   expect((await page.locator('#dock > .wrap').boundingBox()).width).toBeGreaterThan(1480);
+  // Learn lines up with the header and uses the width for a rail, while its text keeps a readable measure (66ch).
   await page.evaluate(() => window.__etude.show('learn'));
-  expect((await page.locator('#view-learn > .wrap').boundingBox()).width).toBeLessThanOrEqual(1240);
+  await page.evaluate(() => window.__etude.learnReady);
+  const learn = await page.evaluate(() => {
+    const p = [...document.querySelectorAll('#learnBody p')].find((el) => el.textContent.length > 200);
+    // 66ch measured in the paragraph's own font: a run of 66 zeros.
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute; visibility:hidden; white-space:nowrap';
+    probe.textContent = '0'.repeat(66);
+    p.appendChild(probe);
+    const measure = probe.getBoundingClientRect().width;
+    probe.remove();
+    return { brand: document.querySelector('.brand').getBoundingClientRect().left, title: document.querySelector('#view-learn h1').getBoundingClientRect().left,
+      text: p.getBoundingClientRect().width, measure };
+  });
+  expect(Math.abs(learn.title - learn.brand)).toBeLessThanOrEqual(2);
+  expect(learn.text).toBeLessThanOrEqual(learn.measure + 1);
+  await expect(page.locator('#learnRail')).toBeVisible();
 });
 
 for (const lang of ['en', 'ro']) {
@@ -2214,6 +2262,7 @@ test.describe('reading drills: note stream', () => {
   test('turning the stream off on the drills page also turns off the ghost option', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     await page.locator('#rdt-drills').click();
+    await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
     const flow = page.locator('#rdx-flow'), ghost = page.locator('#rdx-ghost');
     await expect(flow).toBeChecked();
     await expect(ghost).toBeEnabled();
@@ -2552,6 +2601,7 @@ test.describe('reading drills: arcade modes', () => {
   test('turning the stage off keeps a running drill inside the page', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     await page.locator('#rdt-drills').click();
+    await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
     await page.locator('#rdx-stage-pref').uncheck();
     expect(await page.evaluate(() => window.__etude.rdData().prefs.stage)).toBe(false);
     await start(page, TREBLE_PLAY, 'survival');
@@ -2704,6 +2754,7 @@ test('Settings row labels use for= associations and toggle switches when clicked
 test('weak-spot injection is opt-in and steers only practice, survival and marathon', async ({ app, page }) => {
   await app.open({ hash: 'read' });
   await page.locator('#rdt-drills').click();
+  await page.locator('#rdx-opts > summary').click(); // the drill options are folded under "Drill options"
   await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();
   await page.locator('#settingsBtn').click();
   await page.locator('label:has(#set-weak-inject)').click();

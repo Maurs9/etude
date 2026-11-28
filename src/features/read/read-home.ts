@@ -222,9 +222,11 @@ export function createReadHome(deps: ReadHomeDeps) {
       const active = document.activeElement, focusKey = active instanceof HTMLElement && box.contains(active) ? active.dataset.rdnFocus ?? '' : '';
       const more = box.querySelector('#rdn-more-keys');
       const moreOpen = more instanceof HTMLDetailsElement && more.open;
+      // Units the reader opened stay open when the home is drawn again.
+      const openUnits = new Set([...box.querySelectorAll('details.rdn-unit[open]')].map((d) => Number(d instanceof HTMLElement ? d.dataset.unit : -1)));
       // Single unified Today hero + companion routine, then the book, then the other ways to practice.
       box.innerHTML = rdnHeroHtml(state, today) +
-          `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-book-sec">${deps.rdEsc(deps.t('rdn_book_eyebrow'))}</h2>${rdnBookHtml(state, moreOpen)}` +
+          `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-book-sec">${deps.rdEsc(deps.t('rdn_book_eyebrow'))}</h2>${rdnBookHtml(state, moreOpen, openUnits)}` +
           `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-tools-h">${deps.rdEsc(deps.t('today_tools'))}</h2>${rdnToolsHtml()}`;
       rdnStreakUi(state, today);
       if (focusKey) {
@@ -249,7 +251,7 @@ export function createReadHome(deps: ReadHomeDeps) {
       const pick = [...(today + '|' + index)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % pool.length;
       return { kind: 'long', date: today, level: state.level, key: state.focusKey ?? pool[pick].id, index };
   }
-    /** Unified Today card: Today's 5-piece set on the left, the two complementary routine steps (Warm-up & Long piece) on the right. */
+    /** Unified Today card: Today's 5-piece set on the left, the three routine steps (Warm-up, the set, Long piece) on the right. */
   function rdnHeroHtml(state: ReadingBookState, today: string) {
       // The card describes the set (its level and keys), which stays for the day once a piece of it was played.
       const daily = deps.RDN.noDaily ? null : state.daily, e = deps.rdEsc, lv = state.level, avg = srtLevelAverage(state, lv);
@@ -271,12 +273,21 @@ export function createReadHome(deps: ReadHomeDeps) {
               `<button type="button" class="btn" id="rdn-suggest-go" data-rdn-focus="suggest">${e(deps.t('rdn_suggest_go', lv + 1))}</button></div>`
           : '';
       const items = rdnPlanItems(state, today), nextIdx = items.findIndex((it) => !it.done && !it.off);
-      const sideItems = [items[0], items[2]];
-      const rows = sideItems.map((it) => {
-          const idx = items.indexOf(it), warm = it.id === 'rdn-warm-go';
+      // All three steps are listed and numbered 1-3, so the list matches "n of 3 done". Today's set (step 2) is a status
+      // row only: its controls are the slots and the Start button beside it, so the list adds no duplicate control.
+      const rows = items.map((it, idx) => {
+          const warm = it.id === 'rdn-warm-go', mark = it.done ? '✓' : String(idx + 1);
+          if (it.id === 'rdn-plan-set') {
+              // With a set, the visible "Today's set · 0/5" is read as one sentence ("Today's set: 0 of 5 pieces read").
+              // Without one, the title and "No set today." are read as they are shown.
+              const title = it.pill ? `<span aria-hidden="true">${e(it.t)}</span><span class="visually-hidden">${e(deps.t('rdn_goal_aria', played, total))}</span>` : e(it.t);
+              return `<li class="plan-step rdn-set-step" data-done="${it.done}"${it.partial ? ' data-partial="true"' : ''}>` +
+                  `<span class="ck" aria-hidden="true">${mark}</span><span class="pt">${title}</span>` +
+                  (it.pill ? `<span class="plan-end" aria-hidden="true"><span class="plan-pill">${e(it.pill)}</span></span>` : `<span class="pd">${e(it.d)}</span>`) + '</li>';
+          }
           return `<li><button type="button" class="plan-item${warm ? ' rdn-warm' : ''}" id="${it.id}" data-rdn-focus="${it.focus}" data-done="${it.done}"` +
               `${idx === nextIdx ? ' data-next="true"' : ''}${it.off ? ' disabled' : ''}>` +
-              `<span class="ck" aria-hidden="true">${it.done ? '✓' : idx === 0 ? 1 : 2}</span>` +
+              `<span class="ck" aria-hidden="true">${mark}</span>` +
               `<span class="pt"><span${warm ? ' id="rdn-warm-h"' : ''}>${e(it.t)}</span>${it.done ? `<span class="visually-hidden"${warm ? ' id="rdn-warm-done"' : ''}> — ${e(deps.t(warm ? 'rdn_warm_done' : 'done_today'))}</span>` : ''}</span>` +
               `<span class="pd"${it.dId ? ` id="${it.dId}"` : ''}>${e(it.d)}</span>` +
               `<span class="plan-end" aria-hidden="true"><span class="plan-go">→</span></span>` + '</button></li>';
@@ -287,11 +298,12 @@ export function createReadHome(deps: ReadHomeDeps) {
           (daily ? `<p class="nextup rdn-sub">${e(rdnSetLine(state))}</p>` : `<p class="nextup rdn-sub" id="rdn-no-set">${e(deps.t('rdn_no_set'))}</p>`) +
           (stays ? `<p class="rdn-sub rdn-stays" id="rdn-today-stays">${e(stays)}</p>` : '') +
           (daily ? `<div class="rdn-slots" role="group" aria-label="${e(deps.t('rdn_today_title'))}">${chips}</div>` : '') +
-          `<div class="hero-actions"><button type="button" class="btn primary lg" id="rdn-today-go" data-rdn-focus="today-go"${!daily || played >= total ? ' disabled' : ''}>${e(deps.t(daily ? go : 'rdn_today_start'))}</button></div></div>` +
-          `<div class="hero-why"><span class="why">✦ ${e(deps.t('rdn_why'))}</span>${suggest}</div></div>` +
+          `<div class="hero-actions"><button type="button" class="btn primary lg" id="rdn-today-go" data-rdn-focus="today-go"${!daily || played >= total ? ' disabled' : ''}>${e(deps.t(daily ? go : 'rdn_today_start'))}</button></div></div></div>` +
           `<div class="rdn-today-side" id="rdn-plan" aria-labelledby="rdn-plan-h"><div class="plan-head"><div><h3 id="rdn-plan-h" tabindex="-1">${e(deps.t('rdn_plan_title'))}</h3>` +
           `<div class="plan-meta"><span class="sub" id="rdn-plan-sub">${e(deps.t('plan_sub', items.filter((it) => it.done).length, items.length))}</span>` +
-          `<div class="plan-segs" id="rdn-plan-segs" aria-hidden="true">${segs}</div></div></div></div><ul class="plan-list rdn-side-list">${rows}</ul></div></div></section>`;
+          `<div class="plan-segs" id="rdn-plan-segs" aria-hidden="true">${segs}</div></div></div></div><ul class="plan-list rdn-side-list">${rows}</ul></div></div>` +
+          // The footer spans the whole card, under both columns.
+          `<div class="hero-why"><span class="why">✦ ${e(deps.t('rdn_why'))}</span>${suggest}</div></section>`;
   }
     function rdnPlanItems(state: ReadingBookState, today: string): RdnPlanItem[] {
       const lv = state.level, daily = deps.RDN.noDaily ? null : state.daily;
@@ -321,7 +333,7 @@ export function createReadHome(deps: ReadHomeDeps) {
       const daily = deps.RDN.noDaily ? null : state.daily, total = daily ? daily.slots.length : SRT_DAILY_PIECES, played = daily ? daily.done.filter((x) => x !== null).length : 0;
       const dots = Array.from({ length: total }, (_, i) => `<i${i < played ? ' class="on"' : ''}></i>`).join('');
       box.innerHTML = `<div><span class="big num" id="rdn-streak-n">${srtStreak(state, today)}</span><small class="streak-l">${deps.rdEsc(deps.t('streak_label'))}</small></div>` +
-          `<div class="goaldots" role="img" aria-label="${deps.rdEsc(deps.t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${deps.rdEsc(deps.t('goal_txt', played, total))}</small>`;
+          `<div class="goaldots" role="img" aria-label="${deps.rdEsc(deps.t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${deps.rdEsc(deps.t('rdn_goal_txt', played, total))}</small>`;
       box.hidden = false;
   }
     function rdnNumChip(n: number, stat: PieceStat | undefined, next: boolean) {
@@ -340,7 +352,7 @@ export function createReadHome(deps: ReadHomeDeps) {
           return named ? rdnKeyName(srtReadingKey(unit.keys[0])) : deps.t('rdn_unit_newkey');
       return deps.t(unit.kind === 'check' ? 'rdn_unit_check' : 'rdn_unit_mix');
   }
-    function rdnBookHtml(state: ReadingBookState, moreOpen: boolean) {
+    function rdnBookHtml(state: ReadingBookState, moreOpen: boolean, openUnits: ReadonlySet<number> = new Set()) {
       const e = deps.rdEsc, lv = state.level, level = srtLevel(lv), focus = state.focusKey;
       const levels = srtLevels().map((l) => `<button type="button" class="rdn-lv" data-rdn-lv="${l.id}" data-rdn-focus="lv${l.id}" aria-pressed="${l.id === lv}" ` +
           `aria-label="${e(deps.t('rdn_level_aria', l.id, rdnLevelName(l.id)))}">${l.id}</button>`).join('');
@@ -362,14 +374,19 @@ export function createReadHome(deps: ReadHomeDeps) {
           const go = tally.done === 0 ? deps.t('rdn_go_start', 1) : next === null ? deps.t('rdn_go_replay', 1) : deps.t('rdn_go_continue', next);
           head = `<h3>${e(deps.t('rdn_book_head', lv))}</h3><span class="rdn-sub" id="rdn-book-done">${e(deps.t('rdn_done_of', tally.done, SRT_BOOK_PIECES))}</span>` +
               `<span class="rdn-sp"></span><button type="button" class="btn primary" id="rdn-book-go" data-rdn-n="${next ?? 1}" data-rdn-focus="book-go">${e(go)}</button>`;
+          // Each unit folds: the one with the next piece is open, and so is any unit the reader opened. Every piece stays one
+          // tap away, and a phone no longer scrolls past 96 buttons to reach the rest of the page.
+          const nextUnit = Math.floor(((next ?? 1) - 1) / SRT_UNIT_PIECES);
           body = '<div class="rdn-units">' + srtBookUnits(lv).map((unit) => {
               const first = unit.index * SRT_UNIT_PIECES + 1;
               const nums = Array.from({ length: SRT_UNIT_PIECES }, (_, i) => first + i);
               const played = nums.filter((n) => state.pieces[srtBookId(lv, n)]).length;
-              return `<section class="rdn-unit" aria-label="${e(deps.t('rdn_unit', unit.index + 1) + ', ' + rdnUnitLabel(unit, true))}"><div class="rdn-uh"><b>${e(deps.t('rdn_unit', unit.index + 1))}</b>` +
+              const open = unit.index === nextUnit || openUnits.has(unit.index);
+              return `<details class="rdn-unit" data-unit="${unit.index}"${open ? ' open' : ''} aria-label="${e(deps.t('rdn_unit', unit.index + 1) + ', ' + rdnUnitLabel(unit, true))}">` +
+                  `<summary class="rdn-uh" data-rdn-focus="unit${unit.index}"><b>${e(deps.t('rdn_unit', unit.index + 1))}</b>` +
                   `<span>${e(rdnUnitLabel(unit, true))}</span>${unit.kind === 'newKey' ? `<span class="rdn-tag">${e(deps.t('rdn_new_key'))}</span>` : ''}` +
-                  `<span class="rdn-uc">${played}/${SRT_UNIT_PIECES}</span></div><div class="rdn-nums8">` +
-                  nums.map((n) => rdnNumChip(n, state.pieces[srtBookId(lv, n)], n === next)).join('') + '</div></section>';
+                  `<span class="rdn-uc">${played}/${SRT_UNIT_PIECES}</span></summary><div class="rdn-nums8">` +
+                  nums.map((n) => rdnNumChip(n, state.pieces[srtBookId(lv, n)], n === next)).join('') + '</div></details>';
           }).join('') + '</div>';
       }
       else {
