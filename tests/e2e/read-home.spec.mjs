@@ -45,6 +45,8 @@ test.describe('Read home', () => {
     // The head's right side: the streak and today's set as five dots.
     await expect(page.locator('#rdn-streak-n')).toHaveText('0');
     await expect(page.locator('#rdn-streak .goaldots i')).toHaveCount(5);
+    // The count names its unit (pieces), unlike the Today screen's review answers.
+    await expect(page.locator('#rdn-streak .goal-txt')).toHaveText(fill(STRINGS.en.rdn_goal_txt, 0, 5));
     // Other ways to practice: scored exercise, pieces, voice (Reading drills is a first-class top tab).
     await expect(page.locator('#rdn-home .tools .tool')).toHaveCount(3);
     await expect(page.locator('#rdn-scored')).toBeVisible();
@@ -60,6 +62,15 @@ test.describe('Read home', () => {
     await page.locator('#rdt-drills').click();
     await expect(page.locator('#rdx-ladder')).toBeVisible();
     await expect(page.locator('#rdn-home')).toBeHidden();
+    // The day streak and today's set stay in view on the other tabs.
+    await expect(page.locator('#rdn-streak')).toBeVisible();
+    // A level opened from the list: its Practice card says Start and has focus, so Enter starts the drill.
+    await page.locator('#rdx-ladder [data-lv="tr2"]').click();
+    const main = page.locator('#rdx-body .rdx-mode-main');
+    await expect(main).toBeFocused();
+    await expect(main.locator('.rdx-mode-go')).toContainText(STRINGS.en.rd_start_short);
+    await page.locator('#rdx-back').click();
+    await expect(page.locator('#rdx-ladder')).toBeVisible();
     await page.locator('#rdt-book').click();
     await expect(page.locator('#rdn-home')).toBeVisible();
     await expect(page.locator('#rdp-drills')).toBeHidden();

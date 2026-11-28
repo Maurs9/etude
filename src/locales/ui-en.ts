@@ -2164,6 +2164,7 @@ const payload: UIPayload = {
       "lu_due": "Due for review",
       "lu_sum": "Cheat sheet",
       "lu_outline": "On this page",
+      "rdn_goal_txt": "%a / %b pieces today",
       "lu_quiz": "Check yourself",
       "lu_quiz_d": "%a questions — get %b right to complete the chapter.",
       "lu_q_start": "Start the check",

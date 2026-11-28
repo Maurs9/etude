@@ -2164,6 +2164,7 @@ const payload: UIPayload = {
       "lu_due": "De recapitulat",
       "lu_sum": "Fișă rezumat",
       "lu_outline": "Pe această pagină",
+      "rdn_goal_txt": "%a / %b piese azi",
       "lu_quiz": "Verifică-te",
       "lu_quiz_d": "%a întrebări — răspunde corect la %b ca să termini capitolul.",
       "lu_q_start": "Începe verificarea",

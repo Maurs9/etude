@@ -1211,7 +1211,9 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       window.scrollTo({ top: Math.max(0, y), behavior: 'auto' }); }
     function rdOpen(L: ReadDrillLevel) { if (deps.RDN.screen !== 'drills')
       rdTab('drills'); rdAbort(); RD.L = L; if (!L.custom)
-      deps.rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = byId('rdx-back'); if (b)
+      deps.rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll();
+      // Focus on the Practice card, so Enter starts the drill; the back button when the level has no such card.
+      const b = queryHtml(byId('rdx-body'), '.rdx-mode-main') ?? maybeById('rdx-back'); if (b)
       b.focus({ preventScroll: true }); }
     function rdIntro() {
       const L = RD.L;
@@ -1230,7 +1232,8 @@ export function createReadingDrills(deps: ReadingDrillsDeps) {
       const prev = pool ? `<div class="rdx-staff rdx-preview" aria-hidden="true">${pool}</div>` : '';
       const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${deps.t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${deps.t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
       const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
-      const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${deps.t('rdx_m_' + m)}</b><span>${deps.t('rdx_md_' + m + sfx)}</span></button>`;
+      const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${deps.t('rdx_m_' + m)}</b><span>${deps.t('rdx_md_' + m + sfx)}</span>` +
+          (m === 'practice' ? `<i class="rdx-mode-go">▶ ${deps.t('rd_start_short')}</i>` : '') + '</button>';
       // Each Challenge mode shows its record; Marathon is a group with one item per length.
       const best = (m: ReadDrillMode) => { const b = m === 'timeAttack' ? (r.ta ? deps.t('rdx_best_ta', deps.anNum(r.ta, 0)) : '') : m === 'survival' ? (r.sv ? deps.t('rdx_best_sv', deps.anNum(r.sv, 0)) : '') : r.mn ? deps.t('rdx_best_mn', r.mn) : ''; return b ? `<em>🏆 ${deps.rdEsc(b)}</em>` : ''; };
       const item = (m: ReadDrillMode) => m === 'marathon'

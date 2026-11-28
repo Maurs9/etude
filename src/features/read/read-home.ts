@@ -331,7 +331,7 @@ export function createReadHome(deps: ReadHomeDeps) {
       const daily = deps.RDN.noDaily ? null : state.daily, total = daily ? daily.slots.length : SRT_DAILY_PIECES, played = daily ? daily.done.filter((x) => x !== null).length : 0;
       const dots = Array.from({ length: total }, (_, i) => `<i${i < played ? ' class="on"' : ''}></i>`).join('');
       box.innerHTML = `<div><span class="big num" id="rdn-streak-n">${srtStreak(state, today)}</span><small class="streak-l">${deps.rdEsc(deps.t('streak_label'))}</small></div>` +
-          `<div class="goaldots" role="img" aria-label="${deps.rdEsc(deps.t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${deps.rdEsc(deps.t('goal_txt', played, total))}</small>`;
+          `<div class="goaldots" role="img" aria-label="${deps.rdEsc(deps.t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${deps.rdEsc(deps.t('rdn_goal_txt', played, total))}</small>`;
       box.hidden = false;
   }
     function rdnNumChip(n: number, stat: PieceStat | undefined, next: boolean) {
