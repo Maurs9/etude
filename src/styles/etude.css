@@ -86,7 +86,7 @@
   #view-read > .wrap,#view-sing > .wrap,#view-explore > .wrap,#dock > .wrap,
   /* Learn and Method line up with the header; their text keeps its 66ch measure, and Learn uses the width for a rail. */
   #view-learn > .wrap,#view-method > .wrap{max-width:var(--work-max)}
-  #view-analysis > .wrap{max-width:1760px}
+  #view-analysis > .wrap{max-width:var(--work-max)}
 
   /* ---------- top bar ---------- */
   header{position:sticky; top:0; z-index:var(--z-header); background:var(--headbg); backdrop-filter:blur(10px);
